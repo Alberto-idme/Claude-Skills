@@ -1,0 +1,1647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claude Code Skills Cheat Sheet</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #232733;
+    --border: #2e3345;
+    --text: #e1e4ed;
+    --text-dim: #8b8fa7;
+    --accent: #7c6bf5;
+    --accent-dim: #5b4ec4;
+    --green: #4ade80;
+    --orange: #fb923c;
+    --cyan: #22d3ee;
+    --pink: #f472b6;
+    --yellow: #facc15;
+    --red: #f87171;
+    --blue: #60a5fa;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    display: flex;
+    min-height: 100vh;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    width: 280px;
+    min-width: 280px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 100;
+    transition: transform 0.3s;
+  }
+
+  .sidebar-header {
+    padding: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sidebar-header h1 {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: -0.3px;
+  }
+
+  .sidebar-header p {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+
+  .sidebar-nav {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 0;
+  }
+
+  .sidebar-nav::-webkit-scrollbar { width: 4px; }
+  .sidebar-nav::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .nav-group-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    padding: 16px 20px 6px;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 20px;
+    font-size: 13px;
+    color: var(--text-dim);
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.15s;
+  }
+
+  .nav-item:hover { color: var(--text); background: var(--surface2); }
+  .nav-item.active { color: var(--accent); background: rgba(124,107,245,0.1); border-right: 2px solid var(--accent); }
+
+  .nav-badge {
+    margin-left: auto;
+    font-size: 10px;
+    background: var(--surface2);
+    color: var(--text-dim);
+    padding: 1px 6px;
+    border-radius: 10px;
+    font-weight: 600;
+  }
+
+  /* Main content */
+  .main {
+    margin-left: 280px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  /* Search bar */
+  .search-bar {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 32px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    backdrop-filter: blur(10px);
+  }
+
+  .search-bar svg { flex-shrink: 0; color: var(--text-dim); }
+
+  .search-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-size: 14px;
+    font-family: inherit;
+  }
+
+  .search-input::placeholder { color: var(--text-dim); }
+
+  .search-count {
+    font-size: 12px;
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
+
+  .search-clear {
+    background: var(--surface2);
+    border: none;
+    color: var(--text-dim);
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: none;
+  }
+
+  .search-clear:hover { color: var(--text); }
+
+  /* Content area */
+  .content {
+    padding: 32px;
+    max-width: 1100px;
+  }
+
+  /* Section */
+  .section {
+    margin-bottom: 48px;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .section-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+
+  .section-header h2 {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+  }
+
+  .section-header .count {
+    font-size: 12px;
+    color: var(--text-dim);
+    background: var(--surface2);
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-left: auto;
+  }
+
+  .subsection {
+    margin-top: 24px;
+    margin-bottom: 20px;
+  }
+
+  .subsection h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 12px;
+  }
+
+  /* Command cards */
+  .card-grid {
+    display: grid;
+    gap: 8px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 18px;
+    transition: all 0.15s;
+    cursor: default;
+  }
+
+  .card:hover {
+    border-color: var(--accent-dim);
+    background: var(--surface2);
+  }
+
+  .card.hidden { display: none; }
+
+  .card-top {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+
+  .cmd {
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent);
+    background: rgba(124,107,245,0.12);
+    padding: 2px 8px;
+    border-radius: 5px;
+    white-space: nowrap;
+  }
+
+  .card-tags {
+    display: flex;
+    gap: 4px;
+    margin-left: auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .tag {
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .tag-flags { background: rgba(34,211,238,0.12); color: var(--cyan); }
+  .tag-suite { background: rgba(124,107,245,0.12); color: var(--accent); }
+
+  .card-desc {
+    font-size: 13px;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+
+  .card-flags {
+    font-size: 12px;
+    color: var(--text-dim);
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    margin-bottom: 6px;
+  }
+
+  .card-usecase {
+    font-size: 12px;
+    color: var(--text-dim);
+    border-left: 2px solid var(--border);
+    padding-left: 10px;
+    margin-top: 8px;
+    line-height: 1.5;
+  }
+
+  .card-usecase .arrow { color: var(--green); }
+
+  /* Workflow cards */
+  .workflow-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+    margin-bottom: 12px;
+  }
+
+  .workflow-card h4 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 10px;
+    color: var(--text);
+  }
+
+  .workflow-steps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .workflow-step {
+    font-family: 'SF Mono', monospace;
+    font-size: 12px;
+    background: rgba(124,107,245,0.1);
+    color: var(--accent);
+    padding: 3px 8px;
+    border-radius: 5px;
+  }
+
+  .workflow-arrow {
+    color: var(--text-dim);
+    font-size: 12px;
+  }
+
+  .workflow-note {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 8px;
+  }
+
+  /* Decision tree */
+  .tree {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+    font-family: 'SF Mono', monospace;
+    font-size: 12px;
+    line-height: 1.8;
+    color: var(--text-dim);
+    white-space: pre;
+    overflow-x: auto;
+  }
+
+  .tree .hl { color: var(--accent); font-weight: 600; }
+  .tree .dim { color: var(--text-dim); }
+
+  /* Highlight matches */
+  mark {
+    background: rgba(124,107,245,0.3);
+    color: var(--text);
+    border-radius: 2px;
+    padding: 0 1px;
+  }
+
+  /* Quick stats bar */
+  .stats-bar {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 32px;
+  }
+
+  .stat {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 20px;
+    flex: 1;
+    min-width: 140px;
+    text-align: center;
+  }
+
+  .stat-value {
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -1px;
+  }
+
+  .stat-label {
+    font-size: 11px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 2px;
+  }
+
+  /* Mobile sidebar toggle */
+  .menu-toggle {
+    display: none;
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 200;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px;
+    color: var(--text);
+    cursor: pointer;
+  }
+
+  .overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 90;
+  }
+
+  @media (max-width: 768px) {
+    .sidebar { transform: translateX(-100%); }
+    .sidebar.open { transform: translateX(0); }
+    .main { margin-left: 0; }
+    .menu-toggle { display: flex; }
+    .overlay.open { display: block; }
+    .content { padding: 16px; }
+    .search-bar { padding: 12px 16px 12px 52px; }
+  }
+
+  /* Kbd shortcut hint */
+  .kbd {
+    font-family: 'SF Mono', monospace;
+    font-size: 11px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 5px;
+    color: var(--text-dim);
+  }
+</style>
+</head>
+<body>
+
+<button class="menu-toggle" onclick="toggleSidebar()" aria-label="Menu">
+  <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h14M3 10h14M3 14h14"/></svg>
+</button>
+<div class="overlay" id="overlay" onclick="toggleSidebar()"></div>
+
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <h1>Claude Code Skills</h1>
+    <p>350+ skills &middot; 21 suites</p>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-group-label">Suites</div>
+    <a class="nav-item active" href="#gstack" data-section="gstack">
+      <span>gstack</span><span class="nav-badge">36</span>
+    </a>
+    <a class="nav-item" href="#gsd" data-section="gsd">
+      <span>GSD Framework</span><span class="nav-badge">57</span>
+    </a>
+    <a class="nav-item" href="#autoresearch" data-section="autoresearch">
+      <span>Autoresearch</span><span class="nav-badge">9</span>
+    </a>
+    <a class="nav-item" href="#figma" data-section="figma">
+      <span>Figma Plugin</span><span class="nav-badge">6</span>
+    </a>
+    <a class="nav-item" href="#idme" data-section="idme">
+      <span>IDME Base</span><span class="nav-badge">9</span>
+    </a>
+    <a class="nav-item" href="#beads" data-section="beads">
+      <span>Beads</span><span class="nav-badge">25</span>
+    </a>
+    <a class="nav-item" href="#prd" data-section="prd">
+      <span>PRD Taskmaster</span><span class="nav-badge">1</span>
+    </a>
+    <a class="nav-item" href="#uiux" data-section="uiux">
+      <span>UI/UX Pro Max</span><span class="nav-badge">7</span>
+    </a>
+    <a class="nav-item" href="#browseruse" data-section="browseruse">
+      <span>Browser Use</span><span class="nav-badge">4</span>
+    </a>
+    <a class="nav-item" href="#documents" data-section="documents">
+      <span>Document &amp; Office</span><span class="nav-badge">5</span>
+    </a>
+    <a class="nav-item" href="#creative" data-section="creative">
+      <span>Creative &amp; Design</span><span class="nav-badge">6</span>
+    </a>
+    <a class="nav-item" href="#devutils" data-section="devutils">
+      <span>Developer Utilities</span><span class="nav-badge">8</span>
+    </a>
+    <a class="nav-item" href="#superpowers" data-section="superpowers">
+      <span>Superpowers</span><span class="nav-badge">14</span>
+    </a>
+    <a class="nav-item" href="#superpowers-lab" data-section="superpowers-lab">
+      <span>Superpowers Lab</span><span class="nav-badge">4</span>
+    </a>
+    <a class="nav-item" href="#godmode" data-section="godmode">
+      <span>Godmode</span><span class="nav-badge">37</span>
+    </a>
+    <a class="nav-item" href="#apple" data-section="apple">
+      <span>Apple Platform</span><span class="nav-badge">1</span>
+    </a>
+    <a class="nav-item" href="#config" data-section="config">
+      <span>Configuration</span><span class="nav-badge">4</span>
+    </a>
+    <a class="nav-item" href="#gws" data-section="gws">
+      <span>Google Workspace</span><span class="nav-badge">44</span>
+    </a>
+    <a class="nav-item" href="#gws-recipes" data-section="gws-recipes">
+      <span>GWS Recipes</span><span class="nav-badge">35</span>
+    </a>
+    <a class="nav-item" href="#gws-personas" data-section="gws-personas">
+      <span>GWS Personas</span><span class="nav-badge">10</span>
+    </a>
+    <a class="nav-item" href="#video" data-section="video">
+      <span>Video &amp; Motion</span><span class="nav-badge">1</span>
+    </a>
+    <div class="nav-group-label">Workflows</div>
+    <a class="nav-item" href="#workflows" data-section="workflows">
+      <span>Workflow Sequences</span><span class="nav-badge">18</span>
+    </a>
+  </nav>
+</aside>
+
+<main class="main">
+  <div class="search-bar">
+    <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="7" cy="7" r="5"/><path d="M11 11l3 3"/></svg>
+    <input class="search-input" id="searchInput" type="text" placeholder="Search commands, descriptions, use cases...  (/ to focus)" autocomplete="off">
+    <span class="search-count" id="searchCount"></span>
+    <button class="search-clear" id="searchClear" onclick="clearSearch()">Clear</button>
+  </div>
+
+  <div class="content" id="content">
+
+    <!-- Stats -->
+    <div class="stats-bar">
+      <div class="stat"><div class="stat-value" style="color:var(--accent)">350+</div><div class="stat-label">Total Skills</div></div>
+      <div class="stat"><div class="stat-value" style="color:var(--green)">21</div><div class="stat-label">Suites</div></div>
+      <div class="stat"><div class="stat-value" style="color:var(--cyan)">18</div><div class="stat-label">Workflows</div></div>
+      <div class="stat"><div class="stat-value" style="color:var(--orange)">57</div><div class="stat-label">GSD Commands</div></div>
+    </div>
+
+    <!-- ==================== GSTACK ==================== -->
+    <div class="section" id="gstack">
+      <div class="section-header">
+        <div class="section-icon" style="background:rgba(124,107,245,0.15)">&#9889;</div>
+        <h2>gstack &mdash; Ship &amp; QA Suite</h2>
+        <span class="count">36 skills</span>
+      </div>
+
+      <div class="subsection"><h3>Ideation &amp; Planning</h3></div>
+      <div class="card-grid">
+        <div class="card" data-search="/office-hours yc brainstorm startup builder design thinking forcing questions">
+          <div class="card-top"><span class="cmd">/office-hours</span></div>
+          <div class="card-desc">YC-style brainstorm. Startup mode (6 forcing questions) or Builder mode (design thinking).</div>
+          <div class="card-usecase"><span class="arrow">&rarr;</span> "I have an idea for a notification system" <span class="arrow">&rarr;</span> runs 6 forcing questions <span class="arrow">&rarr;</span> saves design doc</div>
+        </div>
+        <div class="card" data-search="/plan-ceo-review ceo founder scope expansion selective hold reduction ambition strategy rethink">
+          <div class="card-top"><span class="cmd">/plan-ceo-review</span><div class="card-tags"><span class="tag tag-flags">4 scope modes</span></div></div>
+          <div class="card-desc">CEO/founder plan review. Challenges premises, finds the 10-star product.</div>
+          <div class="card-usecase">Enter plan mode <span class="arrow">&rarr;</span> <code>/plan-ceo-review</code> <span class="arrow">&rarr;</span> selects SELECTIVE EXPANSION <span class="arrow">&rarr;</span> upgrades ambition while holding core</div>
+        </div>
+        <div class="card" data-search="/plan-eng-review engineering architecture data flow edge cases test coverage performance lock plan">
+          <div class="card-top"><span class="cmd">/plan-eng-review</span><div class="card-tags"><span class="tag tag-flags">interactive</span></div></div>
+          <div class="card-desc">Eng manager plan review. Locks architecture, data flow, edge cases.</div>
+          <div class="card-usecase">After CEO review <span class="arrow">&rarr;</span> <code>/plan-eng-review</code> <span class="arrow">&rarr;</span> walks through architecture decisions <span class="arrow">&rarr;</span> locks the plan</div>
+        </div>
+        <div class="card" data-search="/plan-design-review designer visual dimension rating typography">
+          <div class="card-top"><span class="cmd">/plan-design-review</span><div class="card-tags"><span class="tag tag-flags">plan mode</span></div></div>
+          <div class="card-desc">Designer's eye plan review. Rates each dimension 0-10.</div>
+          <div class="card-usecase">After eng review <span class="arrow">&rarr;</span> rates typography 6/10 <span class="arrow">&rarr;</span> explains what makes it a 10 <span class="arrow">&rarr;</span> fixes plan</div>
+        </div>
+        <div class="card" data-search="/autoplan auto review pipeline all three reviews sequential decision principles">
+          <div class="card-top"><span class="cmd">/autoplan</span><div class="card-tags"><span class="tag tag-flags">auto-decisions</span></div></div>
+          <div class="card-desc">Runs all 3 reviews (CEO + Eng + Design) automatically with 6 decision principles.</div>
+          <div class="card-usecase"><code>/autoplan</code> <span class="arrow">&rarr;</span> auto-answers 25 questions <span class="arrow">&rarr;</span> surfaces 3 taste decisions for your approval</div>
+        </div>
+        <div class="card" data-search="/plan-devex-review developer experience dx expansion polish baseline personas competitors tthw">
+          <div class="card-top"><span class="cmd">/plan-devex-review</span><div class="card-tags"><span class="tag tag-flags">3 DX modes</span></div></div>
+          <div class="card-desc">Interactive DX plan review. Explores personas, benchmarks competitors, designs magical moments.</div>
+          <div class="card-usecase">After eng review <span class="arrow">&rarr;</span> <code>/plan-devex-review</code> <span class="arrow">&rarr;</span> scores TTHW, error UX, CLI help <span class="arrow">&rarr;</span> fixes plan</div>
+        </div>
+        <div class="card" data-search="/devex-review developer experience audit tthw getting started docs scorecard evidence">
+          <div class="card-top"><span class="cmd">/devex-review</span><div class="card-tags"><span class="tag tag-flags">URL</span></div></div>
+          <div class="card-desc">Live DX audit. Tests getting-started flow, times TTHW, screenshots errors, evaluates CLI help.</div>
+          <div class="card-usecase"><code>/devex-review https://docs.myapi.com</code> <span class="arrow">&rarr;</span> tries quickstart <span class="arrow">&rarr;</span> times TTHW at 12min <span class="arrow">&rarr;</span> DX scorecard</div>
+        </div>
+        <div class="card" data-search="/pair-agent remote ai agent browser setup key openclaw hermes codex cursor http">
+          <div class="card-top"><span class="cmd">/pair-agent</span></div>
+          <div class="card-desc">Pair a remote AI agent with your browser. Generates setup key for OpenClaw, Hermes, Codex, Cursor.</div>
+          <div class="card-usecase"><code>/pair-agent</code> <span class="arrow">&rarr;</span> generates setup key <span class="arrow">&rarr;</span> other agent connects via HTTP <span class="arrow">&rarr;</span> shares browser</div>
+        </div>
+      </div>
+
+      <div class="subsection"><h3>Design &amp; Branding</h3></div>
+      <div class="card-grid">
+        <div class="card" data-search="/design-consultation design system brand typography color spacing motion DESIGN.md">
+          <div class="card-top"><span class="cmd">/design-consultation</span></div>
+          <div class="card-desc">Creates complete design system &rarr; DESIGN.md with typography, colors, spacing, motion.</div>
+          <div class="card-usecase">New project <span class="arrow">&rarr;</span> proposes typography, colors, spacing <span class="arrow">&rarr;</span> generates font+color preview page</div>
+        </div>
+        <div class="card" data-search="/design-review visual qa spacing hierarchy ai slop live site fix commits before after screenshots">
+          <div class="card-top"><span class="cmd">/design-review</span><div class="card-tags"><span class="tag tag-flags">URL</span></div></div>
+          <div class="card-desc">Visual QA on live site. Finds &amp; fixes spacing, hierarchy, AI slop. Atomic commits.</div>
+          <div class="card-usecase"><code>/design-review https://myapp.com</code> <span class="arrow">&rarr;</span> finds 8 issues <span class="arrow">&rarr;</span> fixes each with before/after screenshots</div>
+        </div>
+        <div class="card" data-search="/design-shotgun design variants multiple comparison board iterate explore options brainstorm">
+          <div class="card-top"><span class="cmd">/design-shotgun</span></div>
+          <div class="card-desc">Generate multiple AI design variants, open comparison board, collect feedback, iterate.</div>
+          <div class="card-usecase"><code>/design-shotgun</code> <span class="arrow">&rarr;</span> generates 4 variants <span class="arrow">&rarr;</span> comparison board <span class="arrow">&rarr;</span> refine winner</div>
+        </div>
+        <div class="card" data-search="/design-html production html css pretext dynamic reflow finalize mockup implement">
+          <div class="card-top"><span class="cmd">/design-html</span></div>
+          <div class="card-desc">Production-quality HTML/CSS from designs or descriptions. 30KB, zero deps.</div>
+          <div class="card-usecase">From mockup or description <span class="arrow">&rarr;</span> picks Pretext patterns <span class="arrow">&rarr;</span> dynamic, reflowing HTML/CSS</div>
+        </div>
+      </div>
+
+      <div class="subsection"><h3>Development &amp; Debugging</h3></div>
+      <div class="card-grid">
+        <div class="card" data-search="/investigate debug root cause 4-phase iron law freeze escalation bug fix">
+          <div class="card-top"><span class="cmd">/investigate</span><div class="card-tags"><span class="tag tag-flags">auto-freeze</span><span class="tag tag-flags">3-strike</span></div></div>
+          <div class="card-desc">4-phase root cause debugging. Iron Law: no fix without confirmed root cause.</div>
+          <div class="card-usecase">"Login fails silently" <span class="arrow">&rarr;</span> Phase 1: reproduces <span class="arrow">&rarr;</span> Phase 2: traces to token expiry <span class="arrow">&rarr;</span> Phase 3: confirms <span class="arrow">&rarr;</span> Phase 4: fixes</div>
+        </div>
+        <div class="card" data-search="/codex openai second opinion code review challenge consult adversarial">
+          <div class="card-top"><span class="cmd">/codex</span><div class="card-tags"><span class="tag tag-flags">review</span><span class="tag tag-flags">challenge</span><span class="tag tag-flags">consult</span></div></div>
+          <div class="card-desc">OpenAI Codex second opinion. Three modes: Review / Challenge / Consult.</div>
+          <div class="card-usecase"><code>/codex review</code> <span class="arrow">&rarr;</span> independent diff analysis <span class="arrow">&rarr;</span> pass/fail verdict with reasoning</div>
+        </div>
+        <div class="card" data-search="/simplify reuse quality efficiency clean abstractions">
+          <div class="card-top"><span class="cmd">/simplify</span></div>
+          <div class="card-desc">Reviews changed code for reuse, quality, and efficiency.</div>
+          <div class="card-usecase">After writing a feature <span class="arrow">&rarr;</span> finds 3 unnecessary abstractions <span class="arrow">&rarr;</span> removes them</div>
+        </div>
+      </div>
+
+      <div class="subsection"><h3>Browser &amp; QA</h3></div>
+      <div class="card-grid">
+        <div class="card" data-search="/browse headless chromium navigate click fill screenshot diff responsive snapshot 100ms">
+          <div class="card-top"><span class="cmd">/browse</span><div class="card-tags"><span class="tag tag-flags">~100ms/cmd</span></div></div>
+          <div class="card-desc">Headless Chromium. Navigate, click, fill, screenshot, diff, responsive testing.</div>
+          <div class="card-usecase"><code>$B goto https://app.com</code> <span class="arrow">&rarr;</span> <code>$B snapshot -i</code> <span class="arrow">&rarr;</span> <code>$B click "#login"</code> <span class="arrow">&rarr;</span> <code>$B fill "#email" "test@test.com"</code></div>
+        </div>
+        <div class="card" data-search="/connect-chrome real chrome visible side panel extension watch actions">
+          <div class="card-top"><span class="cmd">/connect-chrome</span></div>
+          <div class="card-desc">Launch real visible Chrome with Side Panel extension. Watch every AI action.</div>
+          <div class="card-usecase"><code>/connect-chrome</code> <span class="arrow">&rarr;</span> real Chrome window opens <span class="arrow">&rarr;</span> Side Panel shows live activity feed</div>
+        </div>
+        <div class="card" data-search="/setup-browser-cookies import cookies authenticated testing login session">
+          <div class="card-top"><span class="cmd">/setup-browser-cookies</span><div class="card-tags"><span class="tag tag-flags">domain</span></div></div>
+          <div class="card-desc">Import cookies from your real browser for authenticated testing.</div>
+          <div class="card-usecase"><code>/setup-browser-cookies github.com</code> <span class="arrow">&rarr;</span> imports GitHub session <span class="arrow">&rarr;</span> /qa can now test authenticated pages</div>
+        </div>
+        <div class="card" data-search="/qa test fix verify quick standard exhaustive health score bugs atomic commits">
+          <div class="card-top"><span class="cmd">/qa</span><div class="card-tags"><span class="tag tag-flags">Quick</span><span class="tag tag-flags">Standard</span><span class="tag tag-flags">Exhaustive</span></div></div>
+          <div class="card-desc">Full QA: test + fix + verify. 3 tiers. Before/after health scores.</div>
+          <div class="card-usecase"><code>/qa https://myapp.com</code> <span class="arrow">&rarr;</span> finds 12 bugs <span class="arrow">&rarr;</span> fixes 10 with atomic commits <span class="arrow">&rarr;</span> health: 45 &rarr; 92</div>
+        </div>
+        <div class="card" data-search="/qa-only report only testing screenshots repro steps no code changes read only">
+          <div class="card-top"><span class="cmd">/qa-only</span><div class="card-tags"><span class="tag tag-flags">read-only</span></div></div>
+          <div class="card-desc">Report-only QA. Same testing methodology, no code changes.</div>
+          <div class="card-usecase"><code>/qa-only https://myapp.com</code> <span class="arrow">&rarr;</span> bug report with screenshots and repro steps</div>
+        </div>
+        <div class="card" data-search="/benchmark performance regression core web vitals load time bundle size baseline diff trend">
+          <div class="card-top"><span class="cmd">/benchmark</span><div class="card-tags"><span class="tag tag-flags">--baseline</span><span class="tag tag-flags">--diff</span><span class="tag tag-flags">--trend</span></div></div>
+          <div class="card-desc">Performance regression detection. Core Web Vitals, load times, bundle size.</div>
+          <div class="card-usecase"><code>/benchmark https://myapp.com --baseline</code> <span class="arrow">&rarr;</span> capture baseline <span class="arrow">&rarr;</span> later <code>--diff</code> shows regressions</div>
+        </div>
+      </div>
+
+      <div class="subsection"><h3>Shipping &amp; Deployment</h3></div>
+      <div class="card-grid">
+        <div class="card" data-search="/review pre-landing pr code review sql safety llm trust boundary side effects diff">
+          <div class="card-top"><span class="cmd">/review</span></div>
+          <div class="card-desc">Pre-landing PR review. SQL safety, LLM trust boundaries, side effects.</div>
+          <div class="card-usecase">Before merging <span class="arrow">&rarr;</span> flags unsafe SQL migration and missing input validation</div>
+        </div>
+        <div class="card" data-search="/ship merge test version changelog pr push create pull request deploy">
+          <div class="card-top"><span class="cmd">/ship</span></div>
+          <div class="card-desc">Full ship: merge base, test, review diff, bump VERSION, CHANGELOG, create PR.</div>
+          <div class="card-usecase">Code ready <span class="arrow">&rarr;</span> runs tests <span class="arrow">&rarr;</span> reviews diff <span class="arrow">&rarr;</span> bumps v1.2.3 <span class="arrow">&rarr;</span> creates PR</div>
+        </div>
+        <div class="card" data-search="/land-and-deploy merge ci deploy canary health check production verify">
+          <div class="card-top"><span class="cmd">/land-and-deploy</span></div>
+          <div class="card-desc">Merge PR &rarr; wait CI &rarr; deploy &rarr; canary health check.</div>
+          <div class="card-usecase">After <code>/ship</code> creates PR <span class="arrow">&rarr;</span> merges <span class="arrow">&rarr;</span> waits for deploy <span class="arrow">&rarr;</span> verifies production health</div>
+        </div>
+        <div class="card" data-search="/setup-deploy configure deployment fly.io render vercel netlify heroku railway github actions">
+          <div class="card-top"><span class="cmd">/setup-deploy</span><div class="card-tags"><span class="tag tag-flags">one-time</span></div></div>
+          <div class="card-desc">One-time deploy config. Auto-detects platform, writes to CLAUDE.md.</div>
+          <div class="card-usecase"><code>/setup-deploy</code> <span class="arrow">&rarr;</span> detects Fly.io <span class="arrow">&rarr;</span> configures health checks <span class="arrow">&rarr;</span> <code>/land-and-deploy</code> works</div>
+        </div>
+        <div class="card" data-search="/canary post-deploy monitoring console errors performance regressions page failures duration">
+          <div class="card-top"><span class="cmd">/canary</span><div class="card-tags"><span class="tag tag-flags">--duration</span><span class="tag tag-flags">--baseline</span></div></div>
+          <div class="card-desc">Post-deploy canary monitoring. Console errors, perf regressions, page failures.</div>
+          <div class="card-usecase"><code>/canary https://myapp.com --duration 10m</code> <span class="arrow">&rarr;</span> monitors 10 min <span class="arrow">&rarr;</span> catches console error spike at 3min</div>
+        </div>
+        <div class="card" data-search="/document-release post-ship docs readme architecture changelog contributing todos version">
+          <div class="card-top"><span class="cmd">/document-release</span></div>
+          <div class="card-desc">Post-ship docs update. README, ARCHITECTURE, CHANGELOG, TODOS.</div>
+          <div class="card-usecase">After merge <span class="arrow">&rarr;</span> updates README with new API endpoints <span class="arrow">&rarr;</span> polishes CHANGELOG voice</div>
+        </div>
+      </div>
+
+      <div class="subsection"><h3>Safety &amp; Maintenance</h3></div>
+      <div class="card-grid">
+        <div class="card" data-search="/careful warn destructive rm -rf drop table force-push git reset hard safety">
+          <div class="card-top"><span class="cmd">/careful</span><div class="card-tags"><span class="tag tag-flags">session-scoped</span></div></div>
+          <div class="card-desc">Warns before destructive commands (rm -rf, DROP TABLE, force-push).</div>
+          <div class="card-usecase"><code>/careful</code> <span class="arrow">&rarr;</span> later <code>rm -rf /data</code> <span class="arrow">&rarr;</span> WARNING: destructive operation <span class="arrow">&rarr;</span> confirm/deny</div>
+        </div>
+        <div class="card" data-search="/freeze restrict edits directory lock scope edit write block">
+          <div class="card-top"><span class="cmd">/freeze</span></div>
+          <div class="card-desc">Restrict file edits to a specific directory for the session.</div>
+          <div class="card-usecase"><code>/freeze</code> <span class="arrow">&rarr;</span> enter <code>src/auth/</code> <span class="arrow">&rarr;</span> Edit/Write blocked outside src/auth/</div>
+        </div>
+        <div class="card" data-search="/guard careful freeze combined full safety maximum protection">
+          <div class="card-top"><span class="cmd">/guard</span></div>
+          <div class="card-desc">/careful + /freeze combined. Maximum safety mode.</div>
+          <div class="card-usecase"><code>/guard</code> <span class="arrow">&rarr;</span> enter <code>src/api/</code> <span class="arrow">&rarr;</span> destructive warnings ON + edits locked to src/api/</div>
+        </div>
+        <div class="card" data-search="/unfreeze unlock edits remove freeze allow all">
+          <div class="card-top"><span class="cmd">/unfreeze</span></div>
+          <div class="card-desc">Remove /freeze restriction, allowing edits to all directories again.</div>
+          <div class="card-usecase"><code>/unfreeze</code> <span class="arrow">&rarr;</span> edits allowed everywhere again</div>
+        </div>
+        <div class="card" data-search="/cso security audit owasp stride secrets dependencies cicd llm threat model pentest">
+          <div class="card-top"><span class="cmd">/cso</span><div class="card-tags"><span class="tag tag-flags">daily</span><span class="tag tag-flags">comprehensive</span></div></div>
+          <div class="card-desc">Chief Security Officer. OWASP, STRIDE, secrets, dependencies, CI/CD, LLM security.</div>
+          <div class="card-usecase"><code>/cso</code> <span class="arrow">&rarr;</span> daily mode <span class="arrow">&rarr;</span> finds hardcoded API key + vulnerable dep <span class="arrow">&rarr;</span> trend comparison</div>
+        </div>
+        <div class="card" data-search="/health code quality dashboard type checker linter tests dead code score trends">
+          <div class="card-top"><span class="cmd">/health</span><div class="card-tags"><span class="tag tag-flags">0-10 score</span></div></div>
+          <div class="card-desc">Code quality dashboard. Type checker, linter, tests, dead code. Weighted composite score.</div>
+          <div class="card-usecase"><code>/health</code> <span class="arrow">&rarr;</span> runs all checks <span class="arrow">&rarr;</span> composite score 7.2/10 <span class="arrow">&rarr;</span> tracks trends over time</div>
+        </div>
+        <div class="card" data-search="/retro retrospective weekly engineering commits team breakdowns trends work patterns">
+          <div class="card-top"><span class="cmd">/retro</span></div>
+          <div class="card-desc">Weekly engineering retrospective with team breakdowns and trend tracking.</div>
+          <div class="card-usecase"><code>/retro</code> <span class="arrow">&rarr;</span> analyzes 47 commits <span class="arrow">&rarr;</span> 3 wins, 2 growth areas, 1 pattern concern</div>
+        </div>
+        <div class="card" data-search="/checkpoint save resume working state git decisions remaining work session">
+          <div class="card-top"><span class="cmd">/checkpoint</span></div>
+          <div class="card-desc">Save/resume working state. Captures git state, decisions, remaining work.</div>
+          <div class="card-usecase"><code>/checkpoint</code> <span class="arrow">&rarr;</span> saves state <span class="arrow">&rarr;</span> next session: picks up exactly where you left off</div>
+        </div>
+        <div class="card" data-search="/learn learnings project manage review search prune export patterns sessions">
+          <div class="card-top"><span class="cmd">/learn</span><div class="card-tags"><span class="tag tag-flags">review</span><span class="tag tag-flags">search</span><span class="tag tag-flags">prune</span></div></div>
+          <div class="card-desc">Manage project learnings across sessions. Review, search, prune, export.</div>
+          <div class="card-usecase">"Didn't we fix this before?" <span class="arrow">&rarr;</span> <code>/learn</code> <span class="arrow">&rarr;</span> searches learnings <span class="arrow">&rarr;</span> finds past pattern</div>
+        </div>
+        <div class="card" data-search="/gstack-upgrade upgrade update latest version">
+          <div class="card-top"><span class="cmd">/gstack-upgrade</span></div>
+          <div class="card-desc">Upgrade gstack to the latest version.</div>
+          <div class="card-usecase"><code>/gstack-upgrade</code> <span class="arrow">&rarr;</span> shows changelog <span class="arrow">&rarr;</span> confirms <span class="arrow">&rarr;</span> upgrades</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== GSD ==================== -->
+    <div class="section" id="gsd">
+      <div class="section-header">
+        <div class="section-icon" style="background:rgba(74,222,128,0.15)">&#128640;</div>
+        <h2>GSD &mdash; Get Shit Done Framework</h2>
+        <span class="count">57 commands</span>
+      </div>
+
+      <div class="subsection"><h3>Initialization</h3></div>
+      <div class="card-grid" id="gsd-init"></div>
+
+      <div class="subsection"><h3>Phase Cycle (Core Loop)</h3></div>
+      <div class="card-grid" id="gsd-phase"></div>
+
+      <div class="subsection"><h3>UI-Specific</h3></div>
+      <div class="card-grid" id="gsd-ui"></div>
+
+      <div class="subsection"><h3>Roadmap Management</h3></div>
+      <div class="card-grid" id="gsd-roadmap"></div>
+
+      <div class="subsection"><h3>Milestone Lifecycle</h3></div>
+      <div class="card-grid" id="gsd-milestone"></div>
+
+      <div class="subsection"><h3>Execution Modes</h3></div>
+      <div class="card-grid" id="gsd-exec"></div>
+
+      <div class="subsection"><h3>Session Management</h3></div>
+      <div class="card-grid" id="gsd-session"></div>
+
+      <div class="subsection"><h3>Ideas &amp; Notes</h3></div>
+      <div class="card-grid" id="gsd-ideas"></div>
+
+      <div class="subsection"><h3>Debugging &amp; Health</h3></div>
+      <div class="card-grid" id="gsd-debug"></div>
+
+      <div class="subsection"><h3>Shipping &amp; Review</h3></div>
+      <div class="card-grid" id="gsd-ship"></div>
+
+      <div class="subsection"><h3>Meta &amp; Maintenance</h3></div>
+      <div class="card-grid" id="gsd-meta"></div>
+    </div>
+
+    <!-- ==================== AUTORESEARCH ==================== -->
+    <div class="section" id="autoresearch">
+      <div class="section-header">
+        <div class="section-icon" style="background:rgba(74,222,128,0.15)">&#128300;</div>
+        <h2>Autoresearch</h2>
+        <span class="count">9 skills</span>
+      </div>
+      <div class="card-grid" id="autoresearch-cards"></div>
+
+      <div class="subsection"><h3>Flow</h3></div>
+      <div class="workflow-card">
+        <div class="workflow-steps">
+          <span class="workflow-step">/autoresearch:plan</span><span class="workflow-arrow">&rarr;</span>
+          <span class="workflow-step">/autoresearch</span><span class="workflow-arrow">&rarr;</span>
+          <span class="workflow-step">/autoresearch:debug</span><span class="workflow-arrow">&rarr;</span>
+          <span class="workflow-step">/autoresearch:fix</span><span class="workflow-arrow">&rarr;</span>
+          <span class="workflow-step">/autoresearch:security</span><span class="workflow-arrow">&rarr;</span>
+          <span class="workflow-step">/autoresearch:ship</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== FIGMA ==================== -->
+    <div class="section" id="figma">
+      <div class="section-header">
+        <div class="section-icon" style="background:rgba(244,114,182,0.15)">&#127912;</div>
+        <h2>Figma Plugin</h2>
+        <span class="count">6 skills</span>
+      </div>
+      <div class="card-grid" id="figma-cards"></div>
+
+      <div class="subsection"><h3>Figma Workflow Sequence</h3></div>
+      <div class="workflow-card">
+        <div class="workflow-steps">
+          <span class="workflow-step">figma-generate-library</span><span class="workflow-arrow">&rarr;</span>
+          <span class="workflow-step">figma-create-design-system-rules</span><span class="workflow-arrow">&rarr;</span>
+          <span class="workflow-step">figma-generate-design</span><span class="workflow-arrow">&rarr;</span>
+          <span class="workflow-step">figma-implement-design</span><span class="workflow-arrow">&rarr;</span>
+          <span class="workflow-step">figma-code-connect-components</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== IDME ==================== -->
+    <div class="section" id="idme">
+      <div class="section-header">
+        <div class="section-icon" style="background:rgba(251,146,60,0.15)">&#128221;</div>
+        <h2>IDME Base &mdash; Document Writers &amp; Lifecycle</h2>
+        <span class="count">9 skills</span>
+      </div>
+      <div class="card-grid" id="idme-cards"></div>
+
+      <div class="subsection"><h3>Decision Tree</h3></div>
+      <div class="tree">"Should I build this feature?"
+  <span class="dim">&boxvr;&boxh;</span> Complex, needs research <span class="dim">&rarr;</span> <span class="hl">/idme-base:writer</span> (RDR)
+       <span class="dim">&boxvr;&boxh;</span> Research done, need design <span class="dim">&rarr;</span> <span class="hl">/idme-base:design-document-writer</span>
+            <span class="dim">&boxvr;&boxh;</span> Key arch decision <span class="dim">&rarr;</span> <span class="hl">/idme-base:adr-writer</span>
+            <span class="dim">&boxvr;&boxh;</span> Multi-team impact <span class="dim">&rarr;</span> <span class="hl">/idme-base:arb-writer</span>
+            <span class="dim">&boxur;&boxh;</span> New API <span class="dim">&rarr;</span> <span class="hl">/idme-base:api-council-writer</span>
+       <span class="dim">&boxur;&boxh;</span> Ready to implement <span class="dim">&rarr;</span> <span class="hl">/idme-base:implement</span> (spawns beads tasks)</div>
+    </div>
+
+    <!-- ==================== BEADS ==================== -->
+    <div class="section" id="beads">
+      <div class="section-header">
+        <div class="section-icon" style="background:rgba(34,211,238,0.15)">&#128218;</div>
+        <h2>Beads &mdash; Issue Tracker</h2>
+        <span class="count">25 subcommands</span>
+      </div>
+      <div class="card-grid" id="beads-cards"></div>
+
+      <div class="subsection"><h3>Typical Workflow</h3></div>
+      <div class="workflow-card">
+        <div class="workflow-steps">
+          <span class="workflow-step">bd create</span><span class="workflow-arrow">&rarr;</span>
+          <span class="workflow-step">bd dep add</span><span class="workflow-arrow">&rarr;</span>
+          <span class="workflow-step">bd ready</span><span class="workflow-arrow">&rarr;</span>
+          <span class="workflow-step">bd update --status in-progress</span><span class="workflow-arrow">&rarr;</span>
+          <span class="workflow-step">bd comments --add</span><span class="workflow-arrow">&rarr;</span>
+          <span class="workflow-step">bd close</span><span class="workflow-arrow">&rarr;</span>
+          <span class="workflow-step">bd sync</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== PRD ==================== -->
+    <div class="section" id="prd">
+      <div class="section-header">
+        <div class="section-icon" style="background:rgba(250,204,21,0.15)">&#128203;</div>
+        <h2>PRD Taskmaster</h2>
+        <span class="count">1 skill</span>
+      </div>
+      <div class="card-grid">
+        <div class="card" data-search="/prd-taskmaster prd product requirements document task breakdown autonomous sequential parallel manual 12-step validation">
+          <div class="card-top"><span class="cmd">/prd-taskmaster</span><div class="card-tags"><span class="tag tag-flags">12-step</span><span class="tag tag-flags">4 exec modes</span></div></div>
+          <div class="card-desc">Smart PRD generator + TaskMaster. Discovery &rarr; PRD &rarr; 13 validation checks &rarr; task breakdown &rarr; execution.</div>
+          <div class="card-flags">Modes: Sequential | Parallel | Full Autonomous | Manual</div>
+          <div class="card-usecase">"Create a PRD for user auth" <span class="arrow">&rarr;</span> 5 discovery questions <span class="arrow">&rarr;</span> PRD generated <span class="arrow">&rarr;</span> 13 checks pass <span class="arrow">&rarr;</span> 8 tasks created <span class="arrow">&rarr;</span> execute</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== UI/UX PRO MAX ==================== -->
+    <div class="section" id="uiux">
+      <div class="section-header">
+        <div class="section-icon" style="background:rgba(244,114,182,0.15)">&#127752;</div>
+        <h2>UI/UX Pro Max</h2>
+        <span class="count">7 skills</span>
+      </div>
+      <div class="card-grid" id="uiux-cards"></div>
+    </div>
+
+    <!-- ==================== BROWSER USE ==================== -->
+    <div class="section" id="browseruse">
+      <div class="section-header">
+        <div class="section-icon" style="background:rgba(96,165,250,0.15)">&#127760;</div>
+        <h2>Browser Use</h2>
+        <span class="count">4 skills</span>
+      </div>
+      <div class="card-grid" id="browseruse-cards"></div>
+
+      <div class="subsection"><h3>Decision Tree</h3></div>
+      <div class="tree">Need to automate a browser?
+  <span class="dim">&boxvr;&boxh;</span> From CLI/Claude Code <span class="dim">&rarr;</span> <span class="hl">/browser-use</span>
+  <span class="dim">&boxvr;&boxh;</span> From Python code <span class="dim">&rarr;</span> <span class="hl">/open-source</span>
+  <span class="dim">&boxvr;&boxh;</span> Need hosted/cloud infra <span class="dim">&rarr;</span> <span class="hl">/cloud</span>
+  <span class="dim">&boxur;&boxh;</span> Running in sandbox, no GUI <span class="dim">&rarr;</span> <span class="hl">/remote-browser</span></div>
+    </div>
+
+    <!-- ==================== DOCUMENT & OFFICE ==================== -->
+    <div class="section" id="documents">
+      <div class="section-header">
+        <div class="section-icon" style="background:rgba(251,146,60,0.15)">&#128196;</div>
+        <h2>Document &amp; Office</h2>
+        <span class="count">5 skills</span>
+      </div>
+      <div class="card-grid" id="documents-cards"></div>
+    </div>
+
+    <!-- ==================== CREATIVE & DESIGN ==================== -->
+    <div class="section" id="creative">
+      <div class="section-header">
+        <div class="section-icon" style="background:rgba(244,114,182,0.15)">&#127912;</div>
+        <h2>Creative &amp; Design</h2>
+        <span class="count">6 skills</span>
+      </div>
+      <div class="card-grid" id="creative-cards"></div>
+    </div>
+
+    <!-- ==================== DEVELOPER UTILITIES ==================== -->
+    <div class="section" id="devutils">
+      <div class="section-header">
+        <div class="section-icon" style="background:rgba(34,211,238,0.15)">&#128295;</div>
+        <h2>Developer Utilities</h2>
+        <span class="count">8 skills</span>
+      </div>
+      <div class="card-grid" id="devutils-cards"></div>
+    </div>
+
+    <!-- ==================== SUPERPOWERS ==================== -->
+    <div class="section" id="superpowers">
+      <div class="section-header">
+        <div class="section-icon" style="background:rgba(96,165,250,0.15)">&#9889;</div>
+        <h2>Superpowers</h2>
+        <span class="count">14 skills</span>
+      </div>
+      <div class="card-grid" id="superpowers-cards"></div>
+
+      <div class="subsection"><h3>Flow</h3></div>
+      <div class="workflow-card">
+        <div class="workflow-steps">
+          <span class="workflow-step">brainstorming</span><span class="workflow-arrow">&rarr;</span>
+          <span class="workflow-step">writing-plans</span><span class="workflow-arrow">&rarr;</span>
+          <span class="workflow-step">test-driven-development</span><span class="workflow-arrow">&rarr;</span>
+          <span class="workflow-step">subagent-driven-dev</span><span class="workflow-arrow">&rarr;</span>
+          <span class="workflow-step">requesting-code-review</span><span class="workflow-arrow">&rarr;</span>
+          <span class="workflow-step">verification-before-completion</span><span class="workflow-arrow">&rarr;</span>
+          <span class="workflow-step">finishing-a-dev-branch</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== SUPERPOWERS LAB ==================== -->
+    <div class="section" id="superpowers-lab">
+      <div class="section-header">
+        <div class="section-icon" style="background:rgba(248,113,113,0.15)">&#128300;</div>
+        <h2>Superpowers Lab</h2>
+        <span class="count">4 skills</span>
+      </div>
+      <div class="card-grid" id="lab-cards"></div>
+    </div>
+
+    <!-- ==================== GODMODE ==================== -->
+    <div class="section" id="godmode">
+      <div class="section-header">
+        <div class="section-icon" style="background:rgba(250,204,21,0.15)">&#128081;</div>
+        <h2>Godmode</h2>
+        <span class="count">37 skills</span>
+      </div>
+      <div class="card-grid" id="godmode-cards"></div>
+    </div>
+
+    <!-- ==================== APPLE PLATFORM ==================== -->
+    <div class="section" id="apple">
+      <div class="section-header">
+        <div class="section-icon" style="background:rgba(96,165,250,0.15)">&#63743;</div>
+        <h2>Apple Platform</h2>
+        <span class="count">1 skill</span>
+      </div>
+      <div class="card-grid" id="apple-cards"></div>
+    </div>
+
+    <!-- ==================== CLAUDE CODE CONFIG ==================== -->
+    <div class="section" id="config">
+      <div class="section-header">
+        <div class="section-icon" style="background:rgba(96,165,250,0.15)">&#9881;</div>
+        <h2>Claude Code Configuration</h2>
+        <span class="count">4 skills</span>
+      </div>
+      <div class="card-grid" id="config-cards"></div>
+    </div>
+
+    <!-- ==================== GOOGLE WORKSPACE ==================== -->
+    <div class="section" id="gws">
+      <div class="section-header">
+        <div class="section-icon" style="background:rgba(74,222,128,0.15)">&#128231;</div>
+        <h2>Google Workspace Suite</h2>
+        <span class="count">44 skills</span>
+      </div>
+
+      <div class="subsection"><h3>Core Services</h3></div>
+      <div class="card-grid" id="gws-core-cards"></div>
+
+      <div class="subsection"><h3>Events &amp; Admin</h3></div>
+      <div class="card-grid" id="gws-admin-cards"></div>
+
+      <div class="subsection"><h3>Model Armor (Security)</h3></div>
+      <div class="card-grid" id="gws-armor-cards"></div>
+
+      <div class="subsection"><h3>Cross-Service Workflows</h3></div>
+      <div class="card-grid" id="gws-workflow-cards"></div>
+    </div>
+
+    <!-- ==================== GWS RECIPES ==================== -->
+    <div class="section" id="gws-recipes">
+      <div class="section-header">
+        <div class="section-icon" style="background:rgba(250,204,21,0.15)">&#127859;</div>
+        <h2>Google Workspace Recipes</h2>
+        <span class="count">35 recipes</span>
+      </div>
+
+      <div class="subsection"><h3>Email &amp; Communication</h3></div>
+      <div class="card-grid" id="recipe-email-cards"></div>
+
+      <div class="subsection"><h3>Calendar &amp; Scheduling</h3></div>
+      <div class="card-grid" id="recipe-calendar-cards"></div>
+
+      <div class="subsection"><h3>Drive &amp; Documents</h3></div>
+      <div class="card-grid" id="recipe-drive-cards"></div>
+
+      <div class="subsection"><h3>Sheets &amp; Data</h3></div>
+      <div class="card-grid" id="recipe-sheets-cards"></div>
+
+      <div class="subsection"><h3>Other Services</h3></div>
+      <div class="card-grid" id="recipe-other-cards"></div>
+    </div>
+
+    <!-- ==================== GWS PERSONAS ==================== -->
+    <div class="section" id="gws-personas">
+      <div class="section-header">
+        <div class="section-icon" style="background:rgba(244,114,182,0.15)">&#128100;</div>
+        <h2>Google Workspace Personas</h2>
+        <span class="count">10 personas</span>
+      </div>
+      <div class="card-grid" id="personas-cards"></div>
+    </div>
+
+    <!-- ==================== VIDEO & MOTION ==================== -->
+    <div class="section" id="video">
+      <div class="section-header">
+        <div class="section-icon" style="background:rgba(248,113,113,0.15)">&#127916;</div>
+        <h2>Video &amp; Motion</h2>
+        <span class="count">1 skill</span>
+      </div>
+      <div class="card-grid" id="video-cards"></div>
+    </div>
+
+    <!-- ==================== WORKFLOWS ==================== -->
+    <div class="section" id="workflows">
+      <div class="section-header">
+        <div class="section-icon" style="background:rgba(74,222,128,0.15)">&#128260;</div>
+        <h2>Workflow Sequences</h2>
+        <span class="count">18 workflows</span>
+      </div>
+      <div id="workflow-cards"></div>
+    </div>
+
+  </div>
+</main>
+
+<script>
+// ========== DATA ==========
+const gsdData = {
+  init: [
+    {cmd:"/gsd:new-project", desc:"Full project init: questioning \u2192 research \u2192 requirements \u2192 roadmap", flags:"--auto", uc:"/gsd:new-project \u2192 answers 8 questions \u2192 creates PROJECT.md + ROADMAP.md with 6 phases", kw:"new project init questioning research requirements roadmap auto"},
+    {cmd:"/gsd:new-milestone", desc:"Start next milestone cycle. Updates PROJECT.md + extends roadmap.", flags:"[milestone name]", uc:'/gsd:new-milestone "v1.1 Notifications" \u2192 updates PROJECT.md \u2192 new requirements \u2192 extends roadmap', kw:"new milestone cycle version"},
+    {cmd:"/gsd:new-workspace", desc:"Isolated workspace with repo copies and independent .planning/", flags:"--name, --repos, --strategy worktree|clone", uc:"/gsd:new-workspace --name auth-rewrite --repos api,web --strategy worktree", kw:"workspace isolated repo copies worktree clone"},
+    {cmd:"/gsd:map-codebase", desc:"Analyze codebase \u2192 7 structured docs (STACK, ARCHITECTURE, CONVENTIONS, etc.)", flags:"[area]", uc:"/gsd:map-codebase api \u2192 spawns 4 parallel agents \u2192 produces 7 documents", kw:"map codebase analyze architecture stack conventions testing structure"},
+    {cmd:"/gsd:settings", desc:"Configure workflow toggles and model profile interactively.", flags:"interactive", uc:"/gsd:settings \u2192 enable/disable research agent, plan checker, verifier, branching", kw:"settings configure toggles model profile"},
+    {cmd:"/gsd:set-profile", desc:"Switch model tier for GSD agents.", flags:"quality|balanced|budget|inherit", uc:"/gsd:set-profile balanced \u2192 all subagents now use balanced tier", kw:"set profile model tier quality balanced budget"},
+    {cmd:"/gsd:profile-user", desc:"Generate developer behavioral profile from past sessions.", flags:"--questionnaire, --refresh", uc:"/gsd:profile-user \u2192 analyzes sessions \u2192 USER-PROFILE.md with work style preferences", kw:"profile user developer behavioral style preferences"},
+  ],
+  phase: [
+    {cmd:"/gsd:discuss-phase", desc:"Pre-planning context gathering. Scouts codebase, asks targeted questions.", flags:"<phase> [--auto] [--batch]", uc:"/gsd:discuss-phase 3 \u2192 scouts codebase \u2192 asks 5 questions \u2192 saves CONTEXT.md", kw:"discuss phase context gathering scout questions pre-planning"},
+    {cmd:"/gsd:list-phase-assumptions", desc:"Surface Claude's assumptions before planning.", flags:"[phase]", uc:"/gsd:list-phase-assumptions 3 \u2192 shows 12 assumptions across 5 areas \u2192 correct 3", kw:"list phase assumptions surface before planning"},
+    {cmd:"/gsd:research-phase", desc:"Standalone research for a phase (usually auto in plan-phase).", flags:"[phase]", uc:"/gsd:research-phase 3 \u2192 researches auth libraries \u2192 RESEARCH.md with comparison table", kw:"research phase standalone feasibility investigation"},
+    {cmd:"/gsd:plan-phase", desc:"Create executable PLAN.md with integrated research and verification loop.", flags:"[phase] [--auto] [--research] [--skip-research] [--gaps] [--reviews]", uc:"/gsd:plan-phase 3 \u2192 researches \u2192 plans \u2192 verifies \u2192 iterates until plan-checker passes", kw:"plan phase create PLAN.md executable verification research auto gaps reviews"},
+    {cmd:"/gsd:execute-phase", desc:"Execute plans with wave-based parallel agent spawning.", flags:"<phase> [--wave N] [--gaps-only] [--interactive]", uc:"/gsd:execute-phase 3 \u2192 groups 4 plans into 2 waves \u2192 spawns agents \u2192 collects results", kw:"execute phase wave parallel agents spawn implement"},
+    {cmd:"/gsd:verify-work", desc:"Conversational UAT testing. Tests criteria one by one.", flags:"[phase]", uc:"/gsd:verify-work 3 \u2192 tests 8 UAT criteria \u2192 passes 7 \u2192 creates fix plan for 1 failure", kw:"verify work UAT testing criteria conversational user acceptance"},
+    {cmd:"/gsd:add-tests", desc:"Generate unit and E2E tests for a completed phase.", flags:"<phase> [instructions]", uc:"/gsd:add-tests 3 \u2192 classifies files \u2192 12 unit tests + 3 E2E tests \u2192 commits", kw:"add tests generate unit e2e completed phase coverage"},
+    {cmd:"/gsd:validate-phase", desc:"Retroactively audit Nyquist validation gaps.", flags:"[phase]", uc:"/gsd:validate-phase 3 \u2192 finds missing coverage \u2192 generates gap-filling tests", kw:"validate phase nyquist validation gaps retroactive audit"},
+  ],
+  ui: [
+    {cmd:"/gsd:ui-phase", desc:"Generate UI-SPEC.md design contract for frontend phases.", flags:"[phase]", uc:"/gsd:ui-phase 4 \u2192 researches UI \u2192 UI-SPEC.md \u2192 verified by gsd-ui-checker", kw:"ui phase spec design contract frontend"},
+    {cmd:"/gsd:ui-review", desc:"6-pillar visual audit of implemented frontend code.", flags:"[phase]", uc:"/gsd:ui-review 4 \u2192 grades layout 4/4, typography 3/4, color 2/4 \u2192 UI-REVIEW.md", kw:"ui review 6-pillar visual audit frontend grades"},
+  ],
+  roadmap: [
+    {cmd:"/gsd:add-phase", desc:"Append new phase to end of current milestone.", flags:"<description>", uc:'/gsd:add-phase "Email notification templates" \u2192 creates phase 7 \u2192 updates ROADMAP.md', kw:"add phase append new milestone roadmap"},
+    {cmd:"/gsd:insert-phase", desc:"Insert urgent work as decimal phase (e.g., 3.1) between existing phases.", flags:"<after> <description>", uc:'/gsd:insert-phase 3 "Fix auth bug" \u2192 creates phase 3.1 \u2192 no renumbering', kw:"insert phase decimal urgent between renumber"},
+    {cmd:"/gsd:remove-phase", desc:"Remove unstarted future phase and renumber subsequent.", flags:"<phase>", uc:"/gsd:remove-phase 6 \u2192 deletes dir \u2192 renumbers 7\u21926, 8\u21927", kw:"remove phase delete renumber future unstarted"},
+    {cmd:"/gsd:add-backlog", desc:"Park idea in 999.x backlog for future milestones.", flags:"<description>", uc:'/gsd:add-backlog "Dark mode" \u2192 creates 999.1 \u2192 parked for future', kw:"add backlog park idea 999 future milestone"},
+    {cmd:"/gsd:review-backlog", desc:"Review and promote/remove backlog items.", flags:"none", uc:"/gsd:review-backlog \u2192 shows 5 items \u2192 promote 2 \u2192 remove 1 stale", kw:"review backlog promote remove items"},
+    {cmd:"/gsd:plan-milestone-gaps", desc:"Create phases for gaps identified by milestone audit.", flags:"none", uc:"After audit finds 3 gaps \u2192 creates 3 fix phases \u2192 offers to plan each", kw:"plan milestone gaps audit fix phases create"},
+  ],
+  milestone: [
+    {cmd:"/gsd:audit-milestone", desc:"Audit milestone completion against original intent.", flags:"[version]", uc:"/gsd:audit-milestone \u2192 checks all requirements \u2192 finds 2 gaps \u2192 spawns integration checker", kw:"audit milestone completion requirements gaps integration"},
+    {cmd:"/gsd:audit-uat", desc:"Cross-phase UAT audit of all outstanding items.", flags:"none", uc:"/gsd:audit-uat \u2192 scans all phases \u2192 finds 4 pending, 2 skipped \u2192 human test plan", kw:"audit uat cross-phase outstanding pending skipped human test"},
+    {cmd:"/gsd:complete-milestone", desc:"Archive completed milestone, tag git, prepare for next.", flags:"<version>", uc:"/gsd:complete-milestone v1.0 \u2192 archives \u2192 tags git v1.0 \u2192 prepares v1.1", kw:"complete milestone archive tag git prepare next version"},
+    {cmd:"/gsd:milestone-summary", desc:"Generate onboarding-ready summary from milestone artifacts.", flags:"[version]", uc:"/gsd:milestone-summary \u2192 7-section document of what was built and why", kw:"milestone summary onboarding artifacts document team"},
+  ],
+  exec: [
+    {cmd:"/gsd:autonomous", desc:"Run all remaining phases unattended (discuss\u2192plan\u2192execute per phase).", flags:"--from N", uc:"/gsd:autonomous \u2192 discuss\u2192plan\u2192execute for each \u2192 pauses only for blockers", kw:"autonomous unattended all remaining phases discuss plan execute auto"},
+    {cmd:"/gsd:manager", desc:"Interactive multi-phase command center with dashboard.", flags:"none", uc:"/gsd:manager \u2192 dashboard shows 6 phases \u2192 dispatches plan + execute in parallel", kw:"manager dashboard multi-phase command center parallel dispatch"},
+    {cmd:"/gsd:quick", desc:"Small task with GSD guarantees (atomic commits, state tracking).", flags:"--full, --discuss, --research", uc:'/gsd:quick "Add rate limiting" \u2192 plans \u2192 executes \u2192 atomic commit', kw:"quick small task atomic commits state tracking guarantees"},
+    {cmd:"/gsd:fast", desc:"Trivial inline task. No subagents, no planning overhead.", flags:"[description]", uc:'/gsd:fast "Fix typo in README" \u2192 fixes inline \u2192 30 seconds', kw:"fast trivial inline no subagents no planning quick"},
+    {cmd:"/gsd:do", desc:"Smart command dispatcher. Routes freeform text to the right GSD command.", flags:"<description>", uc:'/gsd:do "debug the auth flow" \u2192 routes to /gsd:debug', kw:"do smart dispatcher route freeform text command"},
+  ],
+  session: [
+    {cmd:"/gsd:next", desc:"Auto-advance to the next logical step in the workflow.", flags:"none", uc:'/gsd:next \u2192 "Phase 3 planned, not executed" \u2192 invokes /gsd:execute-phase 3', kw:"next auto advance logical step workflow state"},
+    {cmd:"/gsd:progress", desc:"Show progress and route to next action.", flags:"none", uc:'/gsd:progress \u2192 "3/6 phases done, phase 4 needs planning" \u2192 routes to plan-phase', kw:"progress show route next action status overview"},
+    {cmd:"/gsd:pause-work", desc:"Save state for next session. Writes .continue-here.md.", flags:"none", uc:"/gsd:pause-work \u2192 writes .continue-here.md \u2192 commits WIP", kw:"pause work save state session continue-here WIP"},
+    {cmd:"/gsd:resume-work", desc:"Restore context from previous session.", flags:"none", uc:'/gsd:resume-work \u2192 "You were mid-execute on phase 3, task 4/7" \u2192 continues', kw:"resume work restore context previous session checkpoint"},
+    {cmd:"/gsd:session-report", desc:"Generate session summary with token usage and outcomes.", flags:"none", uc:'/gsd:session-report \u2192 "4 tasks completed, 127K tokens, 2 phases advanced"', kw:"session report summary token usage outcomes"},
+    {cmd:"/gsd:thread", desc:"Persistent context threads for cross-session work.", flags:"[name|description]", uc:'/gsd:thread "perf investigation" \u2192 creates thread \u2192 preserves context across sessions', kw:"thread persistent context cross-session work"},
+    {cmd:"/gsd:workstreams", desc:"Manage parallel workstreams within a milestone.", flags:"list|create|status|switch|progress|complete|resume", uc:'/gsd:workstreams create "api-v2" \u2192 independent phase tracking', kw:"workstreams parallel manage create switch status complete"},
+  ],
+  ideas: [
+    {cmd:"/gsd:note", desc:"Zero-friction idea capture. Append, list, or promote.", flags:'<text> | list | promote <N>', uc:'/gsd:note "Consider WebSocket" \u2192 appended \u2192 later /gsd:note promote 3', kw:"note idea capture append list promote zero-friction"},
+    {cmd:"/gsd:add-todo", desc:"Structured todo from conversation context.", flags:"[description]", uc:"/gsd:add-todo \u2192 extracts context \u2192 todo with area tag and priority", kw:"add todo structured conversation context area priority"},
+    {cmd:"/gsd:check-todos", desc:"List pending todos and select one to work on.", flags:"[area]", uc:"/gsd:check-todos api \u2192 shows 4 API todos \u2192 select one \u2192 routes to action", kw:"check todos list pending select work area filter"},
+    {cmd:"/gsd:plant-seed", desc:"Forward-looking idea with trigger conditions. Surfaces at right milestone.", flags:"[summary]", uc:'/gsd:plant-seed "Add i18n when we expand to EU" \u2192 surfaces automatically later', kw:"plant seed forward-looking idea trigger conditions milestone future"},
+  ],
+  debug: [
+    {cmd:"/gsd:debug", desc:"Scientific method debugging with persistent state across context resets.", flags:"[issue]", uc:'/gsd:debug "Tests pass locally but fail in CI" \u2192 gathers symptoms \u2192 spawns debugger \u2192 tracks hypotheses', kw:"debug scientific method persistent state hypothesis symptoms context"},
+    {cmd:"/gsd:forensics", desc:"Post-mortem for failed GSD workflows. Analyzes git + artifacts.", flags:"[description]", uc:'/gsd:forensics "Phase 3 got stuck" \u2192 finds stuck loop \u2192 writes forensic report', kw:"forensics post-mortem failed workflow stuck loop artifacts git"},
+    {cmd:"/gsd:health", desc:"Diagnose .planning/ directory integrity. Optionally repair.", flags:"--repair", uc:"/gsd:health --repair \u2192 finds orphaned plan + invalid config \u2192 auto-fixes", kw:"health diagnose planning directory integrity repair orphaned"},
+  ],
+  ship: [
+    {cmd:"/gsd:review", desc:"Cross-AI peer review of phase plans (Gemini, Claude, Codex).", flags:"--phase N [--gemini] [--claude] [--codex] [--all]", uc:"/gsd:review --phase 3 --all \u2192 sends to Gemini + Codex \u2192 REVIEWS.md", kw:"review cross-ai peer gemini claude codex plans REVIEWS.md"},
+    {cmd:"/gsd:ship", desc:"Create PR after verification passes.", flags:"[phase|milestone]", uc:"/gsd:ship 3 \u2192 pushes branch \u2192 creates PR with auto-generated body", kw:"ship create pr push branch verification merge"},
+    {cmd:"/gsd:pr-branch", desc:"Clean PR branch by filtering out .planning/ commits.", flags:"[target]", uc:"/gsd:pr-branch \u2192 filters out PLAN.md commits \u2192 clean diff for review", kw:"pr-branch clean filter planning commits diff review"},
+  ],
+  meta: [
+    {cmd:"/gsd:stats", desc:"Project statistics: phases, plans, git metrics, timeline.", flags:"none", uc:"Shows quantitative dashboard of project state", kw:"stats statistics phases plans git metrics timeline dashboard"},
+    {cmd:"/gsd:cleanup", desc:"Archive old phase directories from completed milestones.", flags:"none", uc:"After milestone complete \u2192 cleans .planning/phases/", kw:"cleanup archive old phase directories completed milestones"},
+    {cmd:"/gsd:update", desc:"Update GSD to latest version.", flags:"none", uc:"Shows changelog \u2192 confirms \u2192 updates", kw:"update latest version changelog"},
+    {cmd:"/gsd:reapply-patches", desc:"Restore local mods after a GSD update.", flags:"none", uc:"After update wipes customizations \u2192 reapplies patches", kw:"reapply patches restore local mods update customizations"},
+    {cmd:"/gsd:help", desc:"Show available GSD commands and usage guide.", flags:"none", uc:"Quick reference lookup", kw:"help commands usage guide reference"},
+    {cmd:"/gsd:join-discord", desc:"Join the GSD Discord community.", flags:"none", uc:"Community support link", kw:"join discord community support"},
+    {cmd:"/gsd:list-workspaces", desc:"List active GSD workspaces and status.", flags:"none", uc:"Overview of isolated environments", kw:"list workspaces active status overview"},
+    {cmd:"/gsd:remove-workspace", desc:"Remove a workspace and clean up worktrees.", flags:"<name>", uc:"Cleanup after feature work", kw:"remove workspace cleanup worktrees delete"},
+  ],
+};
+
+const autoresearchData = [
+  {cmd:"/autoresearch", desc:"Core autonomous iteration loop. Modify \u2192 verify \u2192 keep/discard \u2192 repeat.", flags:"Iterations: N", uc:'"/autoresearch" \u2192 "Optimize bundle size" \u2192 iterates 10 times \u2192 keeps best result', kw:"autoresearch autonomous iteration loop modify verify keep discard metric goal"},
+  {cmd:"/autoresearch:plan", desc:"Interactive wizard to build Scope, Metric, Direction & Verify from a Goal.", flags:"interactive", uc:"/autoresearch:plan \u2192 defines goal \u2192 sets metric \u2192 configures direction \u2192 generates verify step", kw:"autoresearch plan wizard scope metric direction verify goal interactive"},
+  {cmd:"/autoresearch:debug", desc:"Autonomous bug-hunting loop. Scientific method + iteration. Finds ALL bugs.", flags:"[description]", uc:"/autoresearch:debug \u2192 reproduces \u2192 hypothesizes \u2192 fixes bug 1 \u2192 continues \u2192 finds bug 2", kw:"autoresearch debug autonomous bug-hunting scientific method all bugs iteration"},
+  {cmd:"/autoresearch:fix", desc:"Autonomous fix loop. One fix per iteration, atomic, auto-reverted on failure.", flags:"[description]", uc:"/autoresearch:fix \u2192 finds 7 errors \u2192 fixes each iteratively \u2192 reverts failures \u2192 6/7 fixed", kw:"autoresearch fix autonomous loop atomic auto-revert errors iteration"},
+  {cmd:"/autoresearch:learn", desc:"Autonomous codebase documentation engine. Scout, learn, generate/update docs.", flags:"[path]", uc:"/autoresearch:learn \u2192 scouts codebase \u2192 generates docs \u2192 validates \u2192 fixes errors", kw:"autoresearch learn documentation engine scout generate validate codebase"},
+  {cmd:"/autoresearch:security", desc:"Autonomous security audit. STRIDE + OWASP Top 10 + red-team with 4 adversarial personas.", flags:"[scope]", uc:"/autoresearch:security \u2192 threat models \u2192 tests OWASP \u2192 red-teams with 4 personas \u2192 report", kw:"autoresearch security audit stride owasp red-team adversarial personas threat"},
+  {cmd:"/autoresearch:predict", desc:"Multi-persona swarm prediction. Pre-analyze code from multiple expert perspectives.", flags:"[topic]", uc:"/autoresearch:predict \u2192 spawns 5 expert personas \u2192 each analyzes independently \u2192 synthesizes", kw:"autoresearch predict multi-persona swarm expert perspectives analysis"},
+  {cmd:"/autoresearch:ship", desc:"Universal shipping workflow. 8-phase structured process for code, content, anything.", flags:"[description]", uc:"/autoresearch:ship \u2192 8 phases: prep \u2192 build \u2192 test \u2192 review \u2192 stage \u2192 deploy \u2192 verify \u2192 announce", kw:"autoresearch ship universal workflow 8-phase structured deploy code content"},
+  {cmd:"/autoresearch:scenario", desc:"Scenario-driven use case generator. Explores edge cases from a seed scenario.", flags:"[seed scenario]", uc:'/autoresearch:scenario "User loses connection mid-payment" \u2192 explores 12 derivative scenarios', kw:"autoresearch scenario use case generator edge cases seed derivative exploration"},
+];
+
+const figmaData = [
+  {cmd:"/figma:figma-use", desc:"MANDATORY before every use_figma call. Loads Plugin API rules.", flags:"", uc:"Always call first \u2192 then use_figma with JS code", kw:"figma-use mandatory prerequisite plugin api rules use_figma"},
+  {cmd:"/figma:figma-generate-design", desc:"Build full pages in Figma from code/description, section by section.", flags:"fileKey", uc:"Reads React component \u2192 discovers Nova components \u2192 builds page section-by-section", kw:"figma generate design build pages screens sections code description"},
+  {cmd:"/figma:figma-implement-design", desc:"Translate Figma \u2192 production code with 1:1 visual fidelity.", flags:"Figma URL", uc:"Reads get_design_context \u2192 adapts to project stack \u2192 outputs production code", kw:"figma implement design translate code production fidelity url"},
+  {cmd:"/figma:figma-generate-library", desc:"Build design system in Figma from codebase: variables, components, themes.", flags:"multi-phase", uc:"Discovery \u2192 Foundations \u2192 Components \u2192 QA. 20-100+ use_figma calls", kw:"figma generate library design system variables components themes tokens"},
+  {cmd:"/figma:figma-code-connect-components", desc:"Map Figma components \u2194 code components bidirectionally.", flags:"fileKey, nodeId", uc:"Uses get_code_connect_suggestions \u2192 send_code_connect_mappings", kw:"figma code connect components map bidirectional link"},
+  {cmd:"/figma:figma-create-design-system-rules", desc:"Generate design system rules for AI agents (CLAUDE.md, Cursor rules).", flags:"", uc:"Outputs CLAUDE.md / AGENTS.md rules for consistent Figma\u2192code", kw:"figma create design system rules ai agents claude cursor conventions"},
+];
+
+const idmeData = [
+  {cmd:"/idme-base:writer", desc:"RDR (Recommendation/Decisioning Record). Spec-first with 2-4 research iterations.", flags:"Fast|Standard|Deep", uc:"Complex features needing research before coding \u2192 2-4 iteration cycles with beads + ChromaDB", kw:"writer rdr recommendation decisioning record spec research iterations beads chromadb"},
+  {cmd:"/idme-base:adr-writer", desc:"ADR (Architectural Decision Record) under 900 words.", flags:"900 word limit", uc:"Single architectural decision with trade-offs and alternatives", kw:"adr-writer architectural decision record 900 words trade-offs alternatives"},
+  {cmd:"/idme-base:arb-writer", desc:"ARB (Architecture Review Board) submission under 900 words with SQL DDL + API specs.", flags:"900 word limit", uc:"Foundational tech changes, data models, multi-team changes", kw:"arb-writer architecture review board 900 sql ddl api specs multi-team"},
+  {cmd:"/idme-base:api-council-writer", desc:"API Council submission with problem, context map, integration impact.", flags:"", uc:"New APIs, cross-domain changes, new integration patterns", kw:"api-council-writer api council submission problem context integration cross-domain"},
+  {cmd:"/idme-base:design-document-writer", desc:"Technical design document from PRD under 2500 words.", flags:"2500 word limit", uc:"Comprehensive design: architecture, DB schema, API specs, key decisions", kw:"design-document-writer technical design document prd 2500 architecture schema api"},
+  {cmd:"/idme-base:init", desc:"Initialize RDR directory structure with README, TEMPLATE, and markdownlint config.", flags:"", uc:"Starting a new RDR directory in a project", kw:"init initialize rdr directory structure readme template markdownlint"},
+  {cmd:"/idme-base:validate", desc:"Validate RDR files for formatting, consistency, and quality.", flags:"", uc:'Before locking an RDR as "Proposed"', kw:"validate rdr files formatting consistency quality proposed lock"},
+  {cmd:"/idme-base:status", desc:"Update RDR status through lifecycle transitions. Manage related beads issues.", flags:"Draft|Proposed|Accepted|Implemented", uc:"Moving an RDR through Draft \u2192 Proposed \u2192 Accepted \u2192 Implemented", kw:"status rdr lifecycle transitions draft proposed accepted implemented beads"},
+  {cmd:"/idme-base:implement", desc:"Spawn beads issues from locked RDR implementation plan with dependency tracking.", flags:"", uc:"After an RDR is accepted \u2192 spawns beads tasks with external_ref links", kw:"implement spawn beads issues rdr plan dependency tracking external_ref"},
+];
+
+const beadsData = [
+  {cmd:"bd create", desc:'Create a new issue with title, type, priority, labels.', flags:'"title" -t task -p 1 -l label', uc:'bd create "Add rate limiting" -t task -p 1 -l backend', kw:"bd create issue task priority label"},
+  {cmd:"bd list", desc:"List issues with optional filters.", flags:"--status, --label", uc:"bd list --status open --label backend", kw:"bd list issues filter status label"},
+  {cmd:"bd show", desc:"Show detailed issue information.", flags:"<id>", uc:"bd show PROJ-42", kw:"bd show issue details"},
+  {cmd:"bd ready", desc:"Find unblocked work with no pending dependencies.", flags:"", uc:"bd ready \u2192 shows tasks with no pending dependencies", kw:"bd ready unblocked work dependencies"},
+  {cmd:"bd update", desc:"Update status, priority, or other fields.", flags:"<id> --status", uc:"bd update PROJ-42 --status in-progress", kw:"bd update status priority fields"},
+  {cmd:"bd close", desc:"Close a completed issue.", flags:"<id>", uc:"bd close PROJ-42", kw:"bd close completed issue"},
+  {cmd:"bd reopen", desc:"Reopen a closed issue.", flags:"<id>", uc:"bd reopen PROJ-42", kw:"bd reopen closed issue"},
+  {cmd:"bd delete", desc:"Delete an issue and clean up references.", flags:"<id>", uc:"bd delete PROJ-42", kw:"bd delete issue clean references"},
+  {cmd:"bd dep add", desc:"Add dependency between issues.", flags:"<from> <to>", uc:"bd dep add PROJ-43 PROJ-42 (43 depends on 42)", kw:"bd dep add dependency between issues"},
+  {cmd:"bd comments", desc:"View or add comments on an issue.", flags:"<id> --add", uc:'bd comments PROJ-42 --add "Fixed in abc123"', kw:"bd comments view add issue"},
+  {cmd:"bd search", desc:"Search issues by text query.", flags:'"query"', uc:'bd search "rate limiting"', kw:"bd search text query issues"},
+  {cmd:"bd sync", desc:"Synchronize with git remote.", flags:"", uc:"bd sync at session end", kw:"bd sync git remote synchronize"},
+  {cmd:"bd stats", desc:"Show project statistics and progress.", flags:"", uc:"Progress overview dashboard", kw:"bd stats statistics progress"},
+  {cmd:"bd epic", desc:"Epic management commands.", flags:"", uc:"Group related issues", kw:"bd epic management group related"},
+  {cmd:"bd label", desc:"Manage issue labels.", flags:"", uc:"Create and assign labels to issues", kw:"bd label manage issue labels create assign"},
+  {cmd:"bd blocked", desc:"Show blocked issues.", flags:"", uc:"Find dependency bottlenecks", kw:"bd blocked issues dependency bottlenecks"},
+  {cmd:"bd compact", desc:"Compact old closed issues with semantic summaries.", flags:"", uc:"Reduce storage of old issues", kw:"bd compact closed issues semantic summaries storage"},
+  {cmd:"bd restore", desc:"Restore full history of compacted issue from git.", flags:"<id>", uc:"bd restore PROJ-42 \u2192 recovers full history from git", kw:"bd restore compacted issue full history git recover"},
+  {cmd:"bd export/import", desc:"JSONL export/import for backup or migration.", flags:"", uc:"Backup or migrate issues", kw:"bd export import jsonl backup migration"},
+  {cmd:"bd audit", desc:"Log and label agent interactions (append-only JSONL).", flags:"", uc:"Audit trail of agent interactions", kw:"bd audit log label agent interactions jsonl append-only"},
+  {cmd:"bd daemon", desc:"Manage background sync daemon.", flags:"", uc:"Automatic background syncing", kw:"bd daemon background sync automatic"},
+  {cmd:"bd rename-prefix", desc:"Rename the issue prefix for all issues.", flags:"", uc:"Migration: change project prefix", kw:"bd rename-prefix issue prefix migration"},
+  {cmd:"bd workflow", desc:"Show the AI-supervised issue workflow guide.", flags:"", uc:"Process reference for beads workflow", kw:"bd workflow ai-supervised issue guide process reference"},
+  {cmd:"bd version", desc:"Check beads and plugin versions.", flags:"", uc:"Compatibility check", kw:"bd version beads plugin compatibility check"},
+];
+
+const superpowersData = [
+  {cmd:"using-superpowers", desc:"Entry skill: mandates skill invocation before any response.", flags:"auto", uc:"Activates at every conversation start", kw:"using-superpowers entry mandate skill invocation"},
+  {cmd:"brainstorming", desc:"9-step collaborative design dialogue before implementation.", flags:"auto", uc:"Before creative work \u2014 features, components, functionality", kw:"brainstorming 9-step collaborative design dialogue creative features"},
+  {cmd:"writing-plans", desc:"Comprehensive plans with bite-sized tasks (2-5 min each).", flags:"auto", uc:"When you have a spec \u2192 before coding", kw:"writing-plans comprehensive bite-sized tasks 2-5 min spec"},
+  {cmd:"executing-plans", desc:"Load plan \u2192 review critically \u2192 execute with checkpoints.", flags:"auto", uc:"Implementing a plan in a new session", kw:"executing-plans load review execute checkpoints session"},
+  {cmd:"subagent-driven-development", desc:"One subagent per task with two-stage review (spec + quality).", flags:"auto", uc:"Executing plans with independent tasks", kw:"subagent-driven-development one per task two-stage review spec quality"},
+  {cmd:"test-driven-development", desc:"Strict TDD: failing test \u2192 minimal code \u2192 refactor.", flags:"auto", uc:"Always before writing implementation code", kw:"test-driven-development tdd failing test minimal code refactor strict"},
+  {cmd:"systematic-debugging", desc:"4-phase: Root Cause \u2192 Pattern \u2192 Hypothesis \u2192 Fix.", flags:"auto", uc:"Any bug or test failure", kw:"systematic-debugging 4-phase root cause pattern hypothesis fix bug"},
+  {cmd:"dispatching-parallel-agents", desc:"One agent per independent domain for concurrent work.", flags:"auto", uc:"2+ tasks sharing no state", kw:"dispatching-parallel-agents concurrent independent domain agent"},
+  {cmd:"using-git-worktrees", desc:"Isolated git worktrees with smart directory selection.", flags:"auto", uc:"Feature work needing isolation", kw:"using-git-worktrees isolated worktree feature isolation"},
+  {cmd:"finishing-a-development-branch", desc:"4 options: merge/PR/keep/discard + worktree cleanup.", flags:"auto", uc:"Implementation complete", kw:"finishing-a-development-branch merge pr keep discard cleanup"},
+  {cmd:"requesting-code-review", desc:"Dispatch code-reviewer subagent with BASE/HEAD SHA.", flags:"auto", uc:"After completing tasks, before merging", kw:"requesting-code-review dispatch code-reviewer subagent sha"},
+  {cmd:"receiving-code-review", desc:"Handle feedback with rigor. Push back when wrong.", flags:"auto", uc:"When receiving review feedback", kw:"receiving-code-review handle feedback rigor push back"},
+  {cmd:"writing-skills", desc:"Create new skills using TDD methodology.", flags:"manual", uc:"Creating or editing skills", kw:"writing-skills create new tdd methodology editing"},
+  {cmd:"verification-before-completion", desc:"Run verification commands before any success claim.", flags:"auto", uc:"Before claiming work is done/fixed/passing", kw:"verification-before-completion evidence verify success claim done"},
+];
+
+const labData = [
+  {cmd:"slack-messaging", desc:"Send/read Slack via slackcli using browser session tokens.", flags:"--recipient-id, --message", uc:'slackcli messages send --recipient-id=C123 --message="Deploy complete"', kw:"slack messaging send read slackcli browser session tokens"},
+  {cmd:"finding-duplicate-functions", desc:"Semantic duplicate detection: extract \u2192 categorize \u2192 detect \u2192 report.", flags:"5-phase", uc:"Great for auditing LLM-generated code for semantic duplication", kw:"finding duplicate functions semantic detection categorize llm audit"},
+  {cmd:"mcp-cli", desc:"Use MCP servers on-demand via mcp CLI. Discover tools and resources.", flags:"tools, call, alias", uc:"mcp tools <server> \u2192 discover \u2192 mcp call <tool> --params", kw:"mcp-cli mcp servers on-demand cli discover tools resources call"},
+  {cmd:"using-tmux-for-interactive-commands", desc:"Control interactive CLIs (vim, rebase -i, REPLs) via tmux.", flags:"tmux send-keys", uc:"tmux new-session -d -s edit vim file.txt \u2192 send-keys \u2192 capture-pane", kw:"using-tmux interactive commands vim rebase repl tmux send-keys"},
+];
+
+const uiuxData = [
+  {cmd:"/ui-ux-pro-max", desc:"Master skill: 50+ styles, 161 palettes, 57 font pairings, 99 UX guidelines.", flags:"10 stacks", uc:"React, Next.js, Vue, Svelte, SwiftUI, React Native, Flutter, Tailwind, shadcn/ui, HTML/CSS", kw:"ui-ux-pro-max styles palettes font pairings ux guidelines search stacks"},
+  {cmd:"/design", desc:"Unified design: brand + tokens + UI + logo + CIP + slides + banners + icons.", flags:"auto-routes", uc:"Routes to appropriate sub-skill automatically. Logo (55 styles), icons (15 styles, SVG)", kw:"design unified brand tokens ui logo cip slides banners icons social photos"},
+  {cmd:"/brand", desc:"Brand identity, voice, messaging frameworks, asset management.", flags:"", uc:"Brand voice definition, visual identity, messaging, brand audit", kw:"brand identity voice messaging frameworks asset management audit"},
+  {cmd:"/design-system", desc:"3-layer token architecture (primitive/semantic/component), CSS vars.", flags:"generate-tokens.cjs", uc:"Design token creation, component specs, Tailwind theme config, strategic slides", kw:"design-system 3-layer tokens primitive semantic component css vars tailwind"},
+  {cmd:"/ui-styling", desc:"shadcn/ui + Tailwind, dark mode, accessibility, responsive, canvas designs.", flags:"Radix UI", uc:"Building React UIs with accessible, responsive components", kw:"ui-styling shadcn tailwind dark mode accessibility responsive react radix canvas"},
+  {cmd:"/slides", desc:"HTML presentations with Chart.js, design tokens, copywriting formulas.", flags:"create", uc:"Marketing presentations, pitch decks, data-driven slides", kw:"slides html presentations chart.js design tokens copywriting pitch deck"},
+  {cmd:"/banner-design", desc:"22 art direction styles across social, ads, web, print.", flags:"5-step workflow", uc:"Social covers, ad banners, website heroes, event banners, campaign assets", kw:"banner-design art direction social ads web print hero campaign"},
+];
+
+const godmodeData = [
+  {cmd:"activation", desc:"Entry protocol: skill ordering, YoloMode, execution mode guidance.", flags:"auto", uc:"Mandates skill check before ANY response", kw:"activation entry protocol skill ordering yolomode"},
+  {cmd:"intent-discovery", desc:"Structured dialogue \u2192 validated spec before implementation.", flags:"auto", uc:"Before any creative work \u2014 more formal than brainstorming", kw:"intent-discovery structured dialogue validated spec formal"},
+  {cmd:"specification-first", desc:"Behavior specs: inputs, outputs, constraints, edge cases, acceptance criteria.", flags:"auto", uc:"Must precede any implementation", kw:"specification-first behavior specs inputs outputs constraints edge cases acceptance"},
+  {cmd:"task-planning", desc:"Bite-sized tasks with exact file paths and complete code.", flags:"auto", uc:"More granular than writing-plans", kw:"task-planning bite-sized tasks exact file paths complete code granular"},
+  {cmd:"delegated-execution", desc:"Subagent per task with two-stage review (spec + quality).", flags:"auto", uc:"Same as subagent-driven-development", kw:"delegated-execution subagent two-stage review spec quality"},
+  {cmd:"test-first", desc:"Strict TDD. Deletes code written before tests.", flags:"auto", uc:"Stricter than Superpowers TDD \u2014 deletes pre-test code", kw:"test-first strict tdd deletes pre-test code"},
+  {cmd:"fault-diagnosis", desc:"4-phase debugging. 3+ fails = question architecture.", flags:"auto", uc:"Adds escalation protocol beyond Superpowers debugging", kw:"fault-diagnosis 4-phase debugging escalation architecture question"},
+  {cmd:"quality-gate", desc:"Code review subagent. No landing without review.", flags:"auto", uc:"Mandatory review gate before merging", kw:"quality-gate code review subagent mandatory landing review gate"},
+  {cmd:"system-design", desc:"Architecture selection. Defaults: Postgres/REST/Monolith/Sessions.", flags:"auto", uc:"Opinionated defaults for technology decisions", kw:"system-design architecture postgres rest monolith sessions opinionated"},
+  {cmd:"codebase-research", desc:"Search existing code before writing new code. Mandatory.", flags:"auto", uc:"Must happen before writing any new feature code", kw:"codebase-research search existing code mandatory before new features"},
+  {cmd:"ui-engineering", desc:"Component architecture, Grid vs Flex, a11y, animation, forms, performance.", flags:"auto", uc:"Comprehensive frontend protocol", kw:"ui-engineering component architecture grid flex a11y animation forms performance responsive"},
+  {cmd:"parallel-execution", desc:"One agent per isolated domain for concurrent work.", flags:"auto", uc:"Same as dispatching-parallel-agents", kw:"parallel-execution agent isolated domain concurrent"},
+  {cmd:"project-bootstrap", desc:"Proper project init: linting, testing, CI/CD, version control.", flags:"auto", uc:"New project setup with best practices", kw:"project-bootstrap init linting testing cicd version control setup"},
+  {cmd:"error-recovery", desc:"Tracks failed attempts, escalates at thresholds. Auto-activates.", flags:"auto", uc:"Auto-detects stuck patterns and prevents unbounded retries", kw:"error-recovery tracks failed attempts escalates thresholds stuck unbounded retries"},
+  {cmd:"security-protocol", desc:"OWASP, STRIDE, secrets scanning. Lighter than /cso.", flags:"auto", uc:"Built-in security checks during development", kw:"security-protocol owasp stride secrets scanning security"},
+  {cmd:"merge-protocol", desc:"Branch completion: verify \u2192 4 options \u2192 cleanup.", flags:"auto", uc:"Same as finishing-a-dev-branch", kw:"merge-protocol branch completion verify options cleanup"},
+];
+
+const browseruseData = [
+  {cmd:"/browser-use", desc:"Automate browser interactions: navigate, click, fill forms, screenshot, extract data.", flags:"", uc:"Direct browser automation from CLI. Testing, form filling, data extraction", kw:"browser-use automate navigate click fill forms screenshot extract data testing"},
+  {cmd:"/cloud", desc:"Browser Use Cloud API/SDK reference. REST API (v2/v3), Python/TypeScript SDK.", flags:"v2, v3", uc:"Hosted browser automation. Stealth browsers, residential proxies, CAPTCHA, webhooks", kw:"cloud browser-use api sdk rest hosted stealth proxies captcha webhooks sessions"},
+  {cmd:"/open-source", desc:"Browser-use open-source Python library docs. Agent, Browser, Tools config.", flags:"Python", uc:"Writing Python code with browser_use. Custom tools, lifecycle hooks, MCP server setup", kw:"open-source browser-use python library agent browser tools hooks mcp"},
+  {cmd:"/remote-browser", desc:"Control local browser from sandboxed remote machine via tunnel.", flags:"sandbox", uc:"Agent running in sandbox (no GUI) needs to navigate websites or test local dev servers", kw:"remote-browser sandbox tunnel control local browser remote machine gui"},
+];
+
+const documentsData = [
+  {cmd:"/pdf", desc:"Read, merge, split, rotate, watermark, encrypt, OCR, fill forms.", flags:".pdf", uc:"Merge 3 PDFs \u2192 add watermark \u2192 encrypt with password", kw:"pdf read merge split rotate watermark encrypt ocr fill forms"},
+  {cmd:"/docx", desc:"Create, read, edit Word documents. TOC, headings, page numbers, letterheads.", flags:".docx", uc:"Create report with TOC + tables + letterhead \u2192 output .docx", kw:"docx word document create read edit toc headings page numbers letterhead report"},
+  {cmd:"/pptx", desc:"Create, read, edit PowerPoint presentations. Templates, speaker notes, comments.", flags:".pptx", uc:"Create pitch deck from outline \u2192 apply template \u2192 add speaker notes", kw:"pptx powerpoint presentation create read edit templates speaker notes slides deck"},
+  {cmd:"/xlsx", desc:"Create, read, edit spreadsheets. Formulas, formatting, charting, data cleaning.", flags:".xlsx, .csv, .tsv", uc:"Import CSV \u2192 clean data \u2192 add formulas \u2192 create chart \u2192 output .xlsx", kw:"xlsx spreadsheet csv tsv create read edit formulas formatting charting data cleaning"},
+  {cmd:"/doc-coauthoring", desc:"Structured workflow for co-authoring documentation with iteration.", flags:"any doc type", uc:"Transfer context \u2192 refine through iteration \u2192 verify for readers", kw:"doc-coauthoring documentation structured workflow iteration co-authoring proposals specs"},
+];
+
+const creativeData = [
+  {cmd:"/frontend-design", desc:"Production-grade frontend interfaces with high design quality. Avoids generic AI aesthetics.", flags:"HTML/CSS/React", uc:"Distinctive landing page \u2192 polished, production-ready code", kw:"frontend-design production-grade interfaces high quality distinctive landing page react html css"},
+  {cmd:"/canvas-design", desc:"Visual art using design philosophy. Original visual designs.", flags:".png, .pdf", uc:"Create event poster \u2192 original visual design \u2192 export PNG + PDF", kw:"canvas-design visual art poster original design png pdf creative"},
+  {cmd:"/algorithmic-art", desc:"Generative art with p5.js, seeded randomness, interactive parameters.", flags:"p5.js", uc:"Flow field with particles \u2192 interactive controls \u2192 seeded for reproducibility", kw:"algorithmic-art generative p5.js seeded randomness interactive parameters flow field particles"},
+  {cmd:"/slack-gif-creator", desc:"Animated GIFs optimized for Slack constraints and size limits.", flags:".gif", uc:'"Celebration confetti" \u2192 validates Slack size limits \u2192 outputs optimized GIF', kw:"slack-gif-creator animated gif slack optimized constraints size limits celebration"},
+  {cmd:"/theme-factory", desc:"Style artifacts with 10 preset themes or generate custom themes.", flags:"10 presets", uc:'Apply "Corporate Blue" theme to slide deck \u2192 consistent colors/fonts throughout', kw:"theme-factory style artifacts preset themes custom colors fonts corporate"},
+  {cmd:"/web-artifacts-builder", desc:"Multi-component claude.ai HTML artifacts with React, Tailwind, shadcn/ui.", flags:"React, Tailwind", uc:"Complex artifacts with state management, routing, shadcn/ui components", kw:"web-artifacts-builder html artifacts react tailwind shadcn state management routing components"},
+];
+
+const devutilsData = [
+  {cmd:"/mcp-builder", desc:"Guide for creating MCP servers (Python FastMCP or Node/TypeScript SDK).", flags:"Python, Node", uc:"Building MCP servers to integrate external APIs or services", kw:"mcp-builder create mcp servers python fastmcp node typescript sdk api services"},
+  {cmd:"/skill-creator", desc:"Create, modify, measure, and optimize skills. Run evals, benchmark performance.", flags:"evals, benchmark", uc:"Creating new skills, editing existing ones, running evals, benchmarking", kw:"skill-creator create modify measure optimize skills evals benchmark performance"},
+  {cmd:"/webapp-testing", desc:"Playwright toolkit for testing local web apps. Screenshots, browser logs.", flags:"Playwright", uc:"Verifying frontend functionality, debugging UI behavior, capturing screenshots", kw:"webapp-testing playwright test local web apps screenshots browser logs frontend debugging"},
+  {cmd:"/brand-guidelines", desc:"Apply Anthropic's official brand colors and typography to artifacts.", flags:"Anthropic", uc:"Any artifact that needs Anthropic's look-and-feel", kw:"brand-guidelines anthropic brand colors typography official look-and-feel"},
+  {cmd:"/internal-comms", desc:"Write internal communications using company formats.", flags:"multiple formats", uc:"Status reports, leadership updates, FAQs, incident reports, project updates", kw:"internal-comms communications status reports leadership updates faqs incident reports"},
+  {cmd:"/claude-api", desc:"Build, debug, and optimize Claude API / Anthropic SDK apps with prompt caching.", flags:"anthropic, @anthropic-ai/sdk", uc:"Code imports anthropic SDK → /claude-api → optimizes with prompt caching + best practices", kw:"claude-api anthropic sdk build debug optimize prompt caching api claude"},
+  {cmd:"/remotion-best-practices", desc:"Best practices for Remotion — video creation in React.", flags:"React, Remotion", uc:"Building programmatic videos → /remotion-best-practices → optimal patterns for React video", kw:"remotion best practices video creation react programmatic motion graphics"},
+  {cmd:"/template-skill", desc:"Template starting point for creating new skills from scratch.", flags:"template", uc:"Creating a brand new skill → /template-skill → provides the boilerplate structure", kw:"template-skill new skill boilerplate starting point create"},
+];
+
+const appleData = [
+  {cmd:"/liquid-glass", desc:"Implement Liquid Glass design using .glassEffect() API for iOS/macOS 26+.", flags:"iOS 26+, macOS 26+", uc:"Modern glass-based UI effects for Apple platforms", kw:"liquid-glass glassEffect ios macos 26 apple platform glass ui effects modern"},
+];
+
+const configData = [
+  {cmd:"/update-config", desc:"Configure Claude Code harness via settings.json. Set up hooks for automated behaviors.", flags:"settings.json, hooks", uc:"/update-config → 'Run linter before every commit' → creates pre-commit hook in settings.json", kw:"update-config configure settings.json hooks automated behaviors before after every"},
+  {cmd:"/keybindings-help", desc:"Customize keyboard shortcuts, rebind keys, add chord bindings.", flags:"~/.claude/keybindings.json", uc:"/keybindings-help → 'rebind ctrl+s' → updates keybindings.json with new binding", kw:"keybindings-help customize keyboard shortcuts rebind keys chord bindings json"},
+  {cmd:"/loop", desc:"Run a prompt or slash command on a recurring interval. Self-paces when interval omitted.", flags:"interval, self-paced", uc:"/loop 5m /qa-only https://app.com → runs QA every 5 minutes → reports changes", kw:"loop recurring interval prompt slash command self-paced polling monitor"},
+  {cmd:"/schedule", desc:"Create, update, list, or run scheduled remote agents on a cron schedule.", flags:"create, list, run, delete, --cron", uc:'/schedule create "daily security" --cron "0 9 * * *" --prompt "/cso" → daily audit', kw:"schedule cron remote agents triggers recurring automated daily weekly"},
+];
+
+const gwsCoreData = [
+  {cmd:"/gws-gmail", desc:"Gmail: Send, read, and manage email.", flags:"", uc:"Full email management from Claude Code", kw:"gws-gmail gmail send read manage email google workspace"},
+  {cmd:"/gws-gmail-send", desc:"Gmail: Send an email.", flags:"", uc:"Compose and send email directly", kw:"gws-gmail-send send email compose"},
+  {cmd:"/gws-gmail-read", desc:"Gmail: Read a message and extract body or headers.", flags:"", uc:"Extract message content for analysis", kw:"gws-gmail-read message body headers extract"},
+  {cmd:"/gws-gmail-reply", desc:"Gmail: Reply to a message (handles threading automatically).", flags:"", uc:"Reply in thread with automatic threading", kw:"gws-gmail-reply reply thread automatic"},
+  {cmd:"/gws-gmail-reply-all", desc:"Gmail: Reply-all to a message.", flags:"", uc:"Reply to all recipients in thread", kw:"gws-gmail-reply-all reply all recipients"},
+  {cmd:"/gws-gmail-forward", desc:"Gmail: Forward a message to new recipients.", flags:"", uc:"Forward email to other people", kw:"gws-gmail-forward forward message recipients"},
+  {cmd:"/gws-gmail-triage", desc:"Gmail: Show unread inbox summary (sender, subject, date).", flags:"", uc:"/gws-gmail-triage → shows unread inbox overview", kw:"gws-gmail-triage inbox summary unread sender subject"},
+  {cmd:"/gws-gmail-watch", desc:"Gmail: Watch for new emails and stream as NDJSON.", flags:"", uc:"Real-time email monitoring stream", kw:"gws-gmail-watch new emails stream ndjson real-time monitor"},
+  {cmd:"/gws-calendar", desc:"Google Calendar: Manage calendars and events.", flags:"", uc:"Full calendar management", kw:"gws-calendar google calendar manage events"},
+  {cmd:"/gws-calendar-agenda", desc:"Google Calendar: Show upcoming events across all calendars.", flags:"", uc:"/gws-calendar-agenda → today's full schedule", kw:"gws-calendar-agenda upcoming events schedule today"},
+  {cmd:"/gws-calendar-insert", desc:"Google Calendar: Create a new event.", flags:"", uc:"Schedule a new meeting or event", kw:"gws-calendar-insert create event meeting schedule"},
+  {cmd:"/gws-chat", desc:"Google Chat: Manage Chat spaces and messages.", flags:"", uc:"Full Chat space management", kw:"gws-chat google chat spaces messages manage"},
+  {cmd:"/gws-chat-send", desc:"Google Chat: Send a message to a space.", flags:"", uc:"Post message to a Chat space", kw:"gws-chat-send message space post"},
+  {cmd:"/gws-docs", desc:"Read and write Google Docs.", flags:"", uc:"Full Docs management", kw:"gws-docs google docs read write"},
+  {cmd:"/gws-docs-write", desc:"Google Docs: Append text to a document.", flags:"", uc:"Add content to an existing doc", kw:"gws-docs-write append text document content"},
+  {cmd:"/gws-drive", desc:"Google Drive: Manage files, folders, and shared drives.", flags:"", uc:"Full Drive management", kw:"gws-drive google drive files folders shared drives manage"},
+  {cmd:"/gws-drive-upload", desc:"Google Drive: Upload a file with automatic metadata.", flags:"", uc:"Upload file to Drive with metadata", kw:"gws-drive-upload file metadata upload"},
+  {cmd:"/gws-sheets", desc:"Google Sheets: Read and write spreadsheets.", flags:"", uc:"Full Sheets management", kw:"gws-sheets google sheets spreadsheets read write"},
+  {cmd:"/gws-sheets-read", desc:"Google Sheets: Read values from a spreadsheet.", flags:"", uc:"Read spreadsheet data for analysis", kw:"gws-sheets-read values spreadsheet data read"},
+  {cmd:"/gws-sheets-append", desc:"Google Sheets: Append a row to a spreadsheet.", flags:"", uc:"Add data row to existing sheet", kw:"gws-sheets-append row data append sheet"},
+  {cmd:"/gws-slides", desc:"Google Slides: Read and write presentations.", flags:"", uc:"Full Slides management", kw:"gws-slides google slides presentations read write"},
+  {cmd:"/gws-forms", desc:"Read and write Google Forms.", flags:"", uc:"Manage forms and surveys", kw:"gws-forms google forms read write manage surveys"},
+  {cmd:"/gws-meet", desc:"Manage Google Meet conferences.", flags:"", uc:"Meeting management", kw:"gws-meet google meet conferences manage meetings"},
+  {cmd:"/gws-tasks", desc:"Google Tasks: Manage task lists and tasks.", flags:"", uc:"Task list management", kw:"gws-tasks google tasks manage lists"},
+  {cmd:"/gws-keep", desc:"Manage Google Keep notes.", flags:"", uc:"Notes management", kw:"gws-keep google keep notes manage"},
+  {cmd:"/gws-people", desc:"Google People: Manage contacts and profiles.", flags:"", uc:"Contact and profile management", kw:"gws-people google people contacts profiles manage directory"},
+  {cmd:"/gws-classroom", desc:"Google Classroom: Manage classes, rosters, and coursework.", flags:"", uc:"Classroom and education management", kw:"gws-classroom google classroom classes rosters coursework education"},
+  {cmd:"/gws-script", desc:"Manage Google Apps Script projects.", flags:"", uc:"Apps Script project management", kw:"gws-script google apps script projects manage"},
+  {cmd:"/gws-script-push", desc:"Google Apps Script: Upload local files to a project.", flags:"", uc:"Push local code to Apps Script", kw:"gws-script-push upload files apps script push code"},
+];
+
+const gwsAdminData = [
+  {cmd:"/gws-events", desc:"Subscribe to Google Workspace events.", flags:"", uc:"Event subscription management", kw:"gws-events subscribe workspace events"},
+  {cmd:"/gws-events-subscribe", desc:"Subscribe to events and stream as NDJSON.", flags:"", uc:"Real-time event streaming", kw:"gws-events-subscribe stream ndjson real-time events"},
+  {cmd:"/gws-events-renew", desc:"Renew/reactivate event subscriptions.", flags:"", uc:"Keep subscriptions alive", kw:"gws-events-renew reactivate subscriptions renew"},
+  {cmd:"/gws-admin-reports", desc:"Admin SDK: Audit logs and usage reports.", flags:"", uc:"Admin audit and reporting dashboard", kw:"gws-admin-reports admin sdk audit logs usage reports"},
+  {cmd:"/gws-shared", desc:"Shared patterns: authentication, global flags, output formatting.", flags:"", uc:"Base patterns used by all gws commands", kw:"gws-shared patterns authentication flags output formatting base"},
+];
+
+const gwsArmorData = [
+  {cmd:"/gws-modelarmor", desc:"Google Model Armor: Filter user-generated content for safety.", flags:"", uc:"Content safety filtering for AI apps", kw:"gws-modelarmor model armor filter safety content user-generated"},
+  {cmd:"/gws-modelarmor-create-template", desc:"Create a new Model Armor template.", flags:"", uc:"Set up safety filtering template", kw:"gws-modelarmor-create-template create template safety"},
+  {cmd:"/gws-modelarmor-sanitize-prompt", desc:"Sanitize a user prompt through a Model Armor template.", flags:"", uc:"Filter incoming user prompts for safety", kw:"gws-modelarmor-sanitize-prompt sanitize user prompt filter incoming"},
+  {cmd:"/gws-modelarmor-sanitize-response", desc:"Sanitize a model response through a Model Armor template.", flags:"", uc:"Filter outgoing model responses for safety", kw:"gws-modelarmor-sanitize-response sanitize model response filter outgoing"},
+];
+
+const gwsWorkflowData = [
+  {cmd:"/gws-workflow", desc:"Cross-service Google Workspace productivity workflows.", flags:"", uc:"Multi-service automation combining Gmail, Calendar, Drive, Chat", kw:"gws-workflow cross-service productivity workflows automation"},
+  {cmd:"/gws-workflow-email-to-task", desc:"Convert a Gmail message into a Google Tasks entry.", flags:"", uc:"Email → task conversion with one command", kw:"gws-workflow-email-to-task gmail tasks convert email"},
+  {cmd:"/gws-workflow-file-announce", desc:"Announce a Drive file in a Chat space.", flags:"", uc:"Share new file to Chat with notification", kw:"gws-workflow-file-announce drive file chat announce share"},
+  {cmd:"/gws-workflow-meeting-prep", desc:"Prepare for next meeting: agenda, attendees, linked docs.", flags:"", uc:"/gws-workflow-meeting-prep → pulls agenda + attendees + docs → briefing ready", kw:"gws-workflow-meeting-prep meeting agenda attendees docs briefing prepare"},
+  {cmd:"/gws-workflow-standup-report", desc:"Today's meetings + open tasks as a standup summary.", flags:"", uc:"/gws-workflow-standup-report → morning standup overview", kw:"gws-workflow-standup-report standup meetings tasks summary morning daily"},
+  {cmd:"/gws-workflow-weekly-digest", desc:"Weekly summary: this week's meetings + unread email count.", flags:"", uc:"/gws-workflow-weekly-digest → end-of-week overview", kw:"gws-workflow-weekly-digest weekly summary meetings email count digest"},
+];
+
+const recipeEmailData = [
+  {cmd:"/recipe-send-team-announcement", desc:"Send announcement via both Gmail and a Google Chat space.", flags:"", uc:"Team announcement → Gmail + Chat simultaneously", kw:"recipe send team announcement gmail chat"},
+  {cmd:"/recipe-draft-email-from-doc", desc:"Read content from a Google Doc → use as Gmail message body.", flags:"", uc:"Doc → email: compose message from document content", kw:"recipe draft email from doc gmail google docs"},
+  {cmd:"/recipe-email-drive-link", desc:"Share a Google Drive file and email the link with a message.", flags:"", uc:"Share file → email the link to recipients", kw:"recipe email drive link share file send"},
+  {cmd:"/recipe-forward-labeled-emails", desc:"Find Gmail messages with a specific label → forward to address.", flags:"", uc:"Auto-forward labeled emails to another inbox", kw:"recipe forward labeled emails gmail filter"},
+  {cmd:"/recipe-label-and-archive-emails", desc:"Apply Gmail labels to matching messages and archive them.", flags:"", uc:"Label + archive to keep inbox clean", kw:"recipe label archive emails gmail organize inbox clean"},
+  {cmd:"/recipe-create-gmail-filter", desc:"Create a Gmail filter to auto-label, star, or categorize messages.", flags:"", uc:"Set up automatic email organization", kw:"recipe create gmail filter auto label star categorize"},
+  {cmd:"/recipe-create-vacation-responder", desc:"Enable Gmail out-of-office auto-reply with custom message and dates.", flags:"", uc:"Set vacation responder with date range", kw:"recipe create vacation responder out-of-office auto-reply ooo"},
+  {cmd:"/recipe-save-email-attachments", desc:"Find Gmail messages with attachments → save to Drive folder.", flags:"", uc:"Extract and archive email attachments to Drive", kw:"recipe save email attachments gmail drive folder"},
+  {cmd:"/recipe-save-email-to-doc", desc:"Save a Gmail message body into a Google Doc for archival.", flags:"", uc:"Archive important email as a Google Doc", kw:"recipe save email to doc gmail google docs archive"},
+];
+
+const recipeCalendarData = [
+  {cmd:"/recipe-create-events-from-sheet", desc:"Read event data from Sheets → create Calendar entries for each row.", flags:"", uc:"Sheets rows → Calendar events in bulk", kw:"recipe create events from sheet calendar sheets bulk"},
+  {cmd:"/recipe-schedule-recurring-event", desc:"Create a recurring Calendar event with attendees.", flags:"", uc:"Set up weekly/daily recurring meeting", kw:"recipe schedule recurring event calendar weekly daily meeting"},
+  {cmd:"/recipe-reschedule-meeting", desc:"Move a Calendar event to new time → notify all attendees.", flags:"", uc:"Reschedule meeting with automatic notifications", kw:"recipe reschedule meeting calendar move notify attendees"},
+  {cmd:"/recipe-batch-invite-to-event", desc:"Add a list of attendees to an existing Calendar event.", flags:"", uc:"Bulk-add attendees to existing event", kw:"recipe batch invite event calendar attendees add"},
+  {cmd:"/recipe-block-focus-time", desc:"Create recurring focus time blocks on Calendar.", flags:"", uc:"Protect deep work hours with recurring blocks", kw:"recipe block focus time calendar recurring deep work"},
+  {cmd:"/recipe-find-free-time", desc:"Query Calendar free/busy for multiple users → find meeting slot.", flags:"", uc:"Find available time slot across team members", kw:"recipe find free time calendar slot team availability"},
+  {cmd:"/recipe-plan-weekly-schedule", desc:"Review Calendar week → identify gaps → add events to fill.", flags:"", uc:"Plan and optimize your week's schedule", kw:"recipe plan weekly schedule calendar gaps optimize week"},
+  {cmd:"/recipe-share-event-materials", desc:"Share Drive files with all attendees of a Calendar event.", flags:"", uc:"Auto-share meeting materials with attendees", kw:"recipe share event materials drive calendar attendees files"},
+  {cmd:"/recipe-review-meet-participants", desc:"Review who attended a Meet conference and for how long.", flags:"", uc:"Check meeting attendance and duration", kw:"recipe review meet participants attendance duration conference"},
+];
+
+const recipeDriveData = [
+  {cmd:"/recipe-create-doc-from-template", desc:"Copy a Docs template → fill in content → share with collaborators.", flags:"", uc:"Template → filled doc → shared with team", kw:"recipe create doc from template docs copy fill share collaborators"},
+  {cmd:"/recipe-share-doc-and-notify", desc:"Share a Doc with edit access → email collaborators the link.", flags:"", uc:"Share doc and notify collaborators via email", kw:"recipe share doc notify email collaborators edit access link"},
+  {cmd:"/recipe-organize-drive-folder", desc:"Create Drive folder structure → move files into correct locations.", flags:"", uc:"Organize messy Drive into structured folders", kw:"recipe organize drive folder structure move files"},
+  {cmd:"/recipe-create-shared-drive", desc:"Create a Shared Drive → add members with appropriate roles.", flags:"", uc:"Set up team shared drive with roles", kw:"recipe create shared drive team members roles"},
+  {cmd:"/recipe-bulk-download-folder", desc:"List and download all files from a Drive folder.", flags:"", uc:"Batch download entire folder contents", kw:"recipe bulk download folder drive files batch"},
+  {cmd:"/recipe-find-large-files", desc:"Identify large Drive files consuming storage quota.", flags:"", uc:"Find storage hogs in Google Drive", kw:"recipe find large files drive storage quota cleanup"},
+  {cmd:"/recipe-share-folder-with-team", desc:"Share a Drive folder and all contents with collaborators.", flags:"", uc:"Bulk-share folder with team members", kw:"recipe share folder team drive collaborators contents"},
+  {cmd:"/recipe-watch-drive-changes", desc:"Subscribe to change notifications on a Drive file or folder.", flags:"", uc:"Get notified when files change", kw:"recipe watch drive changes subscribe notifications file folder"},
+];
+
+const recipeSheetsData = [
+  {cmd:"/recipe-create-expense-tracker", desc:"Set up expense-tracking sheet with headers and initial entries.", flags:"", uc:"Quick expense tracker spreadsheet", kw:"recipe create expense tracker sheets headers entries budget"},
+  {cmd:"/recipe-generate-report-from-sheet", desc:"Read Sheet data → create formatted Docs report.", flags:"", uc:"Sheet data → formatted document report", kw:"recipe generate report from sheet docs formatted data"},
+  {cmd:"/recipe-backup-sheet-as-csv", desc:"Export a Sheets spreadsheet as CSV for local backup.", flags:"", uc:"Backup spreadsheet data locally as CSV", kw:"recipe backup sheet csv export local spreadsheet"},
+  {cmd:"/recipe-compare-sheet-tabs", desc:"Read two tabs in a Sheet → compare and find differences.", flags:"", uc:"Compare two tabs to spot discrepancies", kw:"recipe compare sheet tabs differences discrepancies two"},
+  {cmd:"/recipe-copy-sheet-for-new-month", desc:"Duplicate a Sheets template tab for a new month.", flags:"", uc:"Monthly tracking: copy template tab for new month", kw:"recipe copy sheet new month template duplicate tracking"},
+  {cmd:"/recipe-log-deal-update", desc:"Append deal status update to sales tracking sheet.", flags:"", uc:"Log CRM deal update to tracking spreadsheet", kw:"recipe log deal update sales tracking sheet crm status"},
+  {cmd:"/recipe-sync-contacts-to-sheet", desc:"Export Google Contacts directory to a Sheets spreadsheet.", flags:"", uc:"Contacts → spreadsheet for analysis", kw:"recipe sync contacts sheet export google directory spreadsheet"},
+];
+
+const recipeOtherData = [
+  {cmd:"/recipe-create-feedback-form", desc:"Create a Google Form for feedback → share via Gmail.", flags:"", uc:"Quick feedback form → emailed to recipients", kw:"recipe create feedback form forms gmail share survey"},
+  {cmd:"/recipe-collect-form-responses", desc:"Retrieve and review responses from a Google Form.", flags:"", uc:"Check form submissions and responses", kw:"recipe collect form responses google forms submissions review"},
+  {cmd:"/recipe-create-classroom-course", desc:"Create a Classroom course → invite students.", flags:"", uc:"Set up new class with student roster", kw:"recipe create classroom course students education invite roster"},
+  {cmd:"/recipe-create-meet-space", desc:"Create a Meet meeting space → share the join link.", flags:"", uc:"Quick Meet room creation with shareable link", kw:"recipe create meet space conference join link share"},
+  {cmd:"/recipe-create-task-list", desc:"Set up a new Tasks list with initial tasks.", flags:"", uc:"Quick task list setup with items", kw:"recipe create task list tasks items setup new"},
+  {cmd:"/recipe-review-overdue-tasks", desc:"Find past-due Tasks that need attention.", flags:"", uc:"Check for overdue tasks across all lists", kw:"recipe review overdue tasks past due attention deadline"},
+  {cmd:"/recipe-post-mortem-setup", desc:"Create Docs post-mortem → schedule Calendar review → notify via Chat.", flags:"", uc:"Full post-mortem setup: doc + meeting + notification", kw:"recipe post-mortem setup docs calendar chat review incident"},
+  {cmd:"/recipe-create-presentation", desc:"Create a new Slides presentation with initial slides.", flags:"", uc:"Quick presentation creation with starter slides", kw:"recipe create presentation slides new initial"},
+];
+
+const personasData = [
+  {cmd:"/persona-exec-assistant", desc:"Executive Assistant: Manage executive's schedule, inbox, and communications.", flags:"", uc:"EA mode: calendar + inbox + comms management optimized for executives", kw:"persona exec assistant executive schedule inbox communications ea"},
+  {cmd:"/persona-project-manager", desc:"Project Manager: Coordinate projects, track tasks, schedule meetings, share docs.", flags:"", uc:"PM mode: task tracking + meeting scheduling + doc sharing", kw:"persona project manager coordinate tasks meetings docs pm"},
+  {cmd:"/persona-team-lead", desc:"Team Lead: Run standups, coordinate tasks, and communicate.", flags:"", uc:"Lead mode: standups + task coordination + team communication", kw:"persona team lead standups coordinate tasks communicate"},
+  {cmd:"/persona-content-creator", desc:"Content Creator: Create, organize, and distribute content across Workspace.", flags:"", uc:"Content mode: create + organize + distribute content", kw:"persona content creator create organize distribute workspace"},
+  {cmd:"/persona-customer-support", desc:"Customer Support: Manage tickets, respond to customers, escalate issues.", flags:"", uc:"Support mode: ticket management + response + escalation", kw:"persona customer support tickets respond escalate issues"},
+  {cmd:"/persona-event-coordinator", desc:"Event Coordinator: Plan events, scheduling, invitations, logistics.", flags:"", uc:"Event mode: planning + scheduling + invitations + logistics", kw:"persona event coordinator plan scheduling invitations logistics"},
+  {cmd:"/persona-hr-coordinator", desc:"HR Coordinator: Onboarding, announcements, employee communications.", flags:"", uc:"HR mode: onboarding + announcements + employee comms", kw:"persona hr coordinator onboarding announcements employee communications"},
+  {cmd:"/persona-it-admin", desc:"IT Admin: Monitor security, configure Workspace settings.", flags:"", uc:"IT mode: security monitoring + Workspace configuration", kw:"persona it admin monitor security configure workspace settings"},
+  {cmd:"/persona-researcher", desc:"Researcher: Manage references, notes, and collaboration.", flags:"", uc:"Research mode: references + notes + collaboration management", kw:"persona researcher references notes collaboration manage"},
+  {cmd:"/persona-sales-ops", desc:"Sales Ops: Track deals, schedule calls, manage client communications.", flags:"", uc:"Sales mode: deal tracking + calls + client comms", kw:"persona sales ops track deals schedule calls client communications crm"},
+];
+
+const videoData = [
+  {cmd:"/remotion-best-practices", desc:"Best practices for Remotion — video creation in React.", flags:"React, Remotion", uc:"Building programmatic videos → optimal patterns for React + Remotion", kw:"remotion best practices video creation react programmatic motion graphics"},
+];
+
+const workflows = [
+  {name:"A. New Project (Full Ceremony)", steps:["/office-hours","/gsd:new-project","/gsd:settings","/gsd:map-codebase","Per phase: discuss \u2192 plan \u2192 execute \u2192 verify \u2192 add-tests","/gsd:audit-milestone","/gsd:complete-milestone","/document-release","/retro"]},
+  {name:"B. Quick Feature", steps:['/gsd:quick "Add rate limiting"',"/review","/ship"]},
+  {name:"C. Trivial Fix", steps:['/gsd:fast "Fix typo"',"/ship"]},
+  {name:"D. Bug Investigation", steps:["/investigate (gstack)","OR /gsd:debug (GSD)","OR /autoresearch:debug (all bugs)"]},
+  {name:"E. Design-First Frontend", steps:["/design-consultation","/gsd:ui-phase N","/gsd:plan-phase N","/gsd:execute-phase N","/gsd:ui-review N","/design-review URL","/qa URL"]},
+  {name:"F. Full Ship Pipeline", steps:["/review","/ship","/land-and-deploy","/canary --duration 5m","/document-release"]},
+  {name:"G. Figma \u2194 Code", steps:["/figma:figma-implement-design","... build feature ...","/figma:figma-generate-design","/figma:figma-code-connect-components"]},
+  {name:"H. Session Management", steps:["/gsd:resume-work","/gsd:next","/gsd:progress","/gsd:pause-work","/gsd:session-report","/retro"]},
+  {name:"I. Security Audit", steps:["/cso","/autoresearch:security","/careful","/guard"]},
+  {name:"J. Documentation Writing", steps:["/idme-base:writer","/idme-base:design-document-writer","/idme-base:adr-writer","/idme-base:arb-writer","/idme-base:api-council-writer","/doc-coauthoring"]},
+  {name:"K. Autonomous Iteration", steps:["/autoresearch:plan","/autoresearch","/autoresearch:fix","/autoresearch:ship"]},
+  {name:"L. Document & Office Generation", steps:["/pdf","/docx","/pptx","/xlsx"]},
+  {name:"M. Browser Automation", steps:["/browse (gstack)","/browser-use (direct)","/connect-chrome (real Chrome)","/setup-browser-cookies (auth)"]},
+  {name:"N. Google Workspace Daily", steps:["/gws-gmail-triage","/gws-calendar-agenda","/gws-workflow-standup-report","/gws-workflow-meeting-prep"]},
+  {name:"O. Google Workspace Automation", steps:["/recipe-create-events-from-sheet","/recipe-email-drive-link","/recipe-create-gmail-filter","/recipe-post-mortem-setup"]},
+  {name:"P. Persona-Driven Workspace", steps:["/persona-exec-assistant","/gws-gmail-triage","/gws-calendar-agenda","/gws-workflow-meeting-prep","/recipe-reschedule-meeting"]},
+  {name:"Q. Developer Experience Audit", steps:["/plan-devex-review","/devex-review URL","/design-review URL","/qa URL"]},
+  {name:"R. Scheduled Automation", steps:['/schedule create "nightly security"','/schedule create "weekly retro"',"/schedule list","/loop 5m /health"]},
+];
+
+// ========== RENDER ==========
+function renderCard(d) {
+  const searchable = `${d.cmd} ${d.desc} ${d.uc} ${d.kw||''} ${d.flags||''}`.toLowerCase();
+  const flagsHtml = d.flags && d.flags !== 'none' && d.flags !== 'auto'
+    ? `<div class="card-tags">${d.flags.split(',').map(f => `<span class="tag tag-flags">${f.trim()}</span>`).join('')}</div>` : '';
+  return `<div class="card" data-search="${searchable}">
+    <div class="card-top"><span class="cmd">${d.cmd}</span>${flagsHtml}</div>
+    <div class="card-desc">${d.desc}</div>
+    ${d.uc ? `<div class="card-usecase">${d.uc.replace(/→/g,'<span class="arrow">\u2192</span>')}</div>` : ''}
+  </div>`;
+}
+
+function renderCards(containerId, data) {
+  const el = document.getElementById(containerId);
+  if (el) el.innerHTML = data.map(renderCard).join('');
+}
+
+// Render all dynamic sections
+Object.entries(gsdData).forEach(([key, data]) => renderCards(`gsd-${key}`, data));
+renderCards('autoresearch-cards', autoresearchData);
+renderCards('figma-cards', figmaData);
+renderCards('idme-cards', idmeData);
+renderCards('beads-cards', beadsData);
+renderCards('superpowers-cards', superpowersData);
+renderCards('lab-cards', labData);
+renderCards('uiux-cards', uiuxData);
+renderCards('godmode-cards', godmodeData);
+renderCards('browseruse-cards', browseruseData);
+renderCards('documents-cards', documentsData);
+renderCards('creative-cards', creativeData);
+renderCards('devutils-cards', devutilsData);
+renderCards('apple-cards', appleData);
+renderCards('config-cards', configData);
+renderCards('gws-core-cards', gwsCoreData);
+renderCards('gws-admin-cards', gwsAdminData);
+renderCards('gws-armor-cards', gwsArmorData);
+renderCards('gws-workflow-cards', gwsWorkflowData);
+renderCards('recipe-email-cards', recipeEmailData);
+renderCards('recipe-calendar-cards', recipeCalendarData);
+renderCards('recipe-drive-cards', recipeDriveData);
+renderCards('recipe-sheets-cards', recipeSheetsData);
+renderCards('recipe-other-cards', recipeOtherData);
+renderCards('personas-cards', personasData);
+renderCards('video-cards', videoData);
+
+// Render workflows
+document.getElementById('workflow-cards').innerHTML = workflows.map(w => `
+  <div class="workflow-card card" data-search="${w.name.toLowerCase()} ${w.steps.join(' ').toLowerCase()}">
+    <h4>${w.name}</h4>
+    <div class="workflow-steps">
+      ${w.steps.map((s,i) => `<span class="workflow-step">${s}</span>${i < w.steps.length-1 ? '<span class="workflow-arrow">\u2192</span>' : ''}`).join('')}
+    </div>
+  </div>
+`).join('');
+
+// ========== SEARCH ==========
+const searchInput = document.getElementById('searchInput');
+const searchCount = document.getElementById('searchCount');
+const searchClear = document.getElementById('searchClear');
+const allCards = document.querySelectorAll('.card');
+
+function doSearch() {
+  const q = searchInput.value.toLowerCase().trim();
+  searchClear.style.display = q ? 'block' : 'none';
+
+  if (!q) {
+    allCards.forEach(c => c.classList.remove('hidden'));
+    searchCount.textContent = '';
+    return;
+  }
+
+  const terms = q.split(/\s+/);
+  let visible = 0;
+
+  allCards.forEach(card => {
+    const text = card.getAttribute('data-search') || card.textContent.toLowerCase();
+    const match = terms.every(t => text.includes(t));
+    card.classList.toggle('hidden', !match);
+    if (match) visible++;
+  });
+
+  searchCount.textContent = `${visible} result${visible !== 1 ? 's' : ''}`;
+}
+
+searchInput.addEventListener('input', doSearch);
+
+function clearSearch() {
+  searchInput.value = '';
+  doSearch();
+  searchInput.focus();
+}
+
+// Keyboard shortcut: / to focus search
+document.addEventListener('keydown', e => {
+  if (e.key === '/' && document.activeElement !== searchInput) {
+    e.preventDefault();
+    searchInput.focus();
+  }
+  if (e.key === 'Escape' && document.activeElement === searchInput) {
+    clearSearch();
+    searchInput.blur();
+  }
+});
+
+// ========== NAV ==========
+const navItems = document.querySelectorAll('.nav-item');
+
+function setActiveNav(sectionId) {
+  navItems.forEach(n => n.classList.toggle('active', n.getAttribute('data-section') === sectionId));
+}
+
+navItems.forEach(item => {
+  item.addEventListener('click', () => {
+    setActiveNav(item.getAttribute('data-section'));
+    // Close sidebar on mobile
+    if (window.innerWidth <= 768) toggleSidebar();
+  });
+});
+
+// Scroll spy
+const sections = document.querySelectorAll('.section');
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) setActiveNav(e.target.id);
+  });
+}, { rootMargin: '-20% 0px -60% 0px' });
+
+sections.forEach(s => observer.observe(s));
+
+// Mobile sidebar
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('overlay').classList.toggle('open');
+}
+</script>
+</body>
+</html>

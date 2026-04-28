@@ -1,0 +1,30 @@
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Editor
+.idea/
+.vscode/
+*.swp
+
+# OS
+Thumbs.db
+
+# Python
+.venv/
+**/.venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+**/.pytest_cache/
+
+# Node
+node_modules/
+**/node_modules/
+.npm/
+*.log
+
+# Build outputs / large binaries
+*.metallib
+dist/build-cache/

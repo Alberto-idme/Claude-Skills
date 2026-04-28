@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 830 540" width="830" height="540">
+  <defs>
+    <linearGradient id="glow" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="rgba(0,184,72,0.06)"/><stop offset="100%" stop-color="transparent"/>
+    </linearGradient>
+  </defs>
+  <style>
+    @keyframes pulse{0%,100%{opacity:.85}50%{opacity:1}}
+    @keyframes glow{0%,100%{opacity:.7}50%{opacity:1}}
+    @keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+    .pulse{animation:pulse 3s ease-in-out infinite}
+    .glow{animation:glow 4s ease-in-out infinite}
+    .blink{animation:blink 1s step-end infinite}
+  </style>
+  <!-- Background -->
+  <rect width="830" height="540" fill="#0f0f0f"/>
+  <!-- Terminal container -->
+  <rect x="24" y="24" width="782" height="492" rx="12" fill="#111111" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+  <!-- Title bar -->
+  <rect x="24" y="24" width="782" height="36" rx="12" fill="#1a1a1a"/>
+  <rect x="24" y="48" width="782" height="12" fill="#1a1a1a"/>
+  <!-- Traffic lights -->
+  <circle cx="50" cy="42" r="6" fill="#ff5f56"/>
+  <circle cx="70" cy="42" r="6" fill="#ffbd2e"/>
+  <circle cx="90" cy="42" r="6" fill="#27c93f"/>
+  <text x="415" y="47" text-anchor="middle" font-family="Monaco,Menlo,'Courier New',monospace" font-size="12" fill="rgba(255,255,255,0.44)">terminal &#8212; godmode</text>
+  <!-- Line 1: $ claude -->
+  <text x="48" y="88" font-family="Monaco,Menlo,'Courier New',monospace" font-size="13" fill="rgba(255,255,255,0.9)">
+    <tspan fill="#579dfb">$ </tspan>claude</text>
+  <!-- Line 2: user prompt -->
+  <text x="48" y="112" font-family="Monaco,Menlo,'Courier New',monospace" font-size="13">
+    <tspan fill="rgba(255,255,255,0.75)">&gt; </tspan><tspan fill="rgba(255,255,255,0.9)">Add a Redis caching layer to speed up our API</tspan></text>
+  <!-- Line 3: rationale activated -->
+  <text x="48" y="148" font-family="Monaco,Menlo,'Courier New',monospace" font-size="13" class="pulse">
+    <tspan fill="#ffbd2e">&#x26A1; rationale</tspan><tspan fill="rgba(255,255,255,0.44)"> &#8212; Should we build this?</tspan></text>
+  <!-- Analysis phases (tree) -->
+  <text x="64" y="176" font-family="Monaco,Menlo,'Courier New',monospace" font-size="13">
+    <tspan fill="rgba(255,255,255,0.2)">&#x251C;&#x2500; </tspan><tspan fill="#b090f8">Reality Check    </tspan><tspan fill="rgba(255,255,255,0.44)">No performance data. Is the API actually slow?</tspan></text>
+  <text x="64" y="200" font-family="Monaco,Menlo,'Courier New',monospace" font-size="13">
+    <tspan fill="rgba(255,255,255,0.2)">&#x251C;&#x2500; </tspan><tspan fill="#b090f8">Effort Estimate  </tspan><tspan fill="rgba(255,255,255,0.44)">Substantial &#8212; Redis, invalidation, monitoring</tspan></text>
+  <text x="64" y="224" font-family="Monaco,Menlo,'Courier New',monospace" font-size="13">
+    <tspan fill="rgba(255,255,255,0.2)">&#x251C;&#x2500; </tspan><tspan fill="#b090f8">Alternatives     </tspan><tspan fill="rgba(255,255,255,0.44)">Query optimization covers 90% without new infra</tspan></text>
+  <text x="64" y="248" font-family="Monaco,Menlo,'Courier New',monospace" font-size="13">
+    <tspan fill="rgba(255,255,255,0.2)">&#x2514;&#x2500; </tspan><tspan fill="#b090f8">Hidden Costs     </tspan><tspan fill="rgba(255,255,255,0.44)">Stale data bugs, cache invalidation, ops overhead</tspan></text>
+  <!-- Options header -->
+  <text x="48" y="288" font-family="Monaco,Menlo,'Courier New',monospace" font-size="13">
+    <tspan fill="rgba(255,255,255,0.9)">Options:</tspan></text>
+  <!-- Option A (dim) -->
+  <text x="64" y="312" font-family="Monaco,Menlo,'Courier New',monospace" font-size="13">
+    <tspan fill="rgba(255,255,255,0.35)">A) Build as requested     ~3 days     Adds Redis + ops burden</tspan></text>
+  <!-- Option B (recommended - green) -->
+  <text x="64" y="336" font-family="Monaco,Menlo,'Courier New',monospace" font-size="13">
+    <tspan fill="#00b848">B) Optimize queries       ~2 hours    No new dependencies</tspan><tspan fill="#00b848">          &#x2713;</tspan></text>
+  <!-- Option C (dim) -->
+  <text x="64" y="360" font-family="Monaco,Menlo,'Courier New',monospace" font-size="13">
+    <tspan fill="rgba(255,255,255,0.35)">C) Defer                  0 effort    Profile under real load first</tspan></text>
+  <!-- Green glow for recommendation -->
+  <rect x="24" y="384" width="782" height="68" fill="url(#glow)" class="glow"/>
+  <!-- Recommendation -->
+  <text x="48" y="408" font-family="Monaco,Menlo,'Courier New',monospace" font-size="13" class="glow">
+    <tspan fill="#00b848">&#x2192; Recommendation: Option B</tspan></text>
+  <text x="64" y="432" font-family="Monaco,Menlo,'Courier New',monospace" font-size="13" class="glow">
+    <tspan fill="rgba(255,255,255,0.55)">No profiling data justifies cache infra. Optimize queries first.</tspan></text>
+  <!-- Cursor -->
+  <rect x="48" y="452" width="8" height="16" rx="1" fill="#ffbd2e" class="blink"/>
+  <!-- Bottom bar -->
+  <rect x="24" y="484" width="782" height="32" rx="0" fill="#1a1a1a"/>
+  <rect x="24" y="504" width="782" height="12" rx="12" fill="#1a1a1a"/>
+  <rect x="24" y="484" width="782" height="1" fill="rgba(255,255,255,0.1)"/>
+  <text x="415" y="504" text-anchor="middle" font-family="'Segoe UI',system-ui,sans-serif" font-size="11" fill="rgba(255,255,255,0.44)">GodMode v1.0.0  &#x2022;  36 skills  &#x2022;  Thinks before it builds</text>
+</svg>
