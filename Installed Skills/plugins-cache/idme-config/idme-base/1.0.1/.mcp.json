@@ -1,0 +1,27 @@
+{
+  "mcpServers": {
+    "allPepper-memory-bank": {
+      "command": "npx",
+      "args": ["-y", "@allpepper/memory-bank-mcp"],
+      "env": {
+        "MEMORY_BANK_ROOT": "${HOME}/.claude/memory-bank"
+      }
+    },
+    "sequential-thinking": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"]
+    },
+    "chromadb": {
+      "command": "uvx",
+      "args": [
+        "--python",
+        "3.13",
+        "chroma-mcp",
+        "--client-type",
+        "persistent",
+        "--data-dir",
+        "${HOME}/.claude/chromadb"
+      ]
+    }
+  }
+}

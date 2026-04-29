@@ -1,0 +1,60 @@
+{
+  "name": "idme-base",
+  "version": "1.0.1",
+  "description": "Single-install AI development course materials: 15 agents, 5 skills, 4 commands, and 3 MCP servers for Java/React development, research, code quality, and knowledge management",
+  "author": {
+    "name": "Chris Wensel",
+    "email": "chris.wensel@id.me"
+  },
+  "homepage": "https://github.com/IDme/ai-stuff",
+  "repository": "https://github.com/IDme/ai-stuff",
+  "license": "Apache-2.0",
+  "keywords": [
+    "java",
+    "react",
+    "architecture",
+    "testing",
+    "debugging",
+    "research",
+    "adr",
+    "code-review",
+    "quality",
+    "chromadb",
+    "pdf",
+    "documentation",
+    "rdr",
+    "mcp",
+    "infrastructure"
+  ],
+  "agents": [
+    "./agents/adr-researcher.md",
+    "./agents/code-review-expert.md",
+    "./agents/codebase-deep-analyzer.md",
+    "./agents/deep-analyst.md",
+    "./agents/deep-research-synthesizer.md",
+    "./agents/java-architect-planner.md",
+    "./agents/java-debugger.md",
+    "./agents/java-developer.md",
+    "./agents/knowledge-tidier.md",
+    "./agents/pdf-chromadb-processor.md",
+    "./agents/plan-auditor.md",
+    "./agents/project-management-setup.md",
+    "./agents/react-architect-planner.md",
+    "./agents/react-debugger.md",
+    "./agents/react-developer.md"
+  ],
+  "skills": [
+    "./skills/adr-writer",
+    "./skills/api-council-writer",
+    "./skills/arb-writer",
+    "./skills/design-document-writer",
+    "./skills/writer"
+  ],
+  "commands": [
+    "./commands/implement.md",
+    "./commands/init.md",
+    "./commands/status.md",
+    "./commands/validate.md"
+  ],
+  "mcpServers": "./.mcp.json"
+}
