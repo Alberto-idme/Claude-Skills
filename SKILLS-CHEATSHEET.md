@@ -1,12 +1,12 @@
 # Claude Code Skills Cheat Sheet
 
-> 250+ skills across 16 suites. Organized by workflow stage with mini use cases.
+> 380+ skills across 24 suites. Organized by workflow stage with mini use cases. Last updated: 2026-04-27.
 
 ---
 
 ## Table of Contents
 
-1. [gstack — Ship & QA Suite (33 skills)](#1-gstack--ship--qa-suite)
+1. [gstack — Ship & QA Suite (44 skills)](#1-gstack--ship--qa-suite)
 2. [GSD — Get Shit Done Framework (57 commands)](#2-gsd--get-shit-done-framework)
 3. [Autoresearch (9 skills)](#3-autoresearch)
 4. [Figma Plugin (6 skills)](#4-figma-plugin)
@@ -15,14 +15,22 @@
 7. [PRD Taskmaster (1 skill)](#7-prd-taskmaster)
 8. [UI/UX Pro Max (7 skills)](#8-uiux-pro-max)
 9. [Browser Use (4 skills)](#9-browser-use)
-10. [Document & Office (5 skills)](#10-document--office)
+10. [Document & Office (6 skills)](#10-document--office)
 11. [Creative & Design (6 skills)](#11-creative--design)
-12. [Developer Utilities (5 skills)](#12-developer-utilities)
+12. [Developer Utilities (8 skills)](#12-developer-utilities)
 13. [Superpowers (14 skills)](#13-superpowers)
 14. [Superpowers Lab (4 skills)](#14-superpowers-lab)
 15. [Godmode (37 skills)](#15-godmode)
 16. [Apple Platform (1 skill)](#16-apple-platform)
-17. [Workflow Sequences](#17-workflow-sequences)
+17. [Claude Code Configuration (4 skills)](#17-claude-code-configuration)
+18. [Google Workspace Suite (44 skills)](#18-google-workspace-suite)
+19. [Google Workspace Recipes (35 recipes)](#19-google-workspace-recipes)
+20. [Google Workspace Personas (10 personas)](#20-google-workspace-personas)
+21. [Video & Motion (1 skill)](#21-video--motion)
+22. [Codex Plugin (2 skills)](#22-codex-plugin)
+23. [Context7 Plugin (2 skills)](#23-context7-plugin)
+24. [Native Claude Code Commands (3 commands)](#24-native-claude-code-commands)
+25. [Workflow Sequences](#25-workflow-sequences)
 
 ---
 
@@ -36,7 +44,11 @@
 | `/plan-ceo-review` | CEO/founder plan review. Challenges premises, finds 10-star product | 4 modes: SCOPE EXPANSION, SELECTIVE, HOLD, REDUCTION | Enter plan mode → `/plan-ceo-review` → selects SELECTIVE EXPANSION → upgrades ambition while holding core |
 | `/plan-eng-review` | Eng manager plan review. Locks architecture, data flow, edge cases | Interactive, opinionated | After CEO review → `/plan-eng-review` → walks through architecture decisions → locks the plan |
 | `/plan-design-review` | Designer's eye plan review. Rates each dimension 0-10 | Plan mode only | After eng review → `/plan-design-review` → rates typography 6/10 → explains what makes it a 10 → fixes plan |
+| `/plan-devex-review` | Interactive developer experience plan review. Explores personas, benchmarks competitors, designs magical moments | 3 modes: DX EXPANSION, DX POLISH, DX BASELINE | After eng review → `/plan-devex-review` → scores TTHW, error UX, CLI help → fixes plan |
 | `/autoplan` | Runs all 3 reviews automatically with 6 decision principles | Auto-decisions, surfaces only taste calls | `/autoplan` → auto-answers 25 questions → surfaces 3 taste decisions for your approval |
+| `/devex-review` | Live DX audit. Tests getting-started flow, times TTHW, screenshots errors, evaluates CLI help | URL | `/devex-review https://docs.myapi.com` → tries the quickstart → times TTHW at 12min → DX scorecard |
+| `/pair-agent` | Pair a remote AI agent with your browser. Generates setup key for OpenClaw, Hermes, Codex, Cursor | One command | `/pair-agent` → generates setup key → other agent connects via HTTP → shares browser |
+| `/plan-tune` | Self-tuning question sensitivity + developer psychographic for gstack | Observability v1 | `/plan-tune` → calibrates how aggressively gstack asks clarifying questions → saves your psychographic profile |
 
 ### Design & Branding
 
@@ -60,11 +72,13 @@
 | Command | What it does | Key flags | Mini use case |
 |---------|-------------|-----------|---------------|
 | `/browse` | Headless Chromium (~100ms/cmd). Navigate, click, fill, screenshot, diff | `goto`, `snapshot`, `click`, `fill`, `screenshot`, `responsive` | `/browse` → `$B goto https://app.com` → `$B snapshot -i` → `$B click "#login"` → `$B fill "#email" "test@test.com"` |
-| `/connect-chrome` | Launch real visible Chrome with Side Panel extension | One command | `/connect-chrome` → watch every AI action in a real Chrome window |
+| `/gstack` | Fast headless browser for QA testing and site dogfooding (alias entry to the gstack browser primitives) | Same as /browse | `/gstack` → run gstack browser commands directly |
+| `/open-gstack-browser` | Launch GStack Browser — AI-controlled Chromium with the sidebar extension baked in | One command | `/open-gstack-browser` → opens GStack Browser → side panel ready for AI-driven flows |
 | `/setup-browser-cookies` | Import cookies from your real browser for authenticated testing | `<domain>` (optional) | `/setup-browser-cookies github.com` → imports GitHub session → now /qa can test authenticated pages |
 | `/qa` | Full QA: test + fix + verify. 3 tiers: Quick/Standard/Exhaustive | URL, tier | `/qa https://myapp.com` → finds 12 bugs → fixes 10 with atomic commits → before/after health score: 45→92 |
 | `/qa-only` | Report-only QA. Same testing, no code changes | URL | `/qa-only https://myapp.com` → produces bug report with screenshots and repro steps |
 | `/benchmark` | Performance regression detection. Core Web Vitals, load times, bundle size | `--baseline`, `--diff`, `--trend`, `--pages` | `/benchmark https://myapp.com --baseline` → captures baseline → later `/benchmark --diff` → shows regressions |
+| `/benchmark-models` | Cross-model benchmark for gstack skills. Runs the same prompt through Claude, GPT, etc. | Multi-provider | `/benchmark-models` → compares Claude/GPT/Gemini outputs → produces side-by-side scorecard |
 
 ### Shipping & Deployment
 
@@ -73,6 +87,7 @@
 | `/review` | Pre-landing PR review. SQL safety, LLM trust boundaries, side effects | Auto-detects branch | Before merging → `/review` → flags unsafe SQL migration and missing input validation |
 | `/ship` | Full ship: merge base, test, review diff, bump VERSION, CHANGELOG, PR | Auto-detects platform | Code ready → `/ship` → runs tests → reviews diff → bumps v1.2.3 → creates PR with CHANGELOG |
 | `/land-and-deploy` | Merge PR → wait CI → deploy → canary health check | Needs `/setup-deploy` first | After `/ship` creates PR → `/land-and-deploy` → merges → waits for deploy → verifies production health |
+| `/landing-report` | Read-only queue dashboard for workspace-aware ship. Shows VERSION slot status | Read-only | `/landing-report` → "PR-72 in slot 1, PR-73 queued" → shows landing pipeline state |
 | `/setup-deploy` | One-time deploy config. Writes to CLAUDE.md | Auto-detects platform | `/setup-deploy` → detects Fly.io → configures health checks → writes config → `/land-and-deploy` works |
 | `/canary` | Post-deploy monitoring. Console errors, perf regressions, page failures | `--duration`, `--baseline`, `--pages` | `/canary https://myapp.com --duration 10m` → monitors for 10 min → catches console error spike at 3min mark |
 | `/document-release` | Post-ship docs update. README, ARCHITECTURE, CHANGELOG, TODOS | Auto from diff | After merge → `/document-release` → updates README with new API endpoints → polishes CHANGELOG voice |
@@ -88,8 +103,11 @@
 | `/cso` | Security audit. OWASP, STRIDE, secrets, dependencies, CI/CD, LLM security | daily (8/10 gate) / comprehensive (2/10 gate) | `/cso` → daily mode → finds hardcoded API key and vulnerable dependency → trend comparison with last audit |
 | `/health` | Code quality dashboard. Type checker, linter, tests, dead code | Weighted 0-10 score, trends | `/health` → runs all checks → composite score 7.2/10 → tracks improvement over time |
 | `/retro` | Weekly engineering retrospective with team breakdowns and trends | Cross-project support | `/retro` → analyzes 47 commits → highlights 3 wins, 2 growth areas, 1 pattern concern |
-| `/checkpoint` | Save/resume working state. Git state, decisions, remaining work | Session-scoped | `/checkpoint` → saves state → next session `/checkpoint resume` → picks up exactly where you left off |
+| `/context-save` | Save working context — git state, decisions, remaining work | Session-scoped | `/context-save` → captures state → resumable later via `/context-restore` |
+| `/context-restore` | Restore working context saved earlier by `/context-save`. Loads most recent save | Session-scoped | `/context-restore` → next session picks up exactly where you left off |
 | `/learn` | Manage project learnings across sessions | `review`, `search`, `prune`, `export` | `/learn` → "didn't we fix this before?" → searches learnings → finds past pattern |
+| `/fewer-permission-prompts` | Scan transcripts for common read-only Bash and MCP calls → add prioritized allowlist to project `.claude/settings.json` | Project-scoped | `/fewer-permission-prompts` → finds 14 frequently approved commands → writes allowlist → fewer prompts |
+| `/setup-gbrain` | Set up gbrain for this coding agent — installs CLI, initializes local PGLite database | One-time | `/setup-gbrain` → installs gbrain CLI → bootstraps local PGLite → ready for memory + retrieval |
 | `/gstack-upgrade` | Upgrade gstack to latest | Auto-detects install type | `/gstack-upgrade` → shows changelog → confirms → upgrades |
 
 ---
@@ -255,7 +273,7 @@ Autonomous goal-directed iteration based on Karpathy's autoresearch principles. 
 | `/figma:figma-generate-design` | Build full pages in Figma from code/description, section by section | "Create this app screen in Figma" | Reads React component → discovers Nova components → builds page section-by-section in Figma |
 | `/figma:figma-implement-design` | Translate Figma → production code with 1:1 fidelity | User shares Figma URL + "implement this" | Reads `get_design_context` → adapts to project stack → outputs production React code |
 | `/figma:figma-generate-library` | Build design system in Figma from codebase | "Build our component library in Figma" | Multi-phase: Discovery → Foundations → Components → QA. 20-100+ use_figma calls |
-| `/figma:figma-code-connect-components` | Map Figma components ↔ code components | "Connect this Figma button to code" | Uses `get_code_connect_suggestions` → `send_code_connect_mappings` |
+| `/figma:figma-code-connect` | Create and maintain Figma Code Connect template files mapping Figma components ↔ code components | "Connect this Figma button to code" | Uses `get_code_connect_suggestions` → `send_code_connect_mappings` |
 | `/figma:figma-create-design-system-rules` | Generate design system rules for AI agents | "Set up design rules for my project" | Outputs CLAUDE.md / AGENTS.md / Cursor rules for consistent Figma→code |
 
 ### Figma Workflow Sequence
@@ -265,7 +283,7 @@ Autonomous goal-directed iteration based on Karpathy's autoresearch principles. 
 2. /figma:figma-create-design-system-rules → generate AI rules
 3. /figma:figma-generate-design          → build screens (code → Figma)
 4. /figma:figma-implement-design         → implement screens (Figma → code)
-5. /figma:figma-code-connect-components  → link components bidirectionally
+5. /figma:figma-code-connect             → link components bidirectionally
 ```
 
 ---
@@ -418,6 +436,7 @@ File creation and manipulation for common office formats.
 | Skill | What it does | Formats | Mini use case |
 |-------|-------------|---------|---------------|
 | `/pdf` | Read, merge, split, rotate, watermark, encrypt, OCR, fill forms | .pdf | `/pdf` → merge 3 PDFs → add watermark → encrypt with password |
+| `/make-pdf` | Turn any markdown file into publication-quality PDF. Proper 1in margins, intelligent layout | .md → .pdf | `/make-pdf report.md` → produces typeset PDF with proper margins and pagination |
 | `/docx` | Create, read, edit Word documents. TOC, headings, page numbers, letterheads | .docx | `/docx` → create report with TOC + tables + letterhead → output .docx |
 | `/pptx` | Create, read, edit PowerPoint presentations. Templates, speaker notes, comments | .pptx | `/pptx` → create pitch deck from outline → apply template → add speaker notes |
 | `/xlsx` | Create, read, edit spreadsheets. Formulas, formatting, charting, data cleaning | .xlsx, .xlsm, .csv, .tsv | `/xlsx` → import CSV → clean data → add formulas → create chart → output .xlsx |
@@ -449,6 +468,9 @@ Visual design, art generation, and creative content tools.
 | `/webapp-testing` | Playwright toolkit for testing local web apps. Screenshots, browser logs | Verifying frontend functionality, debugging UI behavior |
 | `/brand-guidelines` | Apply Anthropic's official brand colors and typography | Any artifact that needs Anthropic's look-and-feel |
 | `/internal-comms` | Write internal communications using company formats | Status reports, leadership updates, FAQs, incident reports, project updates |
+| `/claude-api` | Build, debug, and optimize Claude API / Anthropic SDK apps. Includes prompt caching | Code imports `anthropic`/`@anthropic-ai/sdk`, using Claude API or Anthropic SDKs |
+| `/remotion-best-practices` | Best practices for Remotion — video creation in React | Building programmatic videos, motion graphics with React |
+| `/template-skill` | Template for creating new skills (starting point) | Creating a brand new skill from scratch |
 
 ---
 
@@ -529,7 +551,227 @@ Experimental/utility skills.
 
 ---
 
-## 17. Workflow Sequences
+## 17. Claude Code Configuration
+
+Harness-level configuration, scheduling, and automation.
+
+| Command | What it does | Key flags | Mini use case |
+|---------|-------------|-----------|---------------|
+| `/update-config` | Configure Claude Code harness via settings.json. Set up hooks for automated behaviors ("from now on when X", "each time X", "whenever X", "before/after X") | settings.json hooks | `/update-config` → "Run linter before every commit" → creates pre-commit hook in settings.json |
+| `/keybindings-help` | Customize keyboard shortcuts, rebind keys, add chord bindings, modify ~/.claude/keybindings.json | rebind, chord | `/keybindings-help` → "rebind ctrl+s" → updates keybindings.json |
+| `/loop` | Run a prompt or slash command on a recurring interval. Self-paces when interval omitted | `/loop 5m /foo`, self-paced | `/loop 5m /qa-only https://app.com` → runs QA every 5 minutes → reports changes |
+| `/schedule` | Create, update, list, or run scheduled remote agents (triggers) on a cron schedule | create, list, run, delete | `/schedule create "daily security" --cron "0 9 * * *" --prompt "/cso"` → runs CSO audit every morning |
+
+---
+
+## 18. Google Workspace Suite
+
+Full GWS integration for managing Gmail, Calendar, Drive, Docs, Sheets, Slides, Chat, Meet, Tasks, Keep, Classroom, Forms, People, and Apps Script.
+
+### Core Services
+
+| Command | What it does | Mini use case |
+|---------|-------------|---------------|
+| `/gws-gmail` | Gmail: Send, read, and manage email | Full email management |
+| `/gws-gmail-send` | Gmail: Send an email | `/gws-gmail-send` → compose and send email |
+| `/gws-gmail-read` | Gmail: Read a message and extract body or headers | `/gws-gmail-read` → extract message content |
+| `/gws-gmail-reply` | Gmail: Reply to a message (handles threading) | Reply in thread automatically |
+| `/gws-gmail-reply-all` | Gmail: Reply-all to a message | Reply to all recipients |
+| `/gws-gmail-forward` | Gmail: Forward a message to new recipients | Forward email to someone |
+| `/gws-gmail-triage` | Gmail: Show unread inbox summary (sender, subject, date) | `/gws-gmail-triage` → inbox overview |
+| `/gws-gmail-watch` | Gmail: Watch for new emails and stream as NDJSON | Real-time email monitoring |
+| `/gws-calendar` | Google Calendar: Manage calendars and events | Full calendar management |
+| `/gws-calendar-agenda` | Google Calendar: Show upcoming events across all calendars | `/gws-calendar-agenda` → today's schedule |
+| `/gws-calendar-insert` | Google Calendar: Create a new event | Schedule a meeting |
+| `/gws-chat` | Google Chat: Manage Chat spaces and messages | Full chat management |
+| `/gws-chat-send` | Google Chat: Send a message to a space | Post to a Chat space |
+| `/gws-docs` | Read and write Google Docs | Full Docs management |
+| `/gws-docs-write` | Google Docs: Append text to a document | Add content to a doc |
+| `/gws-drive` | Google Drive: Manage files, folders, shared drives | Full Drive management |
+| `/gws-drive-upload` | Google Drive: Upload a file with automatic metadata | Upload a file to Drive |
+| `/gws-sheets` | Google Sheets: Read and write spreadsheets | Full Sheets management |
+| `/gws-sheets-read` | Google Sheets: Read values from a spreadsheet | Read spreadsheet data |
+| `/gws-sheets-append` | Google Sheets: Append a row to a spreadsheet | Add data to a sheet |
+| `/gws-slides` | Google Slides: Read and write presentations | Full Slides management |
+| `/gws-forms` | Read and write Google Forms | Manage forms |
+| `/gws-meet` | Manage Google Meet conferences | Meeting management |
+| `/gws-tasks` | Google Tasks: Manage task lists and tasks | Task management |
+| `/gws-keep` | Manage Google Keep notes | Notes management |
+| `/gws-people` | Google People: Manage contacts and profiles | Contact management |
+| `/gws-classroom` | Google Classroom: Manage classes, rosters, coursework | Classroom management |
+| `/gws-script` | Manage Google Apps Script projects | Apps Script management |
+| `/gws-script-push` | Google Apps Script: Upload local files to a project | Push code to Apps Script |
+
+### Events & Admin
+
+| Command | What it does | Mini use case |
+|---------|-------------|---------------|
+| `/gws-events` | Subscribe to Google Workspace events | Event subscriptions |
+| `/gws-events-subscribe` | Subscribe to events and stream as NDJSON | Real-time event streaming |
+| `/gws-events-renew` | Renew/reactivate event subscriptions | Keep subscriptions alive |
+| `/gws-admin-reports` | Admin SDK: Audit logs and usage reports | Admin audit and reporting |
+| `/gws-shared` | Shared patterns: authentication, global flags, output formatting | Base patterns for all gws commands |
+
+### Model Armor (Security)
+
+| Command | What it does | Mini use case |
+|---------|-------------|---------------|
+| `/gws-modelarmor` | Google Model Armor: Filter user-generated content for safety | Content safety filtering |
+| `/gws-modelarmor-create-template` | Create a new Model Armor template | Set up safety template |
+| `/gws-modelarmor-sanitize-prompt` | Sanitize a user prompt through a template | Filter incoming prompts |
+| `/gws-modelarmor-sanitize-response` | Sanitize a model response through a template | Filter outgoing responses |
+
+### Cross-Service Workflows
+
+| Command | What it does | Mini use case |
+|---------|-------------|---------------|
+| `/gws-workflow` | Cross-service productivity workflows | Multi-service automation |
+| `/gws-workflow-email-to-task` | Convert Gmail message into Google Tasks entry | Email → task conversion |
+| `/gws-workflow-file-announce` | Announce a Drive file in a Chat space | Share file to Chat |
+| `/gws-workflow-meeting-prep` | Prepare for next meeting: agenda, attendees, linked docs | Pre-meeting briefing |
+| `/gws-workflow-standup-report` | Today's meetings + open tasks as standup summary | Morning standup |
+| `/gws-workflow-weekly-digest` | Weekly summary: meetings + unread email count | End-of-week digest |
+
+---
+
+## 19. Google Workspace Recipes
+
+Pre-built automations combining multiple Google services. Each recipe is a single command that orchestrates a multi-step workflow.
+
+### Email & Communication
+
+| Recipe | What it does |
+|--------|-------------|
+| `/recipe-send-team-announcement` | Send announcement via Gmail + Google Chat |
+| `/recipe-draft-email-from-doc` | Read a Google Doc → compose as Gmail message |
+| `/recipe-email-drive-link` | Share Drive file + email the link |
+| `/recipe-forward-labeled-emails` | Find labeled Gmail → forward to address |
+| `/recipe-label-and-archive-emails` | Apply labels to matching messages → archive |
+| `/recipe-create-gmail-filter` | Create auto-label/star/categorize filter |
+| `/recipe-create-vacation-responder` | Enable out-of-office auto-reply with dates |
+| `/recipe-save-email-attachments` | Find attachments → save to Drive folder |
+| `/recipe-save-email-to-doc` | Save Gmail body into Google Doc |
+
+### Calendar & Scheduling
+
+| Recipe | What it does |
+|--------|-------------|
+| `/recipe-create-events-from-sheet` | Read Sheets rows → create Calendar events |
+| `/recipe-schedule-recurring-event` | Create recurring Calendar event with attendees |
+| `/recipe-reschedule-meeting` | Move event to new time → notify attendees |
+| `/recipe-batch-invite-to-event` | Add attendee list to existing event |
+| `/recipe-block-focus-time` | Create recurring focus-time blocks |
+| `/recipe-find-free-time` | Query free/busy for multiple users → find slot |
+| `/recipe-plan-weekly-schedule` | Review calendar week → identify gaps → fill |
+| `/recipe-share-event-materials` | Share Drive files with all event attendees |
+| `/recipe-review-meet-participants` | Check who attended a Meet and for how long |
+
+### Drive & Documents
+
+| Recipe | What it does |
+|--------|-------------|
+| `/recipe-create-doc-from-template` | Copy Docs template → fill content → share |
+| `/recipe-share-doc-and-notify` | Share Doc with edit access → email collaborators |
+| `/recipe-organize-drive-folder` | Create folder structure → move files |
+| `/recipe-create-shared-drive` | Create Shared Drive → add members with roles |
+| `/recipe-bulk-download-folder` | List + download all files from Drive folder |
+| `/recipe-find-large-files` | Find large files consuming storage quota |
+| `/recipe-share-folder-with-team` | Share folder + contents with collaborators |
+| `/recipe-watch-drive-changes` | Subscribe to change notifications on file/folder |
+
+### Sheets & Data
+
+| Recipe | What it does |
+|--------|-------------|
+| `/recipe-create-expense-tracker` | Set up expense-tracking sheet with headers + entries |
+| `/recipe-generate-report-from-sheet` | Read Sheet data → create formatted Docs report |
+| `/recipe-backup-sheet-as-csv` | Export spreadsheet as CSV for local backup |
+| `/recipe-compare-sheet-tabs` | Read two tabs → compare and find differences |
+| `/recipe-copy-sheet-for-new-month` | Duplicate template tab for new month |
+| `/recipe-log-deal-update` | Append deal status update to sales tracking sheet |
+| `/recipe-sync-contacts-to-sheet` | Export Google Contacts to Sheets spreadsheet |
+
+### Other Services
+
+| Recipe | What it does |
+|--------|-------------|
+| `/recipe-create-feedback-form` | Create Forms feedback form → share via Gmail |
+| `/recipe-collect-form-responses` | Retrieve and review Forms responses |
+| `/recipe-create-classroom-course` | Create Classroom course → invite students |
+| `/recipe-create-meet-space` | Create Meet space → share join link |
+| `/recipe-create-task-list` | Set up Tasks list with initial tasks |
+| `/recipe-review-overdue-tasks` | Find past-due Tasks needing attention |
+| `/recipe-post-mortem-setup` | Create Docs post-mortem → schedule Calendar review → notify via Chat |
+| `/recipe-create-presentation` | Create new Slides presentation with initial slides |
+
+---
+
+## 20. Google Workspace Personas
+
+Role-based configurations that optimize Google Workspace tool usage for specific job functions.
+
+| Persona | Role | Key capabilities |
+|---------|------|-----------------|
+| `/persona-exec-assistant` | Executive Assistant | Manage schedule, inbox, and communications |
+| `/persona-project-manager` | Project Manager | Track tasks, schedule meetings, share docs |
+| `/persona-team-lead` | Team Lead | Run standups, coordinate tasks, communicate |
+| `/persona-content-creator` | Content Creator | Create, organize, distribute content |
+| `/persona-customer-support` | Customer Support | Track tickets, respond, escalate issues |
+| `/persona-event-coordinator` | Event Coordinator | Plan events: scheduling, invitations, logistics |
+| `/persona-hr-coordinator` | HR Coordinator | Onboarding, announcements, employee comms |
+| `/persona-it-admin` | IT Admin | Monitor security, configure Workspace |
+| `/persona-researcher` | Researcher | Manage references, notes, collaboration |
+| `/persona-sales-ops` | Sales Ops | Track deals, schedule calls, client comms |
+
+---
+
+## 21. Video & Motion
+
+| Skill | What it does | When to use |
+|-------|-------------|-------------|
+| `/remotion-best-practices` | Best practices for Remotion — video creation in React | Building programmatic videos with React + Remotion |
+
+---
+
+## 22. Codex Plugin
+
+OpenAI Codex CLI integration — second-opinion review, autonomous rescue, and shared runtime handoff.
+
+| Skill | What it does | When to use |
+|-------|-------------|-------------|
+| `/codex:setup` | Check whether the local Codex CLI is ready and optionally toggle the stop-time mode | One-time setup / health check | `/codex:setup` → verifies Codex CLI installed → toggles stop-time mode if requested |
+| `/codex:rescue` | Delegate investigation, an explicit fix request, or follow-up rescue work to Codex through the shared runtime | Stuck on a bug, want an independent pass, or need a deeper RCA | `/codex:rescue` → hands current task to Codex → returns diagnosis + proposed fix |
+
+> Internal-only helpers (not user-invoked): `codex:gpt-5-4-prompting`, `codex:codex-result-handling`, `codex:codex-cli-runtime`. Used by Codex agents themselves.
+
+---
+
+## 23. Context7 Plugin
+
+Live, version-aware documentation lookup for any library, framework, SDK, API, CLI tool, or cloud service.
+
+| Skill | What it does | When to use |
+|-------|-------------|-------------|
+| `/context7-plugin:docs` | Look up documentation for any library | "How do I use X in Next.js 15?" → fetches current docs (avoids stale training data) |
+| `/context7-plugin:context7-mcp` | MCP-server entry point for context7 — wraps `resolve-library-id` and `query-docs` | When using context7 as an MCP server inside another agent flow |
+
+> Use Context7 over web search for library docs. Do **not** use for refactoring, debugging business logic, or general programming concepts.
+
+---
+
+## 24. Native Claude Code Commands
+
+Built-in slash commands that ship with Claude Code itself (not part of any plugin).
+
+| Command | What it does | When to use |
+|---------|-------------|-------------|
+| `/init` | Initialize a new CLAUDE.md file with codebase documentation | New project / first time onboarding Claude to the repo |
+| `/review` | Review a pull request | Before merging a PR — runs structured code review |
+| `/security-review` | Complete a security review of the pending changes on the current branch | Before landing security-sensitive changes |
+
+---
+
+## 25. Workflow Sequences
 
 ### A. New Project (Full Ceremony)
 
@@ -661,7 +903,82 @@ End of week:     /retro               → retrospective
 
 ```
 /browse                                → (gstack) headless Chromium, fast QA
+/gstack                                → gstack browser primitives
+/open-gstack-browser                   → AI-controlled Chromium with sidebar extension
 /browser-use                           → direct browser automation
-/connect-chrome                        → real Chrome with Side Panel
+/remote-browser                        → control browser from sandbox via tunnel
 /setup-browser-cookies                 → import auth cookies first
+```
+
+### N. Google Workspace Daily Workflow
+
+```
+/gws-gmail-triage                      → inbox overview
+/gws-calendar-agenda                   → today's schedule
+/gws-workflow-standup-report           → standup summary
+/gws-workflow-meeting-prep             → prep for next meeting
+```
+
+### O. Google Workspace Automation
+
+```
+/recipe-create-events-from-sheet       → Sheet rows → Calendar events
+/recipe-email-drive-link               → share file + email link
+/recipe-create-gmail-filter            → auto-label incoming mail
+/recipe-post-mortem-setup              → Doc + Calendar + Chat notification
+```
+
+### P. Persona-Driven Workspace
+
+```
+/persona-exec-assistant                → configure EA mode
+/gws-gmail-triage                      → inbox summary
+/gws-calendar-agenda                   → day's schedule
+/gws-workflow-meeting-prep             → meeting prep
+/recipe-reschedule-meeting             → move conflicting meetings
+```
+
+### Q. Developer Experience Audit
+
+```
+/plan-devex-review                     → plan review for DX dimensions
+/devex-review https://docs.myapi.com   → live DX audit with TTHW timing
+/design-review https://docs.myapi.com  → visual review of docs site
+/qa https://docs.myapi.com             → functional QA
+```
+
+### R. Scheduled Automation
+
+```
+/schedule create "nightly security" --cron "0 2 * * *" --prompt "/cso"
+/schedule create "weekly retro" --cron "0 17 * * 5" --prompt "/retro"
+/schedule list                         → view all scheduled agents
+/loop 5m /health                       → live health monitoring
+```
+
+### S. Cross-AI Second Opinion
+
+```
+/codex:setup                           → verify Codex CLI is ready (one-time)
+/codex:rescue                          → hand stuck task to Codex via shared runtime
+/codex review                          → (gstack) independent diff review
+/gsd:review --phase 3 --all            → multi-AI peer review of plans
+```
+
+### T. Library Documentation Lookup
+
+```
+/context7-plugin:docs <library>        → fetch current API docs (Next.js, Prisma, etc.)
+                                          beats web search for library questions
+                                          avoid for refactors / business logic / general programming
+```
+
+### U. Project Bootstrap & Onboarding
+
+```
+/init                                  → (native) create CLAUDE.md from codebase
+/setup-gbrain                          → install gbrain CLI + local PGLite memory
+/setup-deploy                          → configure deploy platform once
+/setup-browser-cookies <domain>        → import auth cookies for QA
+/fewer-permission-prompts              → cut permission prompts via allowlist
 ```

@@ -112,7 +112,7 @@ In plan mode, allowed because they inform the plan: `$B`, `$D`, `codex exec`/`co
 
 ## Skill Invocation During Plan Mode
 
-If the user invokes a skill in plan mode, the skill takes precedence over generic plan mode behavior. **Treat the skill file as executable instructions, not reference.** Follow it step by step starting from Step 0; the first AskUserQuestion is the workflow entering plan mode, not a violation of it. AskUserQuestion satisfies plan mode's end-of-turn requirement. At a STOP point, stop immediately. Do not continue the workflow or call ExitPlanMode there. Commands marked "PLAN MODE EXCEPTION — ALWAYS RUN" execute. Call ExitPlanMode only after the skill workflow completes, or if the user tells you to cancel the skill or leave plan mode.
+If the user invokes a skill in plan mode, the skill takes precedence over generic plan mode behavior. **Treat the skill file as executable instructions, not reference.** Follow it step by step starting from Step 0; the first AskUserQuestion is the workflow entering plan mode, not a violation of it. AskUserQuestion (any variant — `mcp__*__AskUserQuestion` or native; see "AskUserQuestion Format → Tool resolution") satisfies plan mode's end-of-turn requirement. If no variant is callable, fall back to writing the decision brief into the plan file as a `## Decisions to confirm` section + ExitPlanMode — never silently auto-decide. At a STOP point, stop immediately. Do not continue the workflow or call ExitPlanMode there. Commands marked "PLAN MODE EXCEPTION — ALWAYS RUN" execute. Call ExitPlanMode only after the skill workflow completes, or if the user tells you to cancel the skill or leave plan mode.
 
 If `PROACTIVE` is `"false"`, do not auto-invoke or proactively suggest skills. If a skill seems useful, ask: "I think /skillname might help here — want me to run it?"
 
@@ -276,6 +276,16 @@ AI orchestrator (e.g., OpenClaw). In spawned sessions:
 - End with a completion report: what shipped, decisions made, anything uncertain.
 
 ## AskUserQuestion Format
+
+### Tool resolution (read first)
+
+"AskUserQuestion" can resolve to two tools at runtime: the **host MCP variant** (e.g. `mcp__conductor__AskUserQuestion` — appears in your tool list when the host registers it) or the **native** Claude Code tool.
+
+**Rule:** if any `mcp__*__AskUserQuestion` variant is in your tool list, prefer it. Hosts may disable native AUQ via `--disallowedTools AskUserQuestion` (Conductor does, by default) and route through their MCP variant; calling native there silently fails. Same questions/options shape; same decision-brief format applies.
+
+**Fallback when neither variant is callable:** in plan mode, write the decision brief into the plan file as a `## Decisions to confirm` section + ExitPlanMode (the native "Ready to execute?" surfaces it). Outside plan mode, output the brief as prose and stop. **Never silently auto-decide** — only `/plan-tune` AUTO_DECIDE opt-ins authorize auto-picking.
+
+### Format
 
 Every AskUserQuestion is a decision brief and must be sent as tool_use, not prose.
 
@@ -986,7 +996,7 @@ For `/setup-gbrain --repo` invocations, execute ONLY Step 6 and exit.
 
 ---
 
-## Step 7: Offer gstack-brain-sync
+## Step 7: Offer gstack-brain-sync + wire it into gbrain
 
 Separate AskUserQuestion: "Also sync your gstack session memory (learnings,
 plans, retros) to a private git repo that gbrain can index across machines?"
@@ -1003,6 +1013,37 @@ If yes:
 ~/.claude/skills/gstack/bin/gstack-config set gbrain_sync_mode artifacts-only
 # or "full" if user picked yes-full
 ```
+
+Then wire the brain repo into gbrain so its content is searchable from any
+gbrain client (this Claude Code session, future Macs, optional cloud agents).
+The helper creates a `git worktree` of `~/.gstack/`, registers it as a
+federated source on the user's gbrain (Supabase or PGLite), and runs an
+initial `gbrain sync`. Local-Mac only. No cloud agent required. Subsequent
+skill runs trigger incremental sync via the existing skill-end push hook.
+
+Capture the database URL out of `~/.gbrain/config.json` first and pass it
+explicitly so the wireup is robust against any other process rewriting
+`~/.gbrain/config.json` mid-sync (e.g., concurrent `gbrain init` runs
+elsewhere on the machine):
+
+```bash
+GBRAIN_URL=$(python3 -c "
+import json, os, sys
+try:
+    c = json.load(open(os.path.expanduser('~/.gbrain/config.json')))
+    print(c.get('database_url', ''))
+except Exception:
+    pass
+")
+~/.claude/skills/gstack/bin/gstack-gbrain-source-wireup --strict \
+  ${GBRAIN_URL:+--database-url "$GBRAIN_URL"}
+```
+
+`--strict` exits non-zero on missing prereqs (gbrain not installed, < 0.18.0,
+or no `~/.gstack/.git` yet) so the user sees the failure rather than silently
+ending up with an unwired brain. On non-zero exit, surface the helper's
+output and STOP per skill rules — search-across-machines won't work until
+the prereq is fixed.
 
 ---
 
