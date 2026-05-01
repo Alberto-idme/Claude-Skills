@@ -463,12 +463,12 @@
 <aside class="sidebar" id="sidebar">
   <div class="sidebar-header">
     <h1>Claude Code Skills</h1>
-    <p>350+ skills &middot; 21 suites</p>
+    <p>400+ skills &middot; 26 suites</p>
   </div>
   <nav class="sidebar-nav">
     <div class="nav-group-label">Suites</div>
     <a class="nav-item active" href="#gstack" data-section="gstack">
-      <span>gstack</span><span class="nav-badge">36</span>
+      <span>gstack</span><span class="nav-badge">46</span>
     </a>
     <a class="nav-item" href="#gsd" data-section="gsd">
       <span>GSD Framework</span><span class="nav-badge">57</span>
@@ -477,7 +477,10 @@
       <span>Autoresearch</span><span class="nav-badge">9</span>
     </a>
     <a class="nav-item" href="#figma" data-section="figma">
-      <span>Figma Plugin</span><span class="nav-badge">6</span>
+      <span>Figma Plugin</span><span class="nav-badge">9</span>
+    </a>
+    <a class="nav-item" href="#graphify" data-section="graphify">
+      <span>graphify</span><span class="nav-badge">9</span>
     </a>
     <a class="nav-item" href="#idme" data-section="idme">
       <span>IDME Base</span><span class="nav-badge">9</span>
@@ -495,13 +498,13 @@
       <span>Browser Use</span><span class="nav-badge">4</span>
     </a>
     <a class="nav-item" href="#documents" data-section="documents">
-      <span>Document &amp; Office</span><span class="nav-badge">5</span>
+      <span>Document &amp; Office</span><span class="nav-badge">6</span>
     </a>
     <a class="nav-item" href="#creative" data-section="creative">
       <span>Creative &amp; Design</span><span class="nav-badge">6</span>
     </a>
     <a class="nav-item" href="#devutils" data-section="devutils">
-      <span>Developer Utilities</span><span class="nav-badge">8</span>
+      <span>Developer Utilities</span><span class="nav-badge">9</span>
     </a>
     <a class="nav-item" href="#superpowers" data-section="superpowers">
       <span>Superpowers</span><span class="nav-badge">14</span>
@@ -516,7 +519,7 @@
       <span>Apple Platform</span><span class="nav-badge">1</span>
     </a>
     <a class="nav-item" href="#config" data-section="config">
-      <span>Configuration</span><span class="nav-badge">4</span>
+      <span>Configuration</span><span class="nav-badge">5</span>
     </a>
     <a class="nav-item" href="#gws" data-section="gws">
       <span>Google Workspace</span><span class="nav-badge">44</span>
@@ -529,6 +532,18 @@
     </a>
     <a class="nav-item" href="#video" data-section="video">
       <span>Video &amp; Motion</span><span class="nav-badge">1</span>
+    </a>
+    <a class="nav-item" href="#codex" data-section="codex">
+      <span>Codex Plugin</span><span class="nav-badge">2</span>
+    </a>
+    <a class="nav-item" href="#context7" data-section="context7">
+      <span>Context7 Plugin</span><span class="nav-badge">2</span>
+    </a>
+    <a class="nav-item" href="#claudemem" data-section="claudemem">
+      <span>claude-mem</span><span class="nav-badge">8</span>
+    </a>
+    <a class="nav-item" href="#native" data-section="native">
+      <span>Native Commands</span><span class="nav-badge">3</span>
     </a>
     <div class="nav-group-label">Workflows</div>
     <a class="nav-item" href="#workflows" data-section="workflows">
@@ -560,7 +575,7 @@
       <div class="section-header">
         <div class="section-icon" style="background:rgba(124,107,245,0.15)">&#9889;</div>
         <h2>gstack &mdash; Ship &amp; QA Suite</h2>
-        <span class="count">36 skills</span>
+        <span class="count">46 skills</span>
       </div>
 
       <div class="subsection"><h3>Ideation &amp; Planning</h3></div>
@@ -681,6 +696,16 @@
           <div class="card-top"><span class="cmd">/benchmark</span><div class="card-tags"><span class="tag tag-flags">--baseline</span><span class="tag tag-flags">--diff</span><span class="tag tag-flags">--trend</span></div></div>
           <div class="card-desc">Performance regression detection. Core Web Vitals, load times, bundle size.</div>
           <div class="card-usecase"><code>/benchmark https://myapp.com --baseline</code> <span class="arrow">&rarr;</span> capture baseline <span class="arrow">&rarr;</span> later <code>--diff</code> shows regressions</div>
+        </div>
+        <div class="card" data-search="/scrape structured data web page browser primitives json read-only fast 200ms">
+          <div class="card-top"><span class="cmd">/scrape</span><div class="card-tags"><span class="tag tag-flags">read-only</span></div></div>
+          <div class="card-desc">Pull structured data from a web page. First call prototypes via $B primitives; subsequent calls run codified skill in ~200ms.</div>
+          <div class="card-usecase"><code>/scrape https://news.ycombinator.com</code> <span class="arrow">&rarr;</span> prototypes scraper <span class="arrow">&rarr;</span> returns JSON <span class="arrow">&rarr;</span> second call runs in 200ms</div>
+        </div>
+        <div class="card" data-search="/skillify codify scrape flow permanent browser-skill disk script test fixture commit">
+          <div class="card-top"><span class="cmd">/skillify</span></div>
+          <div class="card-desc">Codify most recent /scrape flow into a permanent browser-skill. Synthesizes script.ts + tests + fixture, runs tests, asks before committing.</div>
+          <div class="card-usecase"><code>/skillify</code> <span class="arrow">&rarr;</span> walks back through conversation <span class="arrow">&rarr;</span> synthesizes script.ts + test <span class="arrow">&rarr;</span> commits permanent browser-skill</div>
         </div>
       </div>
 
@@ -856,6 +881,16 @@
           <span class="workflow-step">figma-code-connect-components</span>
         </div>
       </div>
+    </div>
+
+    <!-- ==================== GRAPHIFY ==================== -->
+    <div class="section" id="graphify">
+      <div class="section-header">
+        <div class="section-icon" style="background:rgba(250,204,21,0.15)">&#128202;</div>
+        <h2>graphify &mdash; Knowledge Graph</h2>
+        <span class="count">9 subcommands</span>
+      </div>
+      <div class="card-grid" id="graphify-cards"></div>
     </div>
 
     <!-- ==================== IDME ==================== -->
@@ -1102,6 +1137,46 @@
       <div class="card-grid" id="video-cards"></div>
     </div>
 
+    <!-- ==================== CODEX ==================== -->
+    <div class="section" id="codex">
+      <div class="section-header">
+        <div class="section-icon" style="background:rgba(74,222,128,0.15)">&#129302;</div>
+        <h2>Codex Plugin</h2>
+        <span class="count">2 skills</span>
+      </div>
+      <div class="card-grid" id="codex-cards"></div>
+    </div>
+
+    <!-- ==================== CONTEXT7 ==================== -->
+    <div class="section" id="context7">
+      <div class="section-header">
+        <div class="section-icon" style="background:rgba(34,211,238,0.15)">&#128209;</div>
+        <h2>Context7 Plugin</h2>
+        <span class="count">2 skills</span>
+      </div>
+      <div class="card-grid" id="context7-cards"></div>
+    </div>
+
+    <!-- ==================== CLAUDE-MEM ==================== -->
+    <div class="section" id="claudemem">
+      <div class="section-header">
+        <div class="section-icon" style="background:rgba(124,107,245,0.15)">&#129504;</div>
+        <h2>claude-mem &mdash; Memory &amp; Planning</h2>
+        <span class="count">8 skills</span>
+      </div>
+      <div class="card-grid" id="claudemem-cards"></div>
+    </div>
+
+    <!-- ==================== NATIVE COMMANDS ==================== -->
+    <div class="section" id="native">
+      <div class="section-header">
+        <div class="section-icon" style="background:rgba(251,146,60,0.15)">&#9881;</div>
+        <h2>Native Claude Code Commands</h2>
+        <span class="count">3 commands</span>
+      </div>
+      <div class="card-grid" id="native-cards"></div>
+    </div>
+
     <!-- ==================== WORKFLOWS ==================== -->
     <div class="section" id="workflows">
       <div class="section-header">
@@ -1218,6 +1293,9 @@ const figmaData = [
   {cmd:"/figma:figma-generate-library", desc:"Build design system in Figma from codebase: variables, components, themes.", flags:"multi-phase", uc:"Discovery \u2192 Foundations \u2192 Components \u2192 QA. 20-100+ use_figma calls", kw:"figma generate library design system variables components themes tokens"},
   {cmd:"/figma:figma-code-connect-components", desc:"Map Figma components \u2194 code components bidirectionally.", flags:"fileKey, nodeId", uc:"Uses get_code_connect_suggestions \u2192 send_code_connect_mappings", kw:"figma code connect components map bidirectional link"},
   {cmd:"/figma:figma-create-design-system-rules", desc:"Generate design system rules for AI agents (CLAUDE.md, Cursor rules).", flags:"", uc:"Outputs CLAUDE.md / AGENTS.md rules for consistent Figma\u2192code", kw:"figma create design system rules ai agents claude cursor conventions"},
+  {cmd:"/figma:figma-use-figjam", desc:"Work with FigJam boards. Add stickies, connectors, shapes, sections, tables, code blocks.", flags:"FigJam", uc:"/figma:figma-use-figjam \u2192 place stickies + connectors \u2192 build retro board", kw:"figma use figjam boards stickies connectors shapes sections retro brainstorm"},
+  {cmd:"/figma:figma-generate-diagram", desc:"Generate diagrams in FigJam from description. Flowchart, ERD, sequence, state, gantt, architecture, workflow.", flags:"7 diagram types", uc:'"/user auth ERD" \u2192 builds ERD with entities + relationships in FigJam', kw:"figma generate diagram figjam flowchart erd sequence state gantt architecture workflow"},
+  {cmd:"/figma:figma-create-new-file", desc:"Create a new blank Figma file ready for design work.", flags:"", uc:"/figma:figma-create-new-file \u2192 blank file \u2192 ready for design", kw:"figma create new file blank design"},
 ];
 
 const idmeData = [
@@ -1324,6 +1402,7 @@ const documentsData = [
   {cmd:"/docx", desc:"Create, read, edit Word documents. TOC, headings, page numbers, letterheads.", flags:".docx", uc:"Create report with TOC + tables + letterhead \u2192 output .docx", kw:"docx word document create read edit toc headings page numbers letterhead report"},
   {cmd:"/pptx", desc:"Create, read, edit PowerPoint presentations. Templates, speaker notes, comments.", flags:".pptx", uc:"Create pitch deck from outline \u2192 apply template \u2192 add speaker notes", kw:"pptx powerpoint presentation create read edit templates speaker notes slides deck"},
   {cmd:"/xlsx", desc:"Create, read, edit spreadsheets. Formulas, formatting, charting, data cleaning.", flags:".xlsx, .csv, .tsv", uc:"Import CSV \u2192 clean data \u2192 add formulas \u2192 create chart \u2192 output .xlsx", kw:"xlsx spreadsheet csv tsv create read edit formulas formatting charting data cleaning"},
+  {cmd:"/make-pdf", desc:"Turn any markdown file into publication-quality PDF. Proper 1in margins, intelligent layout, pagination.", flags:".md \u2192 .pdf", uc:"/make-pdf report.md \u2192 typeset PDF with proper margins and pagination", kw:"make-pdf markdown pdf publication quality margins pagination typeset"},
   {cmd:"/doc-coauthoring", desc:"Structured workflow for co-authoring documentation with iteration.", flags:"any doc type", uc:"Transfer context \u2192 refine through iteration \u2192 verify for readers", kw:"doc-coauthoring documentation structured workflow iteration co-authoring proposals specs"},
 ];
 
@@ -1345,6 +1424,7 @@ const devutilsData = [
   {cmd:"/claude-api", desc:"Build, debug, and optimize Claude API / Anthropic SDK apps with prompt caching.", flags:"anthropic, @anthropic-ai/sdk", uc:"Code imports anthropic SDK → /claude-api → optimizes with prompt caching + best practices", kw:"claude-api anthropic sdk build debug optimize prompt caching api claude"},
   {cmd:"/remotion-best-practices", desc:"Best practices for Remotion — video creation in React.", flags:"React, Remotion", uc:"Building programmatic videos → /remotion-best-practices → optimal patterns for React video", kw:"remotion best practices video creation react programmatic motion graphics"},
   {cmd:"/template-skill", desc:"Template starting point for creating new skills from scratch.", flags:"template", uc:"Creating a brand new skill → /template-skill → provides the boilerplate structure", kw:"template-skill new skill boilerplate starting point create"},
+  {cmd:"/forensics", desc:"Deep UI/UX Forensics & Replication Blueprint. Multi-agent crawl, dissect, reverse-engineer any site.", flags:"TARGET_URL", uc:"/forensics https://stripe.com → forensic atlas + design system spec + replication blueprint", kw:"forensics ui ux deep analysis reverse engineer replication blueprint design patterns product logic"},
 ];
 
 const appleData = [
@@ -1356,6 +1436,7 @@ const configData = [
   {cmd:"/keybindings-help", desc:"Customize keyboard shortcuts, rebind keys, add chord bindings.", flags:"~/.claude/keybindings.json", uc:"/keybindings-help → 'rebind ctrl+s' → updates keybindings.json with new binding", kw:"keybindings-help customize keyboard shortcuts rebind keys chord bindings json"},
   {cmd:"/loop", desc:"Run a prompt or slash command on a recurring interval. Self-paces when interval omitted.", flags:"interval, self-paced", uc:"/loop 5m /qa-only https://app.com → runs QA every 5 minutes → reports changes", kw:"loop recurring interval prompt slash command self-paced polling monitor"},
   {cmd:"/schedule", desc:"Create, update, list, or run scheduled remote agents on a cron schedule.", flags:"create, list, run, delete, --cron", uc:'/schedule create "daily security" --cron "0 9 * * *" --prompt "/cso" → daily audit', kw:"schedule cron remote agents triggers recurring automated daily weekly"},
+  {cmd:"/btw", desc:"60-minute autonomous run mode (5000% autonomous). Creates plan, executes, verifies, commits. Hard stops only for auth/2FA, strategic decisions, destructive prod ops.", flags:"autonomous", uc:'/btw "update the cheatsheet" → AUTONOMOUS-RUN.md plan → executes all tasks → commits clean', kw:"btw autonomous run mode 60 minute 5000% plan execute verify commit unattended"},
 ];
 
 const gwsCoreData = [
@@ -1483,6 +1564,45 @@ const personasData = [
   {cmd:"/persona-sales-ops", desc:"Sales Ops: Track deals, schedule calls, manage client communications.", flags:"", uc:"Sales mode: deal tracking + calls + client comms", kw:"persona sales ops track deals schedule calls client communications crm"},
 ];
 
+const graphifyData = [
+  {cmd:"/graphify", desc:"Build knowledge graph from current directory. 9-step pipeline → HTML graph + GRAPH_REPORT.md.", flags:"--update, --wiki, --watch, --mcp, --obsidian, --directed, --neo4j, --svg", uc:"/graphify → semantic extraction → community detection → HTML visualization + GRAPH_REPORT.md", kw:"graphify knowledge graph html json community detection visualization wiki mcp"},
+  {cmd:"graphify query", desc:"Ask natural-language questions over the graph.", flags:'"<question>"', uc:'graphify query "what calls the auth module?" → traverses edges → answer', kw:"graphify query natural language question graph edges"},
+  {cmd:"graphify path", desc:"Find shortest connection path between two nodes.", flags:"<A> <B>", uc:"graphify path UserService PaymentAPI → shows dependency chain", kw:"graphify path shortest connection nodes dependency chain"},
+  {cmd:"graphify explain", desc:"Explain what a node does based on graph context.", flags:"<node>", uc:'graphify explain "auth.ts" → summarizes role in graph', kw:"graphify explain node context role summarize"},
+  {cmd:"graphify add", desc:"Add a URL's content to the graph.", flags:"<url>", uc:"graphify add https://docs.example.com → scrapes → adds as node", kw:"graphify add url content scrape node"},
+  {cmd:"graphify --update", desc:"Rebuild only changed files (incremental). Much faster than full rebuild.", flags:"--update", uc:"After editing 3 files → graphify --update → 10s instead of 5min", kw:"graphify update incremental changed files fast rebuild"},
+  {cmd:"graphify --wiki", desc:"Generate per-node wiki pages in graphify-out/wiki/ with cross-links.", flags:"--wiki", uc:"graphify --wiki → markdown wiki with cross-links for every node", kw:"graphify wiki per-node pages cross-links markdown"},
+  {cmd:"graphify --watch", desc:"Live-reload graph as files change.", flags:"--watch", uc:"graphify --watch → graph updates automatically on file save", kw:"graphify watch live-reload files change auto update"},
+  {cmd:"graphify --mcp", desc:"Expose graph as MCP server for agent consumption.", flags:"--mcp", uc:"graphify --mcp → agents can query the graph via MCP tools", kw:"graphify mcp server expose agents query tools"},
+];
+
+const codexPluginData = [
+  {cmd:"/codex:setup", desc:"Check Codex CLI readiness and optionally toggle stop-time mode.", flags:"one-time", uc:"/codex:setup → verifies Codex CLI installed → toggles stop-time mode if requested", kw:"codex setup cli ready stop-time mode check verify"},
+  {cmd:"/codex:rescue", desc:"Delegate investigation, fix, or rescue work to Codex through the shared runtime.", flags:"", uc:"/codex:rescue → hands current task to Codex → returns diagnosis + proposed fix", kw:"codex rescue delegate investigation fix shared runtime diagnosis"},
+];
+
+const context7Data = [
+  {cmd:"/context7-plugin:docs", desc:"Look up current documentation for any library, framework, SDK, API, or CLI tool.", flags:"<library>", uc:'/context7-plugin:docs "Next.js 15 routing" → fetches current API docs, avoids stale training data', kw:"context7 docs documentation library framework sdk api cli current version"},
+  {cmd:"/context7-plugin:context7-mcp", desc:"MCP-server entry point for context7 — wraps resolve-library-id and query-docs.", flags:"MCP", uc:"Use inside agent flows that need live docs via MCP tools", kw:"context7 mcp server resolve library query docs agent"},
+];
+
+const claudememData = [
+  {cmd:"/claude-mem:mem-search", desc:"Search persistent cross-session memory DB for past decisions, solutions, and context.", flags:"", uc:'"Did we solve this before?" → searches observations across all sessions', kw:"claude-mem mem-search memory persistent cross-session decisions solutions context"},
+  {cmd:"/claude-mem:smart-explore", desc:"Token-optimized structural code search using tree-sitter AST parsing.", flags:"tree-sitter", uc:"Understanding codebase deeply without blowing context window", kw:"claude-mem smart-explore code search tree-sitter ast token-optimized structural"},
+  {cmd:"/claude-mem:make-plan", desc:"Create detailed phased implementation plan with file paths and acceptance criteria.", flags:"", uc:"Use before /claude-mem:do to scope the work first", kw:"claude-mem make-plan phased implementation plan file paths acceptance criteria"},
+  {cmd:"/claude-mem:do", desc:"Execute a phased plan using parallel subagents.", flags:"", uc:"After /claude-mem:make-plan → runs each phase with dedicated agents", kw:"claude-mem do execute phased plan parallel subagents agents"},
+  {cmd:"/claude-mem:knowledge-agent", desc:"Build and query AI knowledge bases from claude-mem observations.", flags:"", uc:"Team knowledge base, decision logs, runbooks from session history", kw:"claude-mem knowledge-agent knowledge base observations decision logs runbooks"},
+  {cmd:"/claude-mem:pathfinder", desc:"Map codebase into feature-grouped flowcharts, identify duplicated concerns, propose unified architecture.", flags:"", uc:"Architecture review → /claude-mem:pathfinder → deduplication plan", kw:"claude-mem pathfinder flowcharts duplicated concerns architecture review deduplication"},
+  {cmd:"/claude-mem:timeline-report", desc:"Generate 'Journey Into [Project]' narrative from claude-mem timeline observations.", flags:"", uc:"Onboarding new team members, project post-mortems", kw:"claude-mem timeline-report narrative journey project history onboarding post-mortem"},
+  {cmd:"/claude-mem:version-bump", desc:"Automated semantic versioning + release workflow for Claude Code plugins.", flags:"major, minor, patch", uc:"Releasing plugin update → bump version → update changelog → tag", kw:"claude-mem version-bump semantic versioning release workflow plugin tag changelog"},
+];
+
+const nativeData = [
+  {cmd:"/init", desc:"Initialize a new CLAUDE.md file with codebase documentation.", flags:"", uc:"New project → /init → CLAUDE.md with repo structure, stack, conventions", kw:"init initialize claude.md codebase documentation new project onboarding"},
+  {cmd:"/review", desc:"Review a pull request. Structured code review.", flags:"", uc:"Before merging a PR → /review → structured code review report", kw:"review pull request code review pr merge structured"},
+  {cmd:"/security-review", desc:"Complete security review of pending changes on the current branch.", flags:"", uc:"Before landing security-sensitive changes → /security-review → security audit", kw:"security-review security audit changes branch landing sensitive"},
+];
+
 const videoData = [
   {cmd:"/remotion-best-practices", desc:"Best practices for Remotion — video creation in React.", flags:"React, Remotion", uc:"Building programmatic videos → optimal patterns for React + Remotion", kw:"remotion best practices video creation react programmatic motion graphics"},
 ];
@@ -1551,6 +1671,11 @@ renderCards('recipe-drive-cards', recipeDriveData);
 renderCards('recipe-sheets-cards', recipeSheetsData);
 renderCards('recipe-other-cards', recipeOtherData);
 renderCards('personas-cards', personasData);
+renderCards('graphify-cards', graphifyData);
+renderCards('codex-cards', codexPluginData);
+renderCards('context7-cards', context7Data);
+renderCards('claudemem-cards', claudememData);
+renderCards('native-cards', nativeData);
 renderCards('video-cards', videoData);
 
 // Render workflows

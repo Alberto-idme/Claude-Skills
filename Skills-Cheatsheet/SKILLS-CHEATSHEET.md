@@ -1,40 +1,42 @@
 # Claude Code Skills Cheat Sheet
 
-> 380+ skills across 24 suites. Organized by workflow stage with mini use cases. Last updated: 2026-04-27.
+> 400+ skills across 26 suites. Organized by workflow stage with mini use cases. Last updated: 2026-05-01.
 
 ---
 
 ## Table of Contents
 
-1. [gstack — Ship & QA Suite (44 skills)](#1-gstack--ship--qa-suite)
+1. [gstack — Ship & QA Suite (46 skills)](#1-gstack--ship--qa-suite)
 2. [GSD — Get Shit Done Framework (57 commands)](#2-gsd--get-shit-done-framework)
 3. [Autoresearch (9 skills)](#3-autoresearch)
-4. [Figma Plugin (6 skills)](#4-figma-plugin)
-5. [IDME Base — Document Writers (9 skills)](#5-idme-base--document-writers)
-6. [Beads — Issue Tracker (1 skill, 26 subcommands)](#6-beads--issue-tracker)
-7. [PRD Taskmaster (1 skill)](#7-prd-taskmaster)
-8. [UI/UX Pro Max (7 skills)](#8-uiux-pro-max)
-9. [Browser Use (4 skills)](#9-browser-use)
-10. [Document & Office (6 skills)](#10-document--office)
-11. [Creative & Design (6 skills)](#11-creative--design)
-12. [Developer Utilities (8 skills)](#12-developer-utilities)
-13. [Superpowers (14 skills)](#13-superpowers)
-14. [Superpowers Lab (4 skills)](#14-superpowers-lab)
-15. [Godmode (37 skills)](#15-godmode)
-16. [Apple Platform (1 skill)](#16-apple-platform)
-17. [Claude Code Configuration (4 skills)](#17-claude-code-configuration)
-18. [Google Workspace Suite (44 skills)](#18-google-workspace-suite)
-19. [Google Workspace Recipes (35 recipes)](#19-google-workspace-recipes)
-20. [Google Workspace Personas (10 personas)](#20-google-workspace-personas)
-21. [Video & Motion (1 skill)](#21-video--motion)
-22. [Codex Plugin (2 skills)](#22-codex-plugin)
-23. [Context7 Plugin (2 skills)](#23-context7-plugin)
-24. [Native Claude Code Commands (3 commands)](#24-native-claude-code-commands)
-25. [Workflow Sequences](#25-workflow-sequences)
+4. [Figma Plugin (9 skills)](#4-figma-plugin)
+5. [graphify — Knowledge Graph (1 command, many subcommands)](#5-graphify--knowledge-graph)
+6. [IDME Base — Document Writers (9 skills)](#6-idme-base--document-writers)
+7. [Beads — Issue Tracker (1 skill, 26 subcommands)](#7-beads--issue-tracker)
+8. [PRD Taskmaster (1 skill)](#8-prd-taskmaster)
+9. [UI/UX Pro Max (7 skills)](#9-uiux-pro-max)
+10. [Browser Use (4 skills)](#10-browser-use)
+11. [Document & Office (6 skills)](#11-document--office)
+12. [Creative & Design (6 skills)](#12-creative--design)
+13. [Developer Utilities (9 skills)](#13-developer-utilities)
+14. [Superpowers (14 skills)](#14-superpowers)
+15. [Superpowers Lab (4 skills)](#15-superpowers-lab)
+16. [Godmode (37 skills)](#16-godmode)
+17. [Apple Platform (1 skill)](#17-apple-platform)
+18. [Claude Code Configuration (5 skills)](#18-claude-code-configuration)
+19. [Google Workspace Suite (44 skills)](#19-google-workspace-suite)
+20. [Google Workspace Recipes (35 recipes)](#20-google-workspace-recipes)
+21. [Google Workspace Personas (10 personas)](#21-google-workspace-personas)
+22. [Video & Motion (1 skill)](#22-video--motion)
+23. [Codex Plugin (2 skills)](#23-codex-plugin)
+24. [Context7 Plugin (2 skills)](#24-context7-plugin)
+25. [claude-mem — Memory & Planning (8 skills)](#25-claude-mem--memory--planning)
+26. [Native Claude Code Commands (3 commands)](#26-native-claude-code-commands)
+27. [Workflow Sequences](#27-workflow-sequences)
 
 ---
 
-## 1. gstack — Ship & QA Suite
+## 1. gstack — Ship & QA Suite (46 skills)
 
 ### Ideation & Planning
 
@@ -79,6 +81,8 @@
 | `/qa-only` | Report-only QA. Same testing, no code changes | URL | `/qa-only https://myapp.com` → produces bug report with screenshots and repro steps |
 | `/benchmark` | Performance regression detection. Core Web Vitals, load times, bundle size | `--baseline`, `--diff`, `--trend`, `--pages` | `/benchmark https://myapp.com --baseline` → captures baseline → later `/benchmark --diff` → shows regressions |
 | `/benchmark-models` | Cross-model benchmark for gstack skills. Runs the same prompt through Claude, GPT, etc. | Multi-provider | `/benchmark-models` → compares Claude/GPT/Gemini outputs → produces side-by-side scorecard |
+| `/scrape` | Pull structured data from a web page. First call prototypes the flow via $B primitives; subsequent calls on the same intent run the codified browser-skill in ~200ms | Read-only; use /automate for mutations | `/scrape https://news.ycombinator.com` → prototypes scraper → returns JSON → second call runs in 200ms |
+| `/skillify` | Codify the most recent successful `/scrape` flow into a permanent browser-skill on disk. Synthesizes `script.ts` + test + fixture, runs tests, asks before committing | Run after a successful /scrape | `/skillify` → walks back through conversation → synthesizes script.ts + test → commits permanent browser-skill |
 
 ### Shipping & Deployment
 
@@ -275,6 +279,9 @@ Autonomous goal-directed iteration based on Karpathy's autoresearch principles. 
 | `/figma:figma-generate-library` | Build design system in Figma from codebase | "Build our component library in Figma" | Multi-phase: Discovery → Foundations → Components → QA. 20-100+ use_figma calls |
 | `/figma:figma-code-connect` | Create and maintain Figma Code Connect template files mapping Figma components ↔ code components | "Connect this Figma button to code" | Uses `get_code_connect_suggestions` → `send_code_connect_mappings` |
 | `/figma:figma-create-design-system-rules` | Generate design system rules for AI agents | "Set up design rules for my project" | Outputs CLAUDE.md / AGENTS.md / Cursor rules for consistent Figma→code |
+| `/figma:figma-use-figjam` | Work with FigJam boards. Add stickies, connectors, shapes, sections, tables, code blocks | FigJam brainstorms, flow diagrams, retros | `/figma:figma-use-figjam` → navigate FigJam board → place stickies + connectors → build retro board |
+| `/figma:figma-generate-diagram` | Generate diagrams in FigJam from description. Supports flowchart, ERD, sequence, state, gantt, architecture, workflow | "Create a flowchart for auth flow" | `/figma:figma-generate-diagram` → "user auth ERD" → builds ERD with entities + relationships in FigJam |
+| `/figma:figma-create-new-file` | Create a new blank Figma file | Starting a fresh design | `/figma:figma-create-new-file` → creates blank file → ready for design work |
 
 ### Figma Workflow Sequence
 
@@ -284,11 +291,33 @@ Autonomous goal-directed iteration based on Karpathy's autoresearch principles. 
 3. /figma:figma-generate-design          → build screens (code → Figma)
 4. /figma:figma-implement-design         → implement screens (Figma → code)
 5. /figma:figma-code-connect             → link components bidirectionally
+6. /figma:figma-use-figjam              → FigJam boards for diagrams & retros
+7. /figma:figma-generate-diagram        → auto-generate FigJam diagrams
 ```
 
 ---
 
-## 5. IDME Base — Document Writers
+## 5. graphify — Knowledge Graph
+
+Turn any folder of files into a navigable knowledge graph. Produces HTML visualization, JSON edge data, GRAPH_REPORT.md (god nodes + community structure), and optional wiki.
+
+| Command | What it does | Key flags | Mini use case |
+|---------|-------------|-----------|---------------|
+| `/graphify` | Build knowledge graph from current directory | `--update`, `--cluster-only`, `--wiki`, `--watch`, `--mcp`, `--obsidian`, `--directed`, `--neo4j`, `--svg`, `--graphml` | `/graphify` → 9-step pipeline → HTML graph + GRAPH_REPORT.md |
+| `graphify query "<question>"` | Ask natural-language question over the graph | | `graphify query "what calls the auth module?"` → traverses edges → answer |
+| `graphify path <A> <B>` | Find shortest connection path between two nodes | | `graphify path UserService PaymentAPI` → shows dependency chain |
+| `graphify explain <node>` | Explain what a node does based on graph context | | `graphify explain "auth.ts"` → summarizes role in graph |
+| `graphify add <url>` | Add a URL's content to the graph | | `graphify add https://docs.example.com` → scrapes → adds as node |
+| `graphify --update` | Rebuild only changed files (incremental) | | After editing 3 files → `graphify --update` → 10s instead of 5min |
+| `graphify --wiki` | Generate per-node wiki pages in graphify-out/wiki/ | | `graphify --wiki` → markdown wiki with cross-links for every node |
+| `graphify --watch` | Live-reload graph as files change | | `graphify --watch` → graph updates automatically on file save |
+| `graphify --mcp` | Expose graph as MCP server for agent consumption | | `graphify --mcp` → agents can query the graph via MCP tools |
+
+> **Tip:** Set `MOONSHOT_API_KEY` for 3× cheaper Kimi K2.6 extraction. Edges are tagged EXTRACTED/INFERRED/AMBIGUOUS for audit trails.
+
+---
+
+## 6. IDME Base — Document Writers
 
 ### Writers
 
@@ -323,7 +352,7 @@ Autonomous goal-directed iteration based on Karpathy's autoresearch principles. 
 
 ---
 
-## 6. Beads — Issue Tracker
+## 7. Beads — Issue Tracker
 
 Git-backed issue tracker with dependencies, persistent across sessions and compaction.
 
@@ -368,7 +397,7 @@ bd sync                                    → push to remote
 
 ---
 
-## 7. PRD Taskmaster
+## 8. PRD Taskmaster
 
 | Step | What happens |
 |------|-------------|
@@ -390,7 +419,7 @@ Manual      → generates task list, user executes
 
 ---
 
-## 8. UI/UX Pro Max
+## 9. UI/UX Pro Max
 
 Design intelligence with searchable databases.
 
@@ -406,7 +435,7 @@ Design intelligence with searchable databases.
 
 ---
 
-## 9. Browser Use
+## 10. Browser Use
 
 Browser automation suite for web testing, scraping, and interaction.
 
@@ -429,7 +458,7 @@ Need to automate a browser directly?
 
 ---
 
-## 10. Document & Office
+## 11. Document & Office
 
 File creation and manipulation for common office formats.
 
@@ -444,7 +473,7 @@ File creation and manipulation for common office formats.
 
 ---
 
-## 11. Creative & Design
+## 12. Creative & Design
 
 Visual design, art generation, and creative content tools.
 
@@ -459,7 +488,7 @@ Visual design, art generation, and creative content tools.
 
 ---
 
-## 12. Developer Utilities
+## 13. Developer Utilities
 
 | Skill | What it does | When to use |
 |-------|-------------|-------------|
@@ -471,10 +500,11 @@ Visual design, art generation, and creative content tools.
 | `/claude-api` | Build, debug, and optimize Claude API / Anthropic SDK apps. Includes prompt caching | Code imports `anthropic`/`@anthropic-ai/sdk`, using Claude API or Anthropic SDKs |
 | `/remotion-best-practices` | Best practices for Remotion — video creation in React | Building programmatic videos, motion graphics with React |
 | `/template-skill` | Template for creating new skills (starting point) | Creating a brand new skill from scratch |
+| `/forensics` | Deep UI/UX Forensics & Replication Blueprint. Multi-agent crawl + dissect + reverse-engineer | Site/product you want to analyze deeply | `/forensics https://stripe.com` → crawls → extracts design system + UX patterns + product logic → forensic atlas + replication blueprint |
 
 ---
 
-## 13. Superpowers
+## 14. Superpowers
 
 Core development methodology skills. Most activate automatically.
 
@@ -505,7 +535,7 @@ brainstorming → writing-plans → test-driven-development
 
 ---
 
-## 14. Superpowers Lab
+## 15. Superpowers Lab
 
 Experimental/utility skills.
 
@@ -518,7 +548,7 @@ Experimental/utility skills.
 
 ---
 
-## 15. Godmode
+## 16. Godmode
 
 37 protocol skills. Key ones below (many overlap with Superpowers but are more prescriptive).
 
@@ -543,7 +573,7 @@ Experimental/utility skills.
 
 ---
 
-## 16. Apple Platform
+## 17. Apple Platform
 
 | Skill | What it does | When to use |
 |-------|-------------|-------------|
@@ -551,7 +581,7 @@ Experimental/utility skills.
 
 ---
 
-## 17. Claude Code Configuration
+## 18. Claude Code Configuration
 
 Harness-level configuration, scheduling, and automation.
 
@@ -561,10 +591,11 @@ Harness-level configuration, scheduling, and automation.
 | `/keybindings-help` | Customize keyboard shortcuts, rebind keys, add chord bindings, modify ~/.claude/keybindings.json | rebind, chord | `/keybindings-help` → "rebind ctrl+s" → updates keybindings.json |
 | `/loop` | Run a prompt or slash command on a recurring interval. Self-paces when interval omitted | `/loop 5m /foo`, self-paced | `/loop 5m /qa-only https://app.com` → runs QA every 5 minutes → reports changes |
 | `/schedule` | Create, update, list, or run scheduled remote agents (triggers) on a cron schedule | create, list, run, delete | `/schedule create "daily security" --cron "0 9 * * *" --prompt "/cso"` → runs CSO audit every morning |
+| `/btw` | 60-minute autonomous run mode (5000% autonomous). Creates a plan, executes, verifies, commits. Hard stops only for auth/2FA, strategic decisions, destructive prod ops | Autonomous | `/btw "update the cheatsheet"` → creates AUTONOMOUS-RUN.md plan → executes all tasks → commits clean |
 
 ---
 
-## 18. Google Workspace Suite
+## 19. Google Workspace Suite
 
 Full GWS integration for managing Gmail, Calendar, Drive, Docs, Sheets, Slides, Chat, Meet, Tasks, Keep, Classroom, Forms, People, and Apps Script.
 
@@ -634,7 +665,7 @@ Full GWS integration for managing Gmail, Calendar, Drive, Docs, Sheets, Slides, 
 
 ---
 
-## 19. Google Workspace Recipes
+## 20. Google Workspace Recipes
 
 Pre-built automations combining multiple Google services. Each recipe is a single command that orchestrates a multi-step workflow.
 
@@ -706,7 +737,7 @@ Pre-built automations combining multiple Google services. Each recipe is a singl
 
 ---
 
-## 20. Google Workspace Personas
+## 21. Google Workspace Personas
 
 Role-based configurations that optimize Google Workspace tool usage for specific job functions.
 
@@ -725,7 +756,7 @@ Role-based configurations that optimize Google Workspace tool usage for specific
 
 ---
 
-## 21. Video & Motion
+## 22. Video & Motion
 
 | Skill | What it does | When to use |
 |-------|-------------|-------------|
@@ -733,7 +764,7 @@ Role-based configurations that optimize Google Workspace tool usage for specific
 
 ---
 
-## 22. Codex Plugin
+## 23. Codex Plugin
 
 OpenAI Codex CLI integration — second-opinion review, autonomous rescue, and shared runtime handoff.
 
@@ -746,7 +777,7 @@ OpenAI Codex CLI integration — second-opinion review, autonomous rescue, and s
 
 ---
 
-## 23. Context7 Plugin
+## 24. Context7 Plugin
 
 Live, version-aware documentation lookup for any library, framework, SDK, API, CLI tool, or cloud service.
 
@@ -759,7 +790,34 @@ Live, version-aware documentation lookup for any library, framework, SDK, API, C
 
 ---
 
-## 24. Native Claude Code Commands
+## 25. claude-mem — Memory & Planning
+
+Persistent cross-session memory, code intelligence, and phased planning for Claude Code. Plugin by thedotmack (v12.4.9).
+
+| Skill | What it does | When to use |
+|-------|-------------|-------------|
+| `/claude-mem:mem-search` | Search persistent cross-session memory DB for past decisions, solutions, and context | "Did we solve this before?" → searches observations across all sessions |
+| `/claude-mem:smart-explore` | Token-optimized structural code search using tree-sitter AST parsing | Understanding a codebase deeply without blowing context window |
+| `/claude-mem:make-plan` | Create detailed phased implementation plan with file paths and acceptance criteria | Before `/claude-mem:do` — scope out the work first |
+| `/claude-mem:do` | Execute a phased plan using parallel subagents | After `/claude-mem:make-plan` — runs each phase with dedicated agents |
+| `/claude-mem:knowledge-agent` | Build and query AI knowledge bases from claude-mem observations | Team knowledge base, decision logs, runbooks |
+| `/claude-mem:pathfinder` | Map codebase into feature-grouped flowcharts, identify duplicated concerns, propose unified architecture | Architecture review, deduplication planning |
+| `/claude-mem:timeline-report` | Generate "Journey Into [Project]" narrative from claude-mem timeline observations | Onboarding new team members, project post-mortems |
+| `/claude-mem:version-bump` | Automated semantic versioning + release workflow for Claude Code plugins | Releasing plugin updates: bump version, update changelog, tag |
+
+### claude-mem Flow
+
+```
+/claude-mem:mem-search         → check memory for past context
+/claude-mem:smart-explore      → understand codebase structure
+/claude-mem:make-plan          → create phased plan
+/claude-mem:do                 → execute plan with subagents
+/claude-mem:version-bump       → release plugin update
+```
+
+---
+
+## 26. Native Claude Code Commands
 
 Built-in slash commands that ship with Claude Code itself (not part of any plugin).
 
@@ -771,7 +829,7 @@ Built-in slash commands that ship with Claude Code itself (not part of any plugi
 
 ---
 
-## 25. Workflow Sequences
+## 27. Workflow Sequences
 
 ### A. New Project (Full Ceremony)
 
