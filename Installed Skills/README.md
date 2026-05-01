@@ -7,7 +7,7 @@ Snapshot of the Claude Code skills, plugins, agents, and commands installed loca
 | Path | Source | Notes |
 |---|---|---|
 | `skills/` | `~/.claude/skills/` | User-level standalone skills. Symlinks resolved. |
-| `plugins-cache/` | `~/.claude/plugins/cache/` | Plugin marketplaces (autoresearch, claude-plugins-official, context7, godmode, idme-config, openai-codex, superpowers-dev, superpowers-lab-local, ui-ux-pro-max-skill). |
+| `plugins-cache/` | `~/.claude/plugins/cache/` | Plugin marketplaces (autoresearch, claude-plugins-official, context7-marketplace, godmode, idme-config, openai-codex, superpowers-dev, superpowers-lab-local, thedotmack, ui-ux-pro-max-skill). |
 | `agents/` | `~/.claude/agents/` | User-level subagent definitions. |
 | `commands/` | `~/.claude/commands/` | User-level command definitions (autoresearch, gsd). |
 | `installed_plugins.json` | `~/.claude/plugins/installed_plugins.json` | Plugin manifest — versions, install paths, install timestamps. |

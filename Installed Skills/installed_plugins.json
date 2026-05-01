@@ -22,10 +22,10 @@
     "figma@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/Users/alberto.carvajal/.claude/plugins/cache/claude-plugins-official/figma/2.1.15",
-        "version": "2.1.15",
+        "installPath": "/Users/alberto.carvajal/.claude/plugins/cache/claude-plugins-official/figma/2.1.30",
+        "version": "2.1.30",
         "installedAt": "2026-03-19T20:28:10.560Z",
-        "lastUpdated": "2026-04-24T18:51:34.619Z",
+        "lastUpdated": "2026-04-28T23:00:37.039Z",
         "gitCommitSha": "f046182e32c8160b1254ad12ec8318f9a9aa50b5"
       }
     ],
@@ -132,6 +132,16 @@
         "version": "0.4.0",
         "installedAt": "2026-04-24T18:49:06.053Z",
         "lastUpdated": "2026-04-27T16:27:58.100Z"
+      }
+    ],
+    "claude-mem@thedotmack": [
+      {
+        "scope": "user",
+        "installPath": "/Users/alberto.carvajal/.claude/plugins/cache/thedotmack/claude-mem/12.4.9",
+        "version": "12.4.9",
+        "installedAt": "2026-05-01T19:07:13.707Z",
+        "lastUpdated": "2026-05-01T19:07:13.707Z",
+        "gitCommitSha": "28b40c05f2e1316948453b10e4feecce01817b6c"
       }
     ]
   }
