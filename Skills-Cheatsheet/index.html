@@ -463,18 +463,22 @@
 <aside class="sidebar" id="sidebar">
   <div class="sidebar-header">
     <h1>Claude Code Skills</h1>
-    <p>400+ skills &middot; 26 suites</p>
+    <p>500+ skills &middot; 30 suites &middot; 33 workflows</p>
   </div>
   <nav class="sidebar-nav">
+    <div class="nav-group-label">Workflows</div>
+    <a class="nav-item active" href="#workflows" data-section="workflows">
+      <span>Workflow Sequences</span><span class="nav-badge">35</span>
+    </a>
     <div class="nav-group-label">Suites</div>
-    <a class="nav-item active" href="#gstack" data-section="gstack">
-      <span>gstack</span><span class="nav-badge">46</span>
+    <a class="nav-item" href="#gstack" data-section="gstack">
+      <span>gstack</span><span class="nav-badge">47</span>
     </a>
     <a class="nav-item" href="#gsd" data-section="gsd">
       <span>GSD Framework</span><span class="nav-badge">57</span>
     </a>
     <a class="nav-item" href="#autoresearch" data-section="autoresearch">
-      <span>Autoresearch</span><span class="nav-badge">9</span>
+      <span>Autoresearch</span><span class="nav-badge">10</span>
     </a>
     <a class="nav-item" href="#figma" data-section="figma">
       <span>Figma Plugin</span><span class="nav-badge">9</span>
@@ -489,7 +493,7 @@
       <span>Beads</span><span class="nav-badge">25</span>
     </a>
     <a class="nav-item" href="#prd" data-section="prd">
-      <span>PRD Taskmaster</span><span class="nav-badge">1</span>
+      <span>PRD Taskmaster</span><span class="nav-badge">2</span>
     </a>
     <a class="nav-item" href="#uiux" data-section="uiux">
       <span>UI/UX Pro Max</span><span class="nav-badge">7</span>
@@ -543,11 +547,22 @@
       <span>claude-mem</span><span class="nav-badge">8</span>
     </a>
     <a class="nav-item" href="#native" data-section="native">
-      <span>Native Commands</span><span class="nav-badge">3</span>
+      <span>Native Commands</span><span class="nav-badge">77</span>
     </a>
-    <div class="nav-group-label">Workflows</div>
-    <a class="nav-item" href="#workflows" data-section="workflows">
-      <span>Workflow Sequences</span><span class="nav-badge">18</span>
+    <a class="nav-item" href="#plugin-authoring" data-section="plugin-authoring">
+      <span>Plugin Authoring</span><span class="nav-badge">16</span>
+    </a>
+    <a class="nav-item" href="#iot-m5stack" data-section="iot-m5stack">
+      <span>M5Stack IoT</span><span class="nav-badge">2</span>
+    </a>
+    <a class="nav-item" href="#lsp" data-section="lsp">
+      <span>LSP Plugins</span><span class="nav-badge">4</span>
+    </a>
+    <a class="nav-item" href="#ralph" data-section="ralph">
+      <span>Ralph</span><span class="nav-badge">5</span>
+    </a>
+    <a class="nav-item" href="#mltraining" data-section="mltraining">
+      <span>ML / LLM Training</span><span class="nav-badge">2</span>
     </a>
   </nav>
 </aside>
@@ -564,10 +579,20 @@
 
     <!-- Stats -->
     <div class="stats-bar">
-      <div class="stat"><div class="stat-value" style="color:var(--accent)">350+</div><div class="stat-label">Total Skills</div></div>
-      <div class="stat"><div class="stat-value" style="color:var(--green)">21</div><div class="stat-label">Suites</div></div>
-      <div class="stat"><div class="stat-value" style="color:var(--cyan)">18</div><div class="stat-label">Workflows</div></div>
-      <div class="stat"><div class="stat-value" style="color:var(--orange)">57</div><div class="stat-label">GSD Commands</div></div>
+      <div class="stat"><div class="stat-value" style="color:var(--accent)">520+</div><div class="stat-label">Total Skills</div></div>
+      <div class="stat"><div class="stat-value" style="color:var(--green)">34</div><div class="stat-label">Suites</div></div>
+      <div class="stat"><div class="stat-value" style="color:var(--cyan)">35</div><div class="stat-label">Workflows</div></div>
+      <div class="stat"><div class="stat-value" style="color:var(--orange)">~77</div><div class="stat-label">Native Cmds</div></div>
+    </div>
+
+    <!-- ==================== WORKFLOWS ==================== -->
+    <div class="section" id="workflows">
+      <div class="section-header">
+        <div class="section-icon" style="background:rgba(74,222,128,0.15)">&#128260;</div>
+        <h2>Workflow Sequences</h2>
+        <span class="count">35 workflows</span>
+      </div>
+      <div id="workflow-cards"></div>
     </div>
 
     <!-- ==================== GSTACK ==================== -->
@@ -575,7 +600,7 @@
       <div class="section-header">
         <div class="section-icon" style="background:rgba(124,107,245,0.15)">&#9889;</div>
         <h2>gstack &mdash; Ship &amp; QA Suite</h2>
-        <span class="count">46 skills</span>
+        <span class="count">47 skills</span>
       </div>
 
       <div class="subsection"><h3>Ideation &amp; Planning</h3></div>
@@ -790,6 +815,11 @@
           <div class="card-desc">Manage project learnings across sessions. Review, search, prune, export.</div>
           <div class="card-usecase">"Didn't we fix this before?" <span class="arrow">&rarr;</span> <code>/learn</code> <span class="arrow">&rarr;</span> searches learnings <span class="arrow">&rarr;</span> finds past pattern</div>
         </div>
+        <div class="card" data-search="/sync-gbrain reindex repo gbrain refresh search agent guidance pglite idempotent">
+          <div class="card-top"><span class="cmd">/sync-gbrain</span><div class="card-tags"><span class="tag tag-flags">idempotent</span></div></div>
+          <div class="card-desc">Re-index this repo into gbrain. Refreshes agent search guidance in CLAUDE.md, registers native code-surface, runs capability checks.</div>
+          <div class="card-usecase">"gbrain search isn't finding things" <span class="arrow">&rarr;</span> <code>/sync-gbrain</code> <span class="arrow">&rarr;</span> re-indexes <span class="arrow">&rarr;</span> updates CLAUDE.md guidance <span class="arrow">&rarr;</span> verdict block</div>
+        </div>
         <div class="card" data-search="/gstack-upgrade upgrade update latest version">
           <div class="card-top"><span class="cmd">/gstack-upgrade</span></div>
           <div class="card-desc">Upgrade gstack to the latest version.</div>
@@ -940,7 +970,7 @@
       <div class="section-header">
         <div class="section-icon" style="background:rgba(250,204,21,0.15)">&#128203;</div>
         <h2>PRD Taskmaster</h2>
-        <span class="count">1 skill</span>
+        <span class="count">2 skills</span>
       </div>
       <div class="card-grid">
         <div class="card" data-search="/prd-taskmaster prd product requirements document task breakdown autonomous sequential parallel manual 12-step validation">
@@ -948,6 +978,12 @@
           <div class="card-desc">Smart PRD generator + TaskMaster. Discovery &rarr; PRD &rarr; 13 validation checks &rarr; task breakdown &rarr; execution.</div>
           <div class="card-flags">Modes: Sequential | Parallel | Full Autonomous | Manual</div>
           <div class="card-usecase">"Create a PRD for user auth" <span class="arrow">&rarr;</span> 5 discovery questions <span class="arrow">&rarr;</span> PRD generated <span class="arrow">&rarr;</span> 13 checks pass <span class="arrow">&rarr;</span> 8 tasks created <span class="arrow">&rarr;</span> execute</div>
+        </div>
+        <div class="card" data-search="/expand-tasks perplexity research parallel agents tasks.json prd taskmaster companion before implementation">
+          <div class="card-top"><span class="cmd">/expand-tasks</span><div class="card-tags"><span class="tag tag-flags">Perplexity</span><span class="tag tag-flags">parallel</span></div></div>
+          <div class="card-desc">Companion to PRD-Taskmaster. Reads <code>tasks.json</code>, fans out parallel Perplexity research per task, writes findings back.</div>
+          <div class="card-flags">Run after PRD parsed into tasks, before implementation begins</div>
+          <div class="card-usecase">PRD parsed into 12 tasks <span class="arrow">&rarr;</span> /expand-tasks <span class="arrow">&rarr;</span> 12 research agents in parallel <span class="arrow">&rarr;</span> each task gets a research-backed brief</div>
         </div>
       </div>
     </div>
@@ -1172,19 +1208,73 @@
       <div class="section-header">
         <div class="section-icon" style="background:rgba(251,146,60,0.15)">&#9881;</div>
         <h2>Native Claude Code Commands</h2>
-        <span class="count">3 commands</span>
+        <span class="count">~77 commands (v2.1.140)</span>
       </div>
+      <p style="color:var(--text-dim);font-size:13px;margin-bottom:16px;">Built-in slash commands shipped with the <code>claude</code> CLI binary. Verified against v2.1.140 via <code>strings</code> extraction. <strong>Override note:</strong> installed plugins shadow natives with the same name — e.g. gstack <code>/review</code> overrides the native one. Use <code>claude --bare</code> to force native resolution.</p>
       <div class="card-grid" id="native-cards"></div>
     </div>
 
-    <!-- ==================== WORKFLOWS ==================== -->
-    <div class="section" id="workflows">
+    <!-- ==================== PLUGIN AUTHORING TOOLKIT ==================== -->
+    <div class="section" id="plugin-authoring">
       <div class="section-header">
-        <div class="section-icon" style="background:rgba(74,222,128,0.15)">&#128260;</div>
-        <h2>Workflow Sequences</h2>
-        <span class="count">18 workflows</span>
+        <div class="section-icon" style="background:rgba(124,107,245,0.15)">&#128736;</div>
+        <h2>Plugin Authoring Toolkit</h2>
+        <span class="count">16 skills</span>
       </div>
-      <div id="workflow-cards"></div>
+      <p style="color:var(--text-dim);font-size:13px;margin-bottom:16px;">Build, package, and ship Claude Code plugins. Synced 2026-05-12 from <code>claude-plugins-official</code>. Covers structure, skills, commands, agents, hooks, MCP servers, packaging, and demos. See workflow <strong>Sequence AH</strong>.</p>
+      <div class="card-grid" id="plugin-authoring-cards"></div>
+    </div>
+
+    <!-- ==================== M5STACK IOT ==================== -->
+    <div class="section" id="iot-m5stack">
+      <div class="section-header">
+        <div class="section-icon" style="background:rgba(34,211,238,0.15)">&#128268;</div>
+        <h2>M5Stack / ESP32 IoT</h2>
+        <span class="count">2 skills</span>
+      </div>
+      <p style="color:var(--text-dim);font-size:13px;margin-bottom:16px;">End-to-end onboarding for M5Stack ESP32 devices (Cardputer / Cardputer-Adv / Core / CoreS3 / Stick). Provisioning + bundled MicroPython apps. From <code>cwc-makers</code> plugin. See workflow <strong>Sequence AI</strong>.</p>
+      <div class="card-grid" id="iot-cards"></div>
+    </div>
+
+    <!-- ==================== LSP PLUGINS ==================== -->
+    <div class="section" id="lsp">
+      <div class="section-header">
+        <div class="section-icon" style="background:rgba(34,211,238,0.15)">&#128204;</div>
+        <h2>Language Server Protocol (LSP) Plugins</h2>
+        <span class="count">4 plugins</span>
+      </div>
+      <div class="card-grid" id="lsp-cards"></div>
+    </div>
+
+    <!-- ==================== RALPH ==================== -->
+    <div class="section" id="ralph">
+      <div class="section-header">
+        <div class="section-icon" style="background:rgba(251,146,60,0.15)">&#127959;</div>
+        <h2>Ralph &mdash; Autonomous Dev Loop</h2>
+        <span class="count">v0.11.5</span>
+      </div>
+      <div class="card-grid" id="ralph-cards"></div>
+    </div>
+
+    <!-- ==================== ML / LLM TRAINING ==================== -->
+    <div class="section" id="mltraining">
+      <div class="section-header">
+        <div class="section-icon" style="background:rgba(34,211,238,0.15)">&#129504;</div>
+        <h2>ML / LLM Training</h2>
+        <span class="count">2 skills &middot; CUDA only</span>
+      </div>
+      <p style="color:var(--text-dim);font-size:13px;margin-bottom:16px;">Karpathy-style hands-on language-model training. <strong>Requires NVIDIA GPU + CUDA.</strong> Distinct from <code>/claude-api</code> (which is for building <em>apps</em> that consume Claude).</p>
+      <div class="card-grid" id="ml-cards"></div>
+      <div class="subsection"><h3>ML Workflow</h3></div>
+      <div class="workflow-card">
+        <div class="workflow-steps">
+          <span class="workflow-step">/nanochat</span><span class="workflow-arrow">&rarr;</span>
+          <span class="workflow-step">/karpathy-autoresearch</span><span class="workflow-arrow">&rarr;</span>
+          <span class="workflow-step">/learn</span><span class="workflow-arrow">&rarr;</span>
+          <span class="workflow-step">/idme-base:adr-writer</span>
+        </div>
+        <div class="workflow-note">Set up training harness &rarr; autonomous experiment loop on train.py &rarr; record successful tweaks &rarr; capture architectural decisions</div>
+      </div>
     </div>
 
   </div>
@@ -1254,7 +1344,7 @@ const gsdData = {
   ],
   debug: [
     {cmd:"/gsd:debug", desc:"Scientific method debugging with persistent state across context resets.", flags:"[issue]", uc:'/gsd:debug "Tests pass locally but fail in CI" \u2192 gathers symptoms \u2192 spawns debugger \u2192 tracks hypotheses', kw:"debug scientific method persistent state hypothesis symptoms context"},
-    {cmd:"/gsd:forensics", desc:"Post-mortem for failed GSD workflows. Analyzes git + artifacts.", flags:"[description]", uc:'/gsd:forensics "Phase 3 got stuck" \u2192 finds stuck loop \u2192 writes forensic report', kw:"forensics post-mortem failed workflow stuck loop artifacts git"},
+    {cmd:"/gsd:forensics", desc:"<strong>GSD workflow post-mortem</strong> &mdash; diagnoses failed/stuck GSD runs from git + .planning/ artifacts. Distinct from <code>/forensics</code> (UI/UX site teardown, see Developer Utilities).", flags:"[description], post-mortem", uc:'/gsd:forensics "Phase 3 got stuck" \u2192 finds stuck loop \u2192 writes .planning/forensics/REPORT.md', kw:"forensics gsd post-mortem failed workflow stuck loop artifacts git planning"},
     {cmd:"/gsd:health", desc:"Diagnose .planning/ directory integrity. Optionally repair.", flags:"--repair", uc:"/gsd:health --repair \u2192 finds orphaned plan + invalid config \u2192 auto-fixes", kw:"health diagnose planning directory integrity repair orphaned"},
   ],
   ship: [
@@ -1284,6 +1374,7 @@ const autoresearchData = [
   {cmd:"/autoresearch:predict", desc:"Multi-persona swarm prediction. Pre-analyze code from multiple expert perspectives.", flags:"[topic]", uc:"/autoresearch:predict \u2192 spawns 5 expert personas \u2192 each analyzes independently \u2192 synthesizes", kw:"autoresearch predict multi-persona swarm expert perspectives analysis"},
   {cmd:"/autoresearch:ship", desc:"Universal shipping workflow. 8-phase structured process for code, content, anything.", flags:"[description]", uc:"/autoresearch:ship \u2192 8 phases: prep \u2192 build \u2192 test \u2192 review \u2192 stage \u2192 deploy \u2192 verify \u2192 announce", kw:"autoresearch ship universal workflow 8-phase structured deploy code content"},
   {cmd:"/autoresearch:scenario", desc:"Scenario-driven use case generator. Explores edge cases from a seed scenario.", flags:"[seed scenario]", uc:'/autoresearch:scenario "User loses connection mid-payment" \u2192 explores 12 derivative scenarios', kw:"autoresearch scenario use case generator edge cases seed derivative exploration"},
+  {cmd:"/autoresearch:reason", desc:"Adversarial generate\u2192critique\u2192synthesize refinement. Multi-agent loop until convergence. Modes: convergent (default), creative, debate.", flags:"--mode, --judges N, --iterations N, --convergence N, --chain", uc:'/autoresearch:reason "Design the auth flow" --mode debate --judges 5 \u2192 agents debate \u2192 judge picks winner \u2192 converges', kw:"autoresearch reason adversarial generate critique synthesize refinement multi-agent convergence debate creative"},
 ];
 
 const figmaData = [
@@ -1424,7 +1515,7 @@ const devutilsData = [
   {cmd:"/claude-api", desc:"Build, debug, and optimize Claude API / Anthropic SDK apps with prompt caching.", flags:"anthropic, @anthropic-ai/sdk", uc:"Code imports anthropic SDK → /claude-api → optimizes with prompt caching + best practices", kw:"claude-api anthropic sdk build debug optimize prompt caching api claude"},
   {cmd:"/remotion-best-practices", desc:"Best practices for Remotion — video creation in React.", flags:"React, Remotion", uc:"Building programmatic videos → /remotion-best-practices → optimal patterns for React video", kw:"remotion best practices video creation react programmatic motion graphics"},
   {cmd:"/template-skill", desc:"Template starting point for creating new skills from scratch.", flags:"template", uc:"Creating a brand new skill → /template-skill → provides the boilerplate structure", kw:"template-skill new skill boilerplate starting point create"},
-  {cmd:"/forensics", desc:"Deep UI/UX Forensics & Replication Blueprint. Multi-agent crawl, dissect, reverse-engineer any site.", flags:"TARGET_URL", uc:"/forensics https://stripe.com → forensic atlas + design system spec + replication blueprint", kw:"forensics ui ux deep analysis reverse engineer replication blueprint design patterns product logic"},
+  {cmd:"/forensics", desc:"<strong>UI/UX Forensics &amp; Replication Blueprint</strong> &mdash; multi-agent crawl, dissect, reverse-engineer of a target site. Outputs FORENSIC-DOSSIER.md + design system spec + replication blueprint. Distinct from <code>/gsd:forensics</code> (GSD workflow post-mortem).", flags:"TARGET_URL, ui-ux teardown", uc:"/forensics https://stripe.com → forensic atlas + design system spec + replication blueprint", kw:"forensics ui ux deep analysis reverse engineer replication blueprint design patterns product logic site teardown"},
 ];
 
 const appleData = [
@@ -1597,14 +1688,142 @@ const claudememData = [
   {cmd:"/claude-mem:version-bump", desc:"Automated semantic versioning + release workflow for Claude Code plugins.", flags:"major, minor, patch", uc:"Releasing plugin update → bump version → update changelog → tag", kw:"claude-mem version-bump semantic versioning release workflow plugin tag changelog"},
 ];
 
+// Native Claude Code v2.1.140 commands — verified against `claude` binary `strings` (2026-05-12)
+// Note: plugins override natives with same name. gstack `/review` shadows native /review.
+// Use `claude --bare` to force native command resolution.
 const nativeData = [
-  {cmd:"/init", desc:"Initialize a new CLAUDE.md file with codebase documentation.", flags:"", uc:"New project → /init → CLAUDE.md with repo structure, stack, conventions", kw:"init initialize claude.md codebase documentation new project onboarding"},
-  {cmd:"/review", desc:"Review a pull request. Structured code review.", flags:"", uc:"Before merging a PR → /review → structured code review report", kw:"review pull request code review pr merge structured"},
-  {cmd:"/security-review", desc:"Complete security review of pending changes on the current branch.", flags:"", uc:"Before landing security-sensitive changes → /security-review → security audit", kw:"security-review security audit changes branch landing sensitive"},
+  // Session Control
+  {cmd:"/help", desc:"Show help and available commands.", flags:"Session Control", uc:"Any time → /help → see all available commands", kw:"help available commands list show"},
+  {cmd:"/clear", desc:"Start a new session with empty context; previous stays on disk (resumable with /resume).", flags:"Session Control", uc:"Context polluted but want it back later → /clear → fresh session", kw:"clear new session reset empty context"},
+  {cmd:"/compact", desc:"Free up context by summarizing the conversation so far.", flags:"Session Control", uc:"Context approaching limit, want to continue thread → /compact", kw:"compact summarize context free up shrink"},
+  {cmd:"/autocompact", desc:"Configure the auto-compact window size.", flags:"Session Control", uc:"Tune when CC auto-summarizes → /autocompact", kw:"autocompact auto compact window size configure"},
+  {cmd:"/context", desc:"Visualize current context usage as a colored grid.", flags:"Session Control", uc:'"Why am I out of context?" → /context → see what is eating it', kw:"context visualize grid usage colored eating"},
+  {cmd:"/resume", desc:"Resume a previous conversation.", flags:"Session Control", uc:"Pick up where you left off → /resume", kw:"resume previous conversation pick up continue"},
+  {cmd:"/fork", desc:"Spawn a background agent that inherits the full conversation.", flags:"Session Control", uc:"Branch the conversation without losing the main thread → /fork", kw:"fork branch background agent inherit conversation"},
+  {cmd:"/teleport", desc:"Resume a Claude Code session from claude.ai.", flags:"Session Control", uc:"Continue a web session in terminal → /teleport", kw:"teleport claude.ai web session resume terminal"},
+  {cmd:"/stop", desc:"Stop this background session; transcript + worktree are kept.", flags:"Session Control", uc:"End a /fork or background run cleanly → /stop", kw:"stop background session end transcript worktree"},
+  {cmd:"/recap", desc:"Generate a one-line session recap now.", flags:"Session Control", uc:"Quick status snapshot → /recap", kw:"recap snapshot summary session status one-line"},
+  {cmd:"/insights", desc:"Generate a report analyzing your Claude Code sessions.", flags:"Session Control", uc:"Usage analytics across sessions → /insights", kw:"insights report analyze sessions analytics usage"},
+  {cmd:"/export", desc:"Export the current conversation to a file or clipboard.", flags:"Session Control", uc:"Save the transcript → /export", kw:"export conversation file clipboard save transcript"},
+  {cmd:"/copy", desc:"Copy Claude's last response to clipboard (/copy N for Nth-latest).", flags:"Session Control", uc:"Pipe an output into the OS clipboard → /copy", kw:"copy clipboard last response nth latest"},
+  {cmd:"/status", desc:"Show CC status — version, model, account, API connectivity, tool statuses.", flags:"Session Control", uc:"Health check → /status", kw:"status version model account api connectivity health"},
+  {cmd:"/version", desc:"Print the version this session is running (not what autoupdate downloaded).", flags:"Session Control", uc:"Confirm exact build → /version", kw:"version build current session running"},
+  {cmd:"/update", desc:"Switch to the latest version (conversation continues).", flags:"Session Control", uc:"Hot-upgrade mid-session → /update", kw:"update upgrade latest version mid session hot"},
+  // Model & Effort
+  {cmd:"/model", desc:"Set the AI model for the session (Opus / Sonnet / Haiku).", flags:"Model & Effort", uc:"Switch Opus ↔ Sonnet ↔ Haiku → /model", kw:"model opus sonnet haiku ai switch set"},
+  {cmd:"/effort", desc:"Set effort level for model usage (low / medium / high / xhigh / max / auto).", flags:"Model & Effort", uc:"Tune thinking depth vs speed/cost → /effort", kw:"effort low medium high xhigh max auto thinking depth"},
+  {cmd:"/fast", desc:"Toggle Fast mode (Opus only — faster output, same model).", flags:"Model & Effort", uc:"Opus output speed-up → /fast", kw:"fast mode opus speed-up faster output toggle"},
+  {cmd:"/brief", desc:"Toggle brief-only mode.", flags:"Model & Effort", uc:"Shorter responses → /brief", kw:"brief only mode shorter responses toggle"},
+  {cmd:"/voice", desc:"Toggle voice mode.", flags:"Model & Effort", uc:"Hands-free input → /voice", kw:"voice mode hands-free input speech toggle"},
+  {cmd:"/focus", desc:"Toggle focus view (show only your prompt, a tool summary, and the final response).", flags:"Model & Effort", uc:"Hide tool-by-tool noise → /focus", kw:"focus view prompt tool summary final response hide noise"},
+  {cmd:"/theme", desc:"Change the theme.", flags:"Model & Effort", uc:"Terminal aesthetics → /theme", kw:"theme appearance color terminal aesthetics change"},
+  {cmd:"/color", desc:"Set the prompt bar color for this session.", flags:"Model & Effort", uc:"Visual session identification → /color", kw:"color prompt bar session identification visual"},
+  {cmd:"/tui", desc:"Set the terminal UI renderer (default | fullscreen).", flags:"Model & Effort", uc:"TUI mode toggle → /tui", kw:"tui terminal ui renderer default fullscreen mode"},
+  {cmd:"/scroll-speed", desc:"Adjust mouse wheel scroll speed.", flags:"Model & Effort", uc:"TUI tuning → /scroll-speed", kw:"scroll-speed scroll mouse wheel speed adjust"},
+  {cmd:"/keybindings", desc:"Open or create your keybindings configuration file.", flags:"Model & Effort", uc:"Customize chord/key bindings → /keybindings", kw:"keybindings shortcuts chord keys configure customize"},
+  // Project Bootstrap
+  {cmd:"/init", desc:"Initialize a new CLAUDE.md file with codebase documentation (env-gated multi-file mode via CLAUDE_CODE_NEW_INIT).", flags:"Project Bootstrap", uc:"New project → /init → CLAUDE.md with repo structure, stack, conventions", kw:"init initialize claude.md codebase documentation new project onboarding"},
+  {cmd:"/init-verifiers", desc:"Create verifier skill(s) for automated verification of code changes.", flags:"Project Bootstrap", uc:"After /init, add per-area verifiers → /init-verifiers", kw:"init-verifiers verifier skill automated verification code changes"},
+  {cmd:"/agents", desc:"Manage agent configurations.", flags:"Project Bootstrap", uc:"Add/edit/list custom subagents → /agents", kw:"agents manage subagents configuration custom add edit"},
+  {cmd:"/skills", desc:"List available skills.", flags:"Project Bootstrap", uc:"See what is installed → /skills", kw:"skills list available installed see"},
+  {cmd:"/mcp", desc:"Manage MCP servers.", flags:"Project Bootstrap", uc:"Add/remove/inspect MCP servers → /mcp", kw:"mcp servers manage add remove inspect"},
+  {cmd:"/hooks", desc:"View hook configurations for tool events.", flags:"Project Bootstrap", uc:"Audit hook surface → /hooks", kw:"hooks tool events view audit configuration"},
+  {cmd:"/reload-plugins", desc:"Activate pending plugin changes in the current session.", flags:"Project Bootstrap", uc:"Just installed a plugin, don't want to restart → /reload-plugins", kw:"reload-plugins activate pending changes restart"},
+  {cmd:"/memory", desc:"Edit Claude memory files (CLAUDE.md etc.).", flags:"Project Bootstrap", uc:"Quick in-session memory edit → /memory", kw:"memory edit claude.md files in-session quick"},
+  {cmd:"/toggle-memory", desc:"Toggle automemory off/on for this session.", flags:"Project Bootstrap", uc:"Pause auto-capture → /toggle-memory", kw:"toggle-memory automemory pause auto-capture off on"},
+  {cmd:"/add-dir", desc:"Add a new working directory.", flags:"Project Bootstrap", uc:"Cross-repo work without restarting CC → /add-dir", kw:"add-dir working directory cross-repo allow access"},
+  {cmd:"/ide", desc:"Manage IDE integrations and show status.", flags:"Project Bootstrap", uc:"VS Code / JetBrains hooks → /ide", kw:"ide integration vscode jetbrains hooks status"},
+  // Git / PR Workflow
+  {cmd:"/commit", desc:"Create a git commit.", flags:"Git / PR", uc:"Stage + commit in one step → /commit", kw:"commit git stage one-step"},
+  {cmd:"/commit-push-pr", desc:"Commit, push, and open a PR.", flags:"Git / PR", uc:"Land work in one chain → /commit-push-pr", kw:"commit-push-pr commit push pull request pr open"},
+  {cmd:"/review", desc:"Review a pull request (native; gstack `/review` shadows it if installed).", flags:"Git / PR", uc:"Pre-merge code review → /review", kw:"review pull request code review pr pre-merge shadow gstack"},
+  {cmd:"/security-review", desc:"Complete a security review of the pending changes on the current branch.", flags:"Git / PR", uc:"Before landing security-sensitive changes → /security-review", kw:"security-review audit pending changes branch landing sensitive"},
+  {cmd:"/autofix-pr", desc:"Monitor and autofix any issues with the current PR.", flags:"Git / PR", uc:"CI feedback loop on a live PR → /autofix-pr", kw:"autofix-pr monitor fix pull request ci feedback loop"},
+  {cmd:"/diff", desc:"View uncommitted changes and per-turn diffs.", flags:"Git / PR", uc:"Inspect what changed this turn → /diff", kw:"diff uncommitted changes per-turn inspect"},
+  {cmd:"/simplify", desc:"Review changed code for reuse, quality, efficiency, then fix issues found.", flags:"Git / PR", uc:"Post-implementation polish → /simplify", kw:"simplify review reuse quality efficiency fix polish"},
+  {cmd:"/batch", desc:"Research a large change, then execute in parallel across 5–30 isolated worktree agents that each open a PR.", flags:"Git / PR", uc:"Fanout refactor across many files/repos → /batch", kw:"batch parallel worktree agents pr fanout refactor large"},
+  // Automation & Scheduling
+  {cmd:"/plan", desc:"Enable plan mode or view the current session plan.", flags:"Automation", uc:"Discuss before coding → /plan", kw:"plan mode session enable view discuss"},
+  {cmd:"/loops", desc:"List, create, and delete recurring loops and stop-hooks.", flags:"Automation", uc:"Cron-style recurring runs → /loops", kw:"loops recurring cron stop-hooks create delete list"},
+  {cmd:"/daemon", desc:"Manage background services: assistants, scheduled tasks, remote control.", flags:"Automation", uc:"Background agent lifecycle → /daemon", kw:"daemon background services assistants scheduled remote control"},
+  {cmd:"/goal", desc:"Set a goal — keep working until the condition is met.", flags:"Automation", uc:"Goal-directed autonomous run → /goal", kw:"goal autonomous keep working until condition directed"},
+  {cmd:"/btw", desc:"Ask a quick side question without interrupting the main conversation.", flags:"Automation", uc:"Aside that does not dirty main context → /btw", kw:"btw side question aside interrupt main conversation"},
+  {cmd:"/advisor", desc:"Configure the Advisor Tool to consult a stronger model at key moments.", flags:"Automation", uc:"Auto-escalate hard subproblems → /advisor", kw:"advisor consult stronger model escalate hard subproblems"},
+  {cmd:"/fewer-permission-prompts", desc:"Scan transcripts and add an allowlist to .claude/settings.json.", flags:"Automation", uc:"Reduce friction after first dirty session → /fewer-permission-prompts", kw:"fewer-permission-prompts allowlist transcripts settings.json reduce friction"},
+  {cmd:"/debug", desc:"Enable debug logging for this session.", flags:"Automation", uc:"Diagnose CC misbehavior → /debug", kw:"debug logging session diagnose misbehavior"},
+  {cmd:"/doctor", desc:"Diagnose and verify Claude Code installation and settings.", flags:"Automation", uc:"Something seems broken → /doctor", kw:"doctor diagnose verify installation settings broken"},
+  {cmd:"/feedback", desc:"Submit feedback about Claude Code.", flags:"Automation", uc:"File a comment to Anthropic → /feedback", kw:"feedback submit anthropic comment file"},
+  // Account / Setup
+  {cmd:"/login", desc:"Sign in (or switch Anthropic accounts).", flags:"Account / Setup", uc:"First-run or account swap → /login", kw:"login sign in anthropic accounts switch first-run"},
+  {cmd:"/logout", desc:"Sign out from your Anthropic account.", flags:"Account / Setup", uc:"Hand over the machine → /logout", kw:"logout sign out anthropic account hand over"},
+  {cmd:"/usage", desc:"Show session cost, plan usage, and activity (aliases: /cost, /stats).", flags:"Account / Setup", uc:"Spend awareness → /usage (or /cost or /stats)", kw:"usage cost stats session plan activity spend awareness aliases"},
+  {cmd:"/upgrade", desc:"Upgrade to Max for higher rate limits and more Opus.", flags:"Account / Setup", uc:"Hit a limit → /upgrade", kw:"upgrade max rate limits opus higher"},
+  {cmd:"/extra-usage", desc:"Configure extra usage to keep working when limits are hit.", flags:"Account / Setup", uc:"Pay-as-you-go bridge → /extra-usage", kw:"extra-usage configure keep working limits pay-as-you-go bridge"},
+  {cmd:"/privacy-settings", desc:"View and update your privacy settings.", flags:"Account / Setup", uc:"Telemetry/data controls → /privacy-settings", kw:"privacy-settings telemetry data controls view update"},
+  {cmd:"/install", desc:"Install Claude Code native build.", flags:"Account / Setup", uc:"First-time install → /install", kw:"install native build first-time setup"},
+  {cmd:"/install-github-app", desc:"Set up Claude GitHub Actions for a repository.", flags:"Account / Setup", uc:"Wire CC into a repo's CI → /install-github-app", kw:"install-github-app github actions repository ci wire"},
+  {cmd:"/install-slack-app", desc:"Install the Claude Slack app.", flags:"Account / Setup", uc:"Bring CC into Slack → /install-slack-app", kw:"install-slack-app slack integration"},
+  {cmd:"/setup-bedrock", desc:"Reconfigure Amazon Bedrock authentication, region, or model pins.", flags:"Account / Setup", uc:"AWS-hosted models → /setup-bedrock", kw:"setup-bedrock amazon aws bedrock authentication region model pins"},
+  {cmd:"/setup-vertex", desc:"Reconfigure Google Vertex AI authentication, project, region, or model pins.", flags:"Account / Setup", uc:"GCP-hosted models → /setup-vertex", kw:"setup-vertex google vertex gcp authentication project region model pins"},
+  {cmd:"/remote-env", desc:"Configure the default remote environment for teleport sessions.", flags:"Account / Setup", uc:"Cloud workspace defaults → /remote-env", kw:"remote-env teleport remote environment cloud workspace defaults"},
+  {cmd:"/web-setup", desc:"Set up Claude Code on the web (requires connecting your GitHub account).", flags:"Account / Setup", uc:"claude.ai/code wiring → /web-setup", kw:"web-setup claude.ai code github web wiring"},
+  {cmd:"/team-onboarding", desc:"Help teammates ramp on Claude Code with a guide from your usage.", flags:"Account / Setup", uc:"New-hire onboarding → /team-onboarding", kw:"team-onboarding teammates ramp guide usage onboard new-hire"},
+  {cmd:"/powerup", desc:"Discover Claude Code features through quick interactive lessons.", flags:"Account / Setup", uc:"Self-guided tour → /powerup", kw:"powerup interactive lessons tour features discover learn"},
+  {cmd:"/stickers", desc:"Order Claude Code stickers.", flags:"Account / Setup", uc:"Free swag → /stickers", kw:"stickers order free swag merchandise"},
+  {cmd:"/radio", desc:"Listen to Claude FM lo-fi radio.", flags:"Account / Setup", uc:"Background music → /radio", kw:"radio claude fm lo-fi music background"},
+  // Browser Integration
+  {cmd:"/chrome", desc:"Claude in Chrome (beta) settings.", flags:"Browser", uc:"Wire CC into Chrome session → /chrome", kw:"chrome browser session beta integration settings"},
+  {cmd:"/alias", desc:"Create or list command aliases.", flags:"Browser", uc:"Shorthand for frequent chains → /alias", kw:"alias create list shorthand commands frequent"},
+];
+
+// §33 Plugin Authoring Toolkit (claude-plugins-official sync 2026-05-12)
+const pluginAuthoringData = [
+  {cmd:"/plugin-structure", desc:"Scaffold plugin directory layout — .claude-plugin/, skills/, agents/, commands/, hooks/, mcp/.", flags:"Plugin Dev", uc:"Create a plugin → /plugin-structure → canonical directory tree with manifest stubs", kw:"plugin-structure scaffold plugin directory layout manifest stubs"},
+  {cmd:"/plugin-settings", desc:"Declare user-configurable plugin settings (env vars, defaults, validation).", flags:"Plugin Dev", uc:"Plugin needs an API key → /plugin-settings → adds settings.json schema + reader", kw:"plugin-settings user-configurable env defaults validation schema"},
+  {cmd:"/example-skill", desc:"Canonical example skill demonstrating frontmatter + layout.", flags:"Reference", uc:"Show new contributors what a SKILL.md should look like", kw:"example-skill reference frontmatter layout canonical"},
+  {cmd:"/example-command", desc:"Canonical example user-invoked slash command.", flags:"Reference", uc:"Reference for command authoring", kw:"example-command reference slash command frontmatter authoring"},
+  {cmd:"/skill-development", desc:"Bootstrap a SKILL.md with proper frontmatter (name, description, trigger guidance).", flags:"Plugin Dev", uc:"Plugin needs a new behavior → /skill-development → SKILL.md", kw:"skill-development bootstrap skill.md frontmatter trigger description"},
+  {cmd:"/command-development", desc:"Create a custom slash command (commands/<name>.md) with frontmatter.", flags:"Plugin Dev", uc:"Plugin exposes a new /foo → /command-development → commands/foo.md", kw:"command-development slash command frontmatter custom create"},
+  {cmd:"/agent-development", desc:"Write a subagent (agents/<name>.md) with role + tool scoping.", flags:"Plugin Dev", uc:"Plugin needs a specialized reviewer agent → /agent-development", kw:"agent-development subagent role tool scoping write"},
+  {cmd:"/hook-development", desc:"Add PreToolUse / PostToolUse / Stop / SessionStart hooks.", flags:"Plugin Dev", uc:"Plugin needs to block dangerous bash → /hook-development → hooks.json + script", kw:"hook-development pretooluse posttooluse stop sessionstart hooks"},
+  {cmd:"/writing-hookify-rules", desc:"Author hookify rule syntax for declarative hook dispatch.", flags:"Plugin Dev", uc:"Plugin uses hookify → /writing-hookify-rules → rule with matcher + action", kw:"writing-hookify-rules hookify rule syntax declarative dispatch matcher"},
+  {cmd:"/build-mcp-server", desc:"Wrap an API as an MCP server (tools, resources, prompts).", flags:"MCP", uc:"Internal API → /build-mcp-server → TS/Python MCP server", kw:"build-mcp-server wrap api tools resources prompts ts python"},
+  {cmd:"/mcp-integration", desc:"Wire MCP into plugin via .mcp.json.", flags:"MCP", uc:"Plugin needs MCP → /mcp-integration → updates .mcp.json + manifest", kw:"mcp-integration wire .mcp.json manifest plugin"},
+  {cmd:"/build-mcp-app", desc:"Add interactive UI / widgets / rendered components to an MCP server.", flags:"MCP", uc:"MCP returns a chart → /build-mcp-app → rendered widget descriptor", kw:"build-mcp-app interactive ui widgets rendered components"},
+  {cmd:"/build-mcpb", desc:"Package an MCP server as a distributable MCPB bundle.", flags:"MCP", uc:"Internal MCP → /build-mcpb → .mcpb archive for distribution", kw:"build-mcpb package mcp mcpb bundle distributable archive"},
+  {cmd:"/claude-automation-recommender", desc:"Scan a codebase and recommend which automations (hooks, subagents, skills, plugins, MCPs) to build.", flags:"Discovery", uc:"Existing repo → /claude-automation-recommender → ranked list", kw:"claude-automation-recommender scan codebase recommend hooks subagents skills plugins mcps"},
+  {cmd:"/claude-md-improver", desc:"Audit & improve CLAUDE.md files — scope, signal-to-noise, missing sections.", flags:"Polish", uc:"Old CLAUDE.md → /claude-md-improver → tightened version", kw:"claude-md-improver audit improve claude.md scope signal noise sections"},
+  {cmd:"/playground", desc:"Generate an interactive single-file HTML playground that demos the plugin / skill / MCP.", flags:"Polish", uc:"Plugin needs a demo page → /playground → self-contained HTML explorer", kw:"playground interactive html demo plugin skill mcp self-contained explorer"},
+];
+
+// §34 M5Stack / ESP32 IoT (cwc-makers plugin)
+const iotData = [
+  {cmd:"/m5-onboard", desc:"Detect M5Stack ESP32 over USB, flash MicroPython firmware, mount filesystem, deploy starter bundle.", flags:"USB, esptool", uc:"Plug in Cardputer → /m5-onboard → MicroPython + Claude Buddy bundle in <5 min", kw:"m5-onboard m5stack esp32 cardputer cores stick usb micropython esptool firmware filesystem"},
+  {cmd:"/cardputer-buddy", desc:"Iterate on the bundled MicroPython apps (Claude Buddy chat, Snake, Hello) post-onboarding.", flags:"After m5-onboard", uc:"/cardputer-buddy → tweak Claude Buddy prompt → redeploy → live test", kw:"cardputer-buddy iterate micropython apps claude buddy snake hello redeploy"},
 ];
 
 const videoData = [
   {cmd:"/remotion-best-practices", desc:"Best practices for Remotion — video creation in React.", flags:"React, Remotion", uc:"Building programmatic videos → optimal patterns for React + Remotion", kw:"remotion best practices video creation react programmatic motion graphics"},
+];
+
+const lspData = [
+  {cmd:"swift-lsp", desc:"Swift / SourceKit-LSP code intelligence for .swift files. Auto-activates in Swift projects.", flags:".swift", uc:"Install Xcode or brew install swift \u2192 SourceKit-LSP auto-connects \u2192 go-to-definition + errors in Swift files", kw:"swift lsp sourcekit-lsp code intelligence swift xcode macos"},
+  {cmd:"jdtls-lsp", desc:"Java / Eclipse JDT.LS code intelligence for .java files. Requires Java 17+ JDK.", flags:".java", uc:"brew install jdtls \u2192 auto-connects \u2192 refactoring, find references, diagnostics in Java files", kw:"jdtls java lsp eclipse jdt code intelligence java17 jdk"},
+  {cmd:"typescript-lsp", desc:"TypeScript/JavaScript code intelligence. Covers .ts, .tsx, .js, .jsx, .mts, .cjs, .mjs.", flags:".ts .tsx .js .jsx", uc:"npm install -g typescript-language-server typescript \u2192 auto-connects \u2192 type errors + completions", kw:"typescript javascript lsp typescript-language-server ts tsx js jsx code intelligence"},
+  {cmd:"ruby-lsp", desc:"Ruby code intelligence for .rb, .rake, .gemspec, .ru, .erb. Requires Ruby 3.0+.", flags:".rb .rake .erb", uc:"gem install ruby-lsp \u2192 auto-connects \u2192 diagnostics + go-to-definition in Ruby files", kw:"ruby lsp ruby-lsp shopify rb rake gemspec erb code intelligence ruby3"},
+];
+
+const mlData = [
+  {cmd:"/nanochat", desc:"Wrapper for Karpathy's nanochat — minimal hackable LLM training harness covering tokenization, pretraining, SFT, RL, evaluation, inference, and chat UI.", flags:"CUDA, Bash, Read, Edit", uc:'"start nanochat speedrun" → tokenizes → pretrains base → SFT → RL → ships chat UI', kw:"nanochat karpathy llm training tokenize pretrain sft rl evaluation inference chat ui speedrun"},
+  {cmd:"/karpathy-autoresearch", desc:"Autonomous LLM-pretraining experiment loop. Edits train.py, runs 5-min training budgets, tracks val_bpb in results.tsv, keeps wins / reverts losses on a dedicated git branch.", flags:"NVIDIA GPU only, no macOS", uc:'"look at program.md and start" → reads program.md → runs experiment → improves val_bpb → commits → repeats', kw:"karpathy autoresearch llm pretraining experiment train.py val_bpb results.tsv autonomous research"},
+];
+
+const ralphData = [
+  {cmd:"ralph_loop.sh", desc:"Main autonomous loop. Calls Claude Code repeatedly with dual-condition exit gate (needs completion signal + EXIT_SIGNAL). Rate-limited to 100 calls/hour with circuit breaker.", flags:"--live, --resume <id>", uc:"ralph_loop.sh \u2192 Claude iterates autonomously \u2192 circuit breaker halts runaway loops \u2192 exits on completion", kw:"ralph loop autonomous development claude code iterate circuit breaker rate limit exit"},
+  {cmd:"ralph_enable.sh", desc:"Interactive wizard to enable Ralph in a project. Detects env, sets up .ralphrc config, imports tasks from beads/GitHub/PRD.", flags:"interactive", uc:"ralph_enable.sh \u2192 wizard \u2192 selects task source \u2192 writes .ralphrc + PROMPT.md + AGENT.md", kw:"ralph enable wizard setup ralphrc config beads github prd tasks project"},
+  {cmd:"ralph_enable_ci.sh", desc:"Non-interactive CI version of ralph_enable. CLI flags only, JSON output mode, exit codes for automation.", flags:"--task-source, --project-name", uc:"ralph_enable_ci.sh --task-source beads \u2192 CI-safe setup \u2192 exit 0 success / 2 already enabled", kw:"ralph enable ci automation non-interactive cli flags json exit codes"},
+  {cmd:"ralph_import.sh", desc:"Import a PRD or spec document into Ralph's task format for the autonomous loop.", flags:"<file>", uc:"ralph_import.sh prd.md \u2192 converts PRD sections \u2192 creates Ralph task files ready for ralph_loop", kw:"ralph import prd spec document task format convert"},
+  {cmd:"ralph_monitor.sh", desc:"Live monitoring dashboard via tmux. Shows loop iteration, circuit breaker state, rate limit status.", flags:"tmux required", uc:"ralph_monitor.sh \u2192 tmux pane \u2192 real-time loop health + iteration counter + breaker state", kw:"ralph monitor dashboard tmux live loop iteration circuit breaker state"},
 ];
 
 const workflows = [
@@ -1626,6 +1845,23 @@ const workflows = [
   {name:"P. Persona-Driven Workspace", steps:["/persona-exec-assistant","/gws-gmail-triage","/gws-calendar-agenda","/gws-workflow-meeting-prep","/recipe-reschedule-meeting"]},
   {name:"Q. Developer Experience Audit", steps:["/plan-devex-review","/devex-review URL","/design-review URL","/qa URL"]},
   {name:"R. Scheduled Automation", steps:['/schedule create "nightly security"','/schedule create "weekly retro"',"/schedule list","/loop 5m /health"]},
+  {name:"S. Cross-AI Second Opinion", steps:["/codex:setup","/codex:rescue","/codex review (gstack)","/gsd:review --phase 3 --all"]},
+  {name:"T. Library Docs Lookup", steps:["/context7-plugin:docs <library>","beats web search for API questions","avoid for refactors/business logic"]},
+  {name:"U. Project Bootstrap & Onboarding", steps:["/init","/setup-gbrain","/setup-deploy","/setup-browser-cookies <domain>","/fewer-permission-prompts"]},
+  {name:"V. New Skill / MCP Authoring", steps:["/skill-creator","/mcp-builder","/superpowers:writing-skills","/superpowers:test-driven-development","/review","/ship"]},
+  {name:"W. Onboarding to Unknown Codebase (4 memory layers)", steps:["/init","/gsd:map-codebase","/claude-mem:learn-codebase","/graphify","/sync-gbrain","/context-save"]},
+  {name:"X. Idea → PRD → Tasks → Autonomous Build", steps:["/office-hours","/prd-taskmaster","/expand-tasks","/superpowers:write-plan","/superpowers:execute-plan","/autoresearch:ship"]},
+  {name:"Y. Plan Hardening Gauntlet", steps:["/superpowers:write-plan","/plan-ceo-review","/plan-design-review","/plan-eng-review","/plan-devex-review","/codex consult","/gsd:review --all","/autoplan"]},
+  {name:"Z. Knowledge Compounding Session", steps:["/graphify","/claude-mem:knowledge-agent","/idme-base:writer","/idme-base:adr-writer","/learn"]},
+  {name:"AA. Live Site Forensic Replication", steps:["/scrape <url>","/forensics <url> (UI/UX teardown)","/design-shotgun","/design-html","/design-review URL","/skillify"]},
+  {name:"AB. Parallel-Worktree Multi-Feature Sprint", steps:["/superpowers:using-git-worktrees","/gsd:new-workspace","/superpowers:dispatching-parallel-agents","/godmode:parallel-execution","/superpowers:finishing-a-development-branch","/land-and-deploy"]},
+  {name:"AC. Production Incident Response", steps:["/guard","/careful","/investigate","/superpowers:systematic-debugging","/cso","/canary --duration 15m","/idme-base:adr-writer"]},
+  {name:"AD. Autonomous Background Operator (24/7)", steps:['/schedule "nightly health"','/schedule "nightly cso"',"/loop 10m /qa-only","/ralph","/autoresearch","/gws-workflow-weekly-digest"]},
+  {name:"AE. Visual Asset → Production (Figma round-trip)", steps:["/figma:figma-implement-design","/frontend-design","/ui-ux-pro-max","/design-review URL","/figma:figma-code-connect","/benchmark"]},
+  {name:"AF. Meeting → Action → Tracked Work", steps:["/gws-workflow-meeting-prep","/gws-meet","/gws-workflow-email-to-task","bd create commitment","bd dep add","bd ready"]},
+  {name:"AG. Compress & Continue (cross-context handoff)", steps:["/gsd:session-report","/context-save","/claude-mem:timeline-report","/caveman:compress","bd compact","[/clear]","/context-restore"]},
+  {name:"AH. Full-Stack Plugin Authoring", steps:["/claude-automation-recommender","/plugin-structure","/plugin-settings","/skill-development","/command-development","/agent-development","/hook-development","/writing-hookify-rules","/build-mcp-server","/mcp-integration","/build-mcpb","/build-mcp-app","/playground","/claude-md-improver","/review","/ship"]},
+  {name:"AI. M5Stack ESP32 Device Onboarding", steps:["/m5-onboard","/cardputer-buddy","/playground","/learn"]},
 ];
 
 // ========== RENDER ==========
@@ -1676,6 +1912,11 @@ renderCards('codex-cards', codexPluginData);
 renderCards('context7-cards', context7Data);
 renderCards('claudemem-cards', claudememData);
 renderCards('native-cards', nativeData);
+renderCards('plugin-authoring-cards', pluginAuthoringData);
+renderCards('iot-cards', iotData);
+renderCards('lsp-cards', lspData);
+renderCards('ralph-cards', ralphData);
+renderCards('ml-cards', mlData);
 renderCards('video-cards', videoData);
 
 // Render workflows
