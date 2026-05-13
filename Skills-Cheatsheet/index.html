@@ -1971,7 +1971,7 @@ const __checkIconSvg = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColo
 function copyWorkflow(idx, btn) {
   const w = workflows[idx];
   if (!w) return;
-  const text = w.steps.join('\n');
+  const text = w.steps.join(' → ');
   const fallback = () => {
     const ta = document.createElement('textarea');
     ta.value = text;
