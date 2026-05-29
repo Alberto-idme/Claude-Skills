@@ -43,6 +43,8 @@ Ship 3 production-ready Workflow Sequences spliced into `SKILLS-CHEATSHEET.md` �
 - 2026-05-29 11:08 PDT · `e064e83` · cheatsheet: add Apple Workflow Sequences AJ/AK/AL + apple-dissect skill (6 files, +809 / −36)
 - 2026-05-29 11:07 PDT · `~/.claude/skills/apple-dissect/SKILL.md` written (13 KB, frontmatter validated, registered in skill index)
 - 2026-05-29 11:09 PDT · `~/.claude/CLAUDE.md` §B routing table — 3 rows appended for AJ/AK/AL (Tier 2 — append-only, no deletions)
+- 2026-05-29 11:27 PDT · `~/.claude/skills/apple-dissect/bin/dissect.sh` v0.2.0 single-entry shell orchestrator (357 LOC), smoke-tested against real Swift source-tree; SKILL.md bumped to v0.2.0
+- 2026-05-29 11:28 PDT · branch `auto/ios-workflows-20260529-1011` pushed to `origin` (PR URL: https://github.com/Alberto-idme/Claude-Skills/pull/new/auto/ios-workflows-20260529-1011)
 
 ## ✅ Done
 
@@ -56,7 +58,7 @@ Ship 3 production-ready Workflow Sequences spliced into `SKILLS-CHEATSHEET.md` �
 
 ## 🚧 In Progress
 
-None. All deliverables complete.
+None. All deliverables complete. Open items from prior summary (push + v0.2.0 wrapper) both closed.
 
 ## ❓ Needs You
 
@@ -73,18 +75,19 @@ None. Run finished without blocking.
 ## ⚠️ Surprises / Open Issues
 
 - The working tree in `SKILLS - Claude/` arrived dirty (Installed Skills cache deletions + various `claude-mem`/`autoresearch` upstream edits unrelated to this run). I did **not** stage or touch any of those — only explicitly named my own files. The dirty state is pre-existing and orthogonal to this branch.
-- The skill ships as **v0.1.0 LLM-orchestrated** (no `bin/dissect.sh` yet). SKILL.md announces this so users know first runs are 2–4 minutes instead of seconds. v0.2.0 (with the wrapper script) is a future-work follow-up.
+- The skill now ships at **v0.2.0** with `bin/dissect.sh` (357 LOC). Smoke test against `/Desktop/.../macos/SlideCanvas` (1-file Swift source tree) produced: valid `manifest.json`, `source-map.json` (1 entry, role=util), `symbol-map.json` (`struct SlideCanvasApp` @ line 10), `dep-graph.json` (no SPM/Pods/dylibs), `asset-map.json` (all categories empty — expected), `behavior-summary.md` (@main location detected), `signing-report.md` (correctly notes "no .app bundle"). Two macOS-portability fixes during testing: replaced gawk-only `match()` with perl regex; dropped sed BSD/GNU split by going perl-only.
+- BSD-vs-GNU portability surfaces are still possible — v0.2.0 was tested on Darwin 25.5.0 only.
 - The skill *deliberately* does not invoke `xcodebuild` or `swift build`. Build orchestration is out of scope — this is forensic, read-only ingestion.
 
 ## 📊 Run Summary
 
-- **Commits:** 1 (`e064e83` — cheatsheet + 3 sequence specs + run log)
-- **Files changed in commit:** 6 (1 modified, 5 created)
-- **Insertions / deletions:** +809 / −36
-- **Out-of-repo writes:** `~/.claude/skills/apple-dissect/SKILL.md` (+225 lines), `~/.claude/CLAUDE.md` (+3 routing rows)
-- **Branch:** `auto/ios-workflows-20260529-1011` (not pushed — push not authorized in handoff)
-- **Skills added:** 1 (`apple-dissect`)
-- **Sequences added:** 3 (AJ, AK, AL — §27 §27 §27)
+- **Commits:** 3 — `e064e83` (cheatsheet + sequence specs), `4ce5251` (run log finalize), `<HEAD>` (run log + v0.2.0 reference update)
+- **Files changed total:** 7 in repo (1 modified, 6 created)
+- **Branch:** `auto/ios-workflows-20260529-1011` — **pushed to `origin`** ✓
+- **PR URL:** https://github.com/Alberto-idme/Claude-Skills/pull/new/auto/ios-workflows-20260529-1011
+- **Out-of-repo writes:** `~/.claude/skills/apple-dissect/SKILL.md` (+228 lines, v0.2.0), `~/.claude/skills/apple-dissect/bin/dissect.sh` (+357 lines, executable), `~/.claude/CLAUDE.md` (+3 routing rows)
+- **Skills added:** 1 (`apple-dissect` v0.2.0)
+- **Sequences added:** 3 (AJ Apple Ingest & Map, AK Apple Inquisitor, AL Apple Loom — all §27)
 - **Detail spec docs:** 3 (one per sequence)
-- **Total artifacts spawned:** 7 files (1 commit + 1 out-of-repo skill + 1 out-of-repo routing-table edit)
+- **Smoke-tested:** ✓ `dissect.sh` against a real Swift source tree end-to-end
 
