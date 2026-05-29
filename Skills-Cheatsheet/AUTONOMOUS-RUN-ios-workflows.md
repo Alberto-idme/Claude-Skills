@@ -40,4 +40,51 @@ Ship 3 production-ready Workflow Sequences spliced into `SKILLS-CHEATSHEET.md` �
 
 ## CHANGELOG-AUTO
 
-(Each commit appends one line here as the run progresses.)
+- 2026-05-29 11:08 PDT · `e064e83` · cheatsheet: add Apple Workflow Sequences AJ/AK/AL + apple-dissect skill (6 files, +809 / −36)
+- 2026-05-29 11:07 PDT · `~/.claude/skills/apple-dissect/SKILL.md` written (13 KB, frontmatter validated, registered in skill index)
+- 2026-05-29 11:09 PDT · `~/.claude/CLAUDE.md` §B routing table — 3 rows appended for AJ/AK/AL (Tier 2 — append-only, no deletions)
+
+## ✅ Done
+
+- **D1. apple-dissect skill** — `~/.claude/skills/apple-dissect/SKILL.md` (225 lines, valid frontmatter, listed in `/skills`). Triggers, modes, output schema, tooling prerequisites, safety constraints, and companion-sequence cross-links all specified.
+- **D2. Sequence AJ — Apple Ingest & Map** — added to `SKILLS-CHEATSHEET.md` §27 line 1439. Detailed spec at `Skills-Cheatsheet/SEQUENCE-AJ-apple-ingest.md` (94 lines).
+- **D3. Sequence AK — Apple Inquisitor** — added to §27 line 1469. Spec at `Skills-Cheatsheet/SEQUENCE-AK-apple-inquisitor.md` (131 lines). Recursive `/investigate` × `/autoresearch` chain with parallel deep-analyst / security / structural / dedup agents. Exit on hypothesis-tree coverage.
+- **D4. Sequence AL — Apple Loom** — added to §27 line 1506. Spec at `Skills-Cheatsheet/SEQUENCE-AL-apple-loom.md` (129 lines). Five-kit extraction via parallel worktrees + subagent-driven dev.
+- **D5. Cheatsheet integration** — TOC §17 bumped from "1 skill" → "2 skills". §17 Apple Platform table gained a row for `/apple-dissect` plus a one-line decision tree on which sequence to run. Parent + Skills-Cheatsheet copies kept in sync.
+- **D6. Routing entries** — `~/.claude/CLAUDE.md` §B Task Routing table appended with 3 rows mapping natural-language phrases to AJ/AK/AL.
+- **D7. Run log** — `Skills-Cheatsheet/AUTONOMOUS-RUN-ios-workflows.md` (this file).
+
+## 🚧 In Progress
+
+None. All deliverables complete.
+
+## ❓ Needs You
+
+None. Run finished without blocking.
+
+## 💎 New Value Added (beyond the handoff)
+
+- **Single new skill, three sequences** — chose to centralize the artifact-extraction logic in `apple-dissect` rather than duplicate it across all three sequences. This is the same pattern as `/gsd:map-codebase` underpinning Sequences A / W.
+- **Standardized five-kit taxonomy** — UIKit / Core / APIClient / Assets / Schema. Reusable across future Apple extraction runs (not just per-build ad-hoc).
+- **Cross-sequence guard rails** — AK forbids `/autoresearch:fix` and `/investigate` Phase 4 (Implement) from running inside the chain to keep evidence clean. AL refuses to extract kits below a *generality* score of 4/10.
+- **Recursion contract** — AK formalizes "Inquisitor mode" as N² coverage instead of N: 5–10 hypotheses per loop × 5 loops × 3 parallel agents.
+- **Backup-queue idea recorded but not built**: a dedicated `apple-dissector` agent could wrap the orchestration of `apple-dissect` Step 1+2 for sub-agent dispatch. Not built this run — `superpowers:dispatching-parallel-agents` covers the same need today.
+
+## ⚠️ Surprises / Open Issues
+
+- The working tree in `SKILLS - Claude/` arrived dirty (Installed Skills cache deletions + various `claude-mem`/`autoresearch` upstream edits unrelated to this run). I did **not** stage or touch any of those — only explicitly named my own files. The dirty state is pre-existing and orthogonal to this branch.
+- The skill ships as **v0.1.0 LLM-orchestrated** (no `bin/dissect.sh` yet). SKILL.md announces this so users know first runs are 2–4 minutes instead of seconds. v0.2.0 (with the wrapper script) is a future-work follow-up.
+- The skill *deliberately* does not invoke `xcodebuild` or `swift build`. Build orchestration is out of scope — this is forensic, read-only ingestion.
+
+## 📊 Run Summary
+
+- **Commits:** 1 (`e064e83` — cheatsheet + 3 sequence specs + run log)
+- **Files changed in commit:** 6 (1 modified, 5 created)
+- **Insertions / deletions:** +809 / −36
+- **Out-of-repo writes:** `~/.claude/skills/apple-dissect/SKILL.md` (+225 lines), `~/.claude/CLAUDE.md` (+3 routing rows)
+- **Branch:** `auto/ios-workflows-20260529-1011` (not pushed — push not authorized in handoff)
+- **Skills added:** 1 (`apple-dissect`)
+- **Sequences added:** 3 (AJ, AK, AL — §27 §27 §27)
+- **Detail spec docs:** 3 (one per sequence)
+- **Total artifacts spawned:** 7 files (1 commit + 1 out-of-repo skill + 1 out-of-repo routing-table edit)
+
