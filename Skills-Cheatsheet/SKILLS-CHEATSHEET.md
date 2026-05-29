@@ -1,6 +1,46 @@
 # Claude Code Skills Cheat Sheet
 
-> 400+ skills across 26 suites. Organized by workflow stage with mini use cases. Last updated: 2026-05-01.
+> 555+ skills across 35 suites and 35 named workflow sequences. Organized by workflow stage with mini use cases. Last refresh: **2026-05-26** (Claude 4.x model family + CC v2.1.150 + `/claude-api` Managed Agents + adaptive thinking).
+>
+> **What's new in this refresh:**
+> - **Claude 4.x model family**: Opus 4.7 (`claude-opus-4-7`), Opus 4.6 (`claude-opus-4-6`), Sonnet 4.6 (`claude-sonnet-4-6`), Haiku 4.5 (`claude-haiku-4-5`) — all with 1M context (Haiku: 200K). See [§26 `/model`](#26-native-claude-code-commands).
+> - **`/claude-api` updated** (§13): now covers Managed Agents (server-side stateful agents), model migration 4.5→4.6→4.7, adaptive thinking (`thinking: {type: "adaptive"}`), new `effort` parameter (`low/medium/high/xhigh/max`), `budget_tokens` deprecated on 4.6/4.7, Task Budgets beta (Opus 4.7)
+> - **Claude Code v2.1.150** — updated native command count and CLI flags
+>
+> **Previous refresh (2026-05-26 earlier):**
+> - New section [§35 — Vercel Plugin (26+ skills)](#35-vercel-plugin) — full auto-injecting suite: AI SDK, AI Gateway, Next.js, Vercel Functions, storage, auth, shadcn, CI/CD + 3 specialist agents
+> - `/figma:figma-use-slides` added to §4 — Figma Slides-specific `use_figma` context (figma plugin 2.2.12)
+> - `figma-implement-design` and `figma-create-design-system-rules` deprecated (removed in figma 2.2.12)
+>
+> **Previous refresh (2026-05-12 late):**
+> - 21 new skills from `claude-plugins-official` marketplace sync
+> - New section [§33 — Plugin Authoring Toolkit](#33-plugin-authoring-toolkit) — 16 skills for building plugins, MCP servers, hooks, slash commands, agents
+> - New section [§34 — M5Stack / ESP32 IoT](#34-m5stack--esp32-iot) — `m5-onboard`, `cardputer-buddy` for Cardputer/Core/Stick onboarding
+> - 2 new workflow sequences AH (plugin authoring) + AI (M5Stack onboarding)
+> - §4 Figma now lists `generate-project-plan` (FigJam project plan board from PRD)
+> - Cross-cutting "Skill Nature" framing below to help pick the right tool
+>
+> **Previous refresh (2026-05-12 early):**
+> - 12 new cross-suite workflow sequences (V → AG) — see [§27](#27-workflow-sequences)
+> - Added: `nanochat`, `karpathy-autoresearch`, `expand-tasks`, `sync-gbrain` (previously uncatalogued)
+> - New section [§31 — ML / LLM Training](#31-ml--llm-training)
+> - New section [§32 — OS Management](#32-os-management--autonomous-self-improvement)
+>
+> ### Skill Nature — pick by intent, not by name
+>
+> | Nature | Examples | When to reach for it |
+> |-------|---------|----------------------|
+> | **Generators** | `/design-html`, `/make-pdf`, `/docx`, `/figma:figma-generate-design`, `/canvas-design` | You want an artifact (file, page, doc) produced fresh |
+> | **Analyzers / Auditors** | `/cso`, `/health`, `/devex-review`, `/qa-only`, `/forensics` (UI/UX site teardown), `/gsd:forensics` (workflow post-mortem), `/gsd:audit-milestone` | You want a verdict + report on existing work |
+> | **Process / Orchestrators** | `/gsd:*`, `/superpowers:*`, `/godmode:*`, `/autoresearch`, `/btw`, `/ralph` | You want a multi-step workflow with checkpoints |
+> | **Spec / Decision capture** | `/idme-base:writer`, `/idme-base:adr-writer`, `/prd-taskmaster`, `/office-hours` | You want decisions/requirements written down before coding |
+> | **Memory / Persistence** | `/claude-mem:*`, `/graphify`, `/gsd:thread`, `/learn`, `/context-save`, `/beads:*` | You want to remember things across sessions or compacts |
+> | **Browser / Real-world I/O** | `/browse`, `/browser-use`, `/open-gstack-browser`, `/scrape`, `/setup-browser-cookies`, `/remote-browser` | You need to act on or read from a live web page |
+> | **Cross-AI consultation** | `/codex review`, `/codex:rescue`, `/gsd:review --all`, `/autoresearch:reason` | You want a second opinion / adversarial check |
+> | **Compression / Discipline** | `/caveman`, `/freeze`, `/guard`, `/careful`, `/fewer-permission-prompts` | You want to constrain Claude's behavior or output |
+> | **Ship / Land** | `/ship`, `/review`, `/land-and-deploy`, `/canary`, `/document-release`, `/gsd:ship` | You want code in front of users with safety nets |
+>
+> **Picking heuristic:** start at the leftmost column that matches your intent. Generators ship fastest; orchestrators ship safest; auditors prevent regret.
 
 ---
 
@@ -8,8 +48,8 @@
 
 1. [gstack — Ship & QA Suite (46 skills)](#1-gstack--ship--qa-suite)
 2. [GSD — Get Shit Done Framework (57 commands)](#2-gsd--get-shit-done-framework)
-3. [Autoresearch (9 skills)](#3-autoresearch)
-4. [Figma Plugin (9 skills)](#4-figma-plugin)
+3. [Autoresearch (10 skills)](#3-autoresearch)
+4. [Figma Plugin (10 skills, 2 deprecated)](#4-figma-plugin)
 5. [graphify — Knowledge Graph (1 command, many subcommands)](#5-graphify--knowledge-graph)
 6. [IDME Base — Document Writers (9 skills)](#6-idme-base--document-writers)
 7. [Beads — Issue Tracker (1 skill, 26 subcommands)](#7-beads--issue-tracker)
@@ -22,17 +62,25 @@
 14. [Superpowers (14 skills)](#14-superpowers)
 15. [Superpowers Lab (4 skills)](#15-superpowers-lab)
 16. [Godmode (37 skills)](#16-godmode)
-17. [Apple Platform (1 skill)](#17-apple-platform)
+17. [Apple Platform (2 skills)](#17-apple-platform)
 18. [Claude Code Configuration (5 skills)](#18-claude-code-configuration)
 19. [Google Workspace Suite (44 skills)](#19-google-workspace-suite)
 20. [Google Workspace Recipes (35 recipes)](#20-google-workspace-recipes)
 21. [Google Workspace Personas (10 personas)](#21-google-workspace-personas)
-22. [Video & Motion (1 skill)](#22-video--motion)
+22. [Video & Motion (2 skills)](#22-video--motion)
 23. [Codex Plugin (2 skills)](#23-codex-plugin)
 24. [Context7 Plugin (2 skills)](#24-context7-plugin)
 25. [claude-mem — Memory & Planning (8 skills)](#25-claude-mem--memory--planning)
-26. [Native Claude Code Commands (3 commands)](#26-native-claude-code-commands)
+26. [Native Claude Code Commands (~77 commands)](#26-native-claude-code-commands)
 27. [Workflow Sequences](#27-workflow-sequences)
+28. [Language Server Protocol (LSP) Plugins (4 plugins)](#28-language-server-protocol-lsp-plugins)
+29. [Ralph — Autonomous Dev Loop](#29-ralph--autonomous-dev-loop)
+30. [Caveman — Response Compression (7 skills)](#30-caveman--response-compression)
+31. [ML / LLM Training (2 skills)](#31-ml--llm-training)
+32. [OS Management — Autonomous Self-Improvement (4 skills)](#32-os-management--autonomous-self-improvement)
+33. [Plugin Authoring Toolkit (16 skills)](#33-plugin-authoring-toolkit)
+34. [M5Stack / ESP32 IoT (2 skills)](#34-m5stack--esp32-iot)
+35. [Vercel Plugin (26+ skills, 3 agents)](#35-vercel-plugin)
 
 ---
 
@@ -112,6 +160,7 @@
 | `/learn` | Manage project learnings across sessions | `review`, `search`, `prune`, `export` | `/learn` → "didn't we fix this before?" → searches learnings → finds past pattern |
 | `/fewer-permission-prompts` | Scan transcripts for common read-only Bash and MCP calls → add prioritized allowlist to project `.claude/settings.json` | Project-scoped | `/fewer-permission-prompts` → finds 14 frequently approved commands → writes allowlist → fewer prompts |
 | `/setup-gbrain` | Set up gbrain for this coding agent — installs CLI, initializes local PGLite database | One-time | `/setup-gbrain` → installs gbrain CLI → bootstraps local PGLite → ready for memory + retrieval |
+| `/sync-gbrain` | Re-index this repo into gbrain. Refreshes agent search guidance in CLAUDE.md, registers native code-surface, runs capability checks. Idempotent | Re-runnable | `/sync-gbrain` → "gbrain search isn't finding things" → re-indexes → updates CLAUDE.md guidance |
 | `/gstack-upgrade` | Upgrade gstack to latest | Auto-detects install type | `/gstack-upgrade` → shows changelog → confirms → upgrades |
 
 ---
@@ -214,7 +263,7 @@
 | Command | What it does | Key flags | Mini use case |
 |---------|-------------|-----------|---------------|
 | `/gsd:debug` | Scientific method debugging with persistent state | `[issue]` | `/gsd:debug "Tests pass locally but fail in CI"` → gathers symptoms → spawns debugger → tracks hypotheses |
-| `/gsd:forensics` | Post-mortem for failed GSD workflows | `[description]` | `/gsd:forensics "Phase 3 execution got stuck"` → analyzes git + artifacts → finds stuck loop → writes report |
+| `/gsd:forensics` | **GSD workflow post-mortem** — diagnoses failed/stuck GSD runs from git + `.planning/` artifacts. *Not* the UI/UX site teardown — for that, see [`/forensics` in §13](#13-developer-utilities) | `[description]` | `/gsd:forensics "Phase 3 execution got stuck"` → analyzes git + artifacts → finds stuck loop → writes `.planning/forensics/REPORT.md` |
 | `/gsd:health` | Diagnose .planning/ directory integrity | `--repair` | `/gsd:health --repair` → finds orphaned plan + invalid config → auto-fixes both |
 
 ### Shipping & Review
@@ -255,12 +304,14 @@ Autonomous goal-directed iteration based on Karpathy's autoresearch principles. 
 | `/autoresearch:predict` | Multi-persona swarm prediction. Pre-analyze code from multiple expert perspectives | `/autoresearch:predict` → spawns 5 expert personas → each analyzes independently → synthesizes |
 | `/autoresearch:ship` | Universal shipping workflow. 8-phase structured workflow for code, content, anything | `/autoresearch:ship` → 8 phases: prep → build → test → review → stage → deploy → verify → announce |
 | `/autoresearch:scenario` | Scenario-driven use case generator. Explores edge cases from a seed scenario | `/autoresearch:scenario "User loses connection mid-payment"` → explores 12 derivative scenarios |
+| `/autoresearch:reason` | Adversarial generate-critique-synthesize refinement. Multi-agent: generate → critique → synthesize → judge, repeated until convergence. 3 modes: convergent (default), creative, debate. Flags: `--judges N`, `--iterations N`, `--convergence N`, `--chain <tool>` | `/autoresearch:reason "Design the auth flow" --mode debate --judges 5` → 3 agents debate → judge picks winner → converges |
 
 ### Autoresearch Flow
 
 ```
 /autoresearch:plan              → define goal + metric
 /autoresearch                   → iterate toward goal
+/autoresearch:reason            → adversarial refinement (generate → critique → synthesize)
 /autoresearch:debug             → find all bugs
 /autoresearch:fix               → fix all errors
 /autoresearch:security          → security audit
@@ -275,24 +326,26 @@ Autonomous goal-directed iteration based on Karpathy's autoresearch principles. 
 |-------|-------------|-------------|---------------|
 | `/figma:figma-use` | **MANDATORY** before every `use_figma` call. Loads Plugin API rules | Before ANY write to Figma canvas | Always call this first → then call `use_figma` with JS code |
 | `/figma:figma-generate-design` | Build full pages in Figma from code/description, section by section | "Create this app screen in Figma" | Reads React component → discovers Nova components → builds page section-by-section in Figma |
-| `/figma:figma-implement-design` | Translate Figma → production code with 1:1 fidelity | User shares Figma URL + "implement this" | Reads `get_design_context` → adapts to project stack → outputs production React code |
+| ~~`/figma:figma-implement-design`~~ | ~~Translate Figma → production code with 1:1 fidelity~~ | **[DEPRECATED 2026-05-26 — removed in figma plugin 2.2.12]** | — |
 | `/figma:figma-generate-library` | Build design system in Figma from codebase | "Build our component library in Figma" | Multi-phase: Discovery → Foundations → Components → QA. 20-100+ use_figma calls |
 | `/figma:figma-code-connect` | Create and maintain Figma Code Connect template files mapping Figma components ↔ code components | "Connect this Figma button to code" | Uses `get_code_connect_suggestions` → `send_code_connect_mappings` |
-| `/figma:figma-create-design-system-rules` | Generate design system rules for AI agents | "Set up design rules for my project" | Outputs CLAUDE.md / AGENTS.md / Cursor rules for consistent Figma→code |
+| ~~`/figma:figma-create-design-system-rules`~~ | ~~Generate design system rules for AI agents~~ | **[DEPRECATED 2026-05-26 — removed in figma plugin 2.2.12]** | — |
 | `/figma:figma-use-figjam` | Work with FigJam boards. Add stickies, connectors, shapes, sections, tables, code blocks | FigJam brainstorms, flow diagrams, retros | `/figma:figma-use-figjam` → navigate FigJam board → place stickies + connectors → build retro board |
 | `/figma:figma-generate-diagram` | Generate diagrams in FigJam from description. Supports flowchart, ERD, sequence, state, gantt, architecture, workflow | "Create a flowchart for auth flow" | `/figma:figma-generate-diagram` → "user auth ERD" → builds ERD with entities + relationships in FigJam |
 | `/figma:figma-create-new-file` | Create a new blank Figma file | Starting a fresh design | `/figma:figma-create-new-file` → creates blank file → ready for design work |
+| `/figma:generate-project-plan` | Generate a FigJam project plan board from a PRD + codebase context. Interactive: research → propose sections → per-section build | "Plan this project visually in FigJam" | PRD + repo → FigJam board with milestones, dependencies, risks, owners |
+| `/figma:figma-use-slides` | **MANDATORY** before `use_figma` calls on a Figma Slides file. Loads Slides-specific rules (SLIDE_GRID, positioning gotchas, no `createPage`) | Any Slides canvas write (figma.com/slides/...) | Always call before building/editing Figma Slides decks |
 
 ### Figma Workflow Sequence
 
 ```
 1. /figma:figma-generate-library         → build design system
-2. /figma:figma-create-design-system-rules → generate AI rules
-3. /figma:figma-generate-design          → build screens (code → Figma)
-4. /figma:figma-implement-design         → implement screens (Figma → code)
-5. /figma:figma-code-connect             → link components bidirectionally
-6. /figma:figma-use-figjam              → FigJam boards for diagrams & retros
-7. /figma:figma-generate-diagram        → auto-generate FigJam diagrams
+2. /figma:figma-generate-design          → build screens (code → Figma)
+3. /figma:figma-code-connect             → link components bidirectionally
+4. /figma:figma-use-figjam              → FigJam boards for diagrams & retros
+5. /figma:figma-generate-diagram        → auto-generate FigJam diagrams
+6. /figma:generate-project-plan          → PRD → FigJam project plan board
+7. /figma:figma-use-slides              → build/edit Figma Slides decks
 ```
 
 ---
@@ -408,6 +461,12 @@ bd sync                                    → push to remote
 | 4. Task Breakdown | Auto-generates tasks from PRD sections |
 | 5. Execution | 4 modes: Sequential, Parallel, Full Autonomous, Manual |
 
+### Companion Skills
+
+| Skill | What it does | When to use |
+|-------|-------------|-------------|
+| `/expand-tasks` | Reads `tasks.json`, launches parallel Perplexity research agents per task, writes findings back into each task | After PRD parsed into tasks, **before** implementation starts. Avoids researching the same thing 5 times during execution |
+
 ### Execution Modes
 
 ```
@@ -497,10 +556,10 @@ Visual design, art generation, and creative content tools.
 | `/webapp-testing` | Playwright toolkit for testing local web apps. Screenshots, browser logs | Verifying frontend functionality, debugging UI behavior |
 | `/brand-guidelines` | Apply Anthropic's official brand colors and typography | Any artifact that needs Anthropic's look-and-feel |
 | `/internal-comms` | Write internal communications using company formats | Status reports, leadership updates, FAQs, incident reports, project updates |
-| `/claude-api` | Build, debug, and optimize Claude API / Anthropic SDK apps. Includes prompt caching | Code imports `anthropic`/`@anthropic-ai/sdk`, using Claude API or Anthropic SDKs |
+| `/claude-api` | Build, debug, and optimize Claude API / Anthropic SDK apps. Includes prompt caching, model migration (4.5→4.6→4.7), Managed Agents (server-side stateful agents), adaptive thinking, `effort` parameter | Code imports `anthropic`/`@anthropic-ai/sdk`; using Claude API, Anthropic SDKs, or Managed Agents; migrating between model versions |
 | `/remotion-best-practices` | Best practices for Remotion — video creation in React | Building programmatic videos, motion graphics with React |
 | `/template-skill` | Template for creating new skills (starting point) | Creating a brand new skill from scratch |
-| `/forensics` | Deep UI/UX Forensics & Replication Blueprint. Multi-agent crawl + dissect + reverse-engineer | Site/product you want to analyze deeply | `/forensics https://stripe.com` → crawls → extracts design system + UX patterns + product logic → forensic atlas + replication blueprint |
+| `/forensics` | **UI/UX Forensics & Replication Blueprint** — multi-agent crawl, dissect, and reverse-engineer of a *target site/product*. Outputs `FORENSIC-DOSSIER.md` + design system spec + replication blueprint. *Not* the GSD post-mortem — for that, see [`/gsd:forensics` in §2](#2-gsd--get-shit-done-framework) | Site/product you want to teardown deeply | `/forensics https://stripe.com` → crawls → extracts design system + UX patterns + product logic → forensic atlas + replication blueprint |
 
 ---
 
@@ -577,7 +636,10 @@ Experimental/utility skills.
 
 | Skill | What it does | When to use |
 |-------|-------------|-------------|
+| `/apple-dissect` | Ingest + inventory any iOS/macOS/visionOS/tvOS/watchOS build artifact (.ipa / .app / .xcarchive / .xcodeproj / .xcworkspace / .xcresult / .swiftpm / raw source). Emits normalized manifest, source map, dependency graph, asset inventory, symbol map, behavior summary, signing report. Read-only — never executes the artifact. | Whenever an Apple build or codebase lands and you need to understand what it is. Foundation for Sequences AJ / AK / AL. |
 | `/rshankras-claude-code-apple-skills-liquid-glass` | Implement Liquid Glass design using `.glassEffect()` API | iOS/macOS 26+ UI effects. Modern glass-based interfaces |
+
+> **Which Apple sequence do I run?** AJ (Apple Ingest & Map) is the always-first chain when a build arrives. AK (Apple Inquisitor) follows AJ when you need maximally deep, inquisitive `/investigate` coverage. AL (Apple Loom) follows AJ (and ideally AK) when you want to extract reusable kits — UI kit, business kernel, API client, asset pack, schema pack — into standalone Swift Packages.
 
 ---
 
@@ -761,6 +823,25 @@ Role-based configurations that optimize Google Workspace tool usage for specific
 | Skill | What it does | When to use |
 |-------|-------------|-------------|
 | `/remotion-best-practices` | Best practices for Remotion — video creation in React | Building programmatic videos with React + Remotion |
+| `/motion-stack-guide` | Project motion system context: Framer Motion / GSAP / Lenis stack, 7 patterns, standard easing values, anti-pattern table | Load at start of any animation session to enforce consistent motion language. Say the *feeling*, Claude handles implementation |
+
+### Motion Stack Quick Reference
+
+```
+Standard ease:   [0.22, 1, 0.36, 1]     (soft deceleration)
+Y offset max:    16–32px                  (never sideways)
+Stagger gap:     0.12s per item
+Viewport margin: "-15%" to "-20%"
+
+Pattern catalog:
+  1. Hero entrance sequence     → staggered fade-up on page load
+  2. Scroll reveals             → whileInView, once: true, 0.8–1.0s
+  3. Line / divider reveals     → scaleY from 0→1, transform-origin: top
+  4. Image reveals (clip-path)  → inset(20%)→inset(0%), 1.4s
+  5. Parallax                   → y 0%→12%, scale 1→1.05
+  6. Staggered lists            → i * 0.12s delay, whileInView once
+  7. Opacity-only reveals       → labels/metadata, target 0.4–0.7 opacity
+```
 
 ---
 
@@ -805,6 +886,8 @@ Persistent cross-session memory, code intelligence, and phased planning for Clau
 | `/claude-mem:timeline-report` | Generate "Journey Into [Project]" narrative from claude-mem timeline observations | Onboarding new team members, project post-mortems |
 | `/claude-mem:version-bump` | Automated semantic versioning + release workflow for Claude Code plugins | Releasing plugin updates: bump version, update changelog, tag |
 
+> Plugin version: **12.7.2** (thedotmack)
+
 ### claude-mem Flow
 
 ```
@@ -819,13 +902,135 @@ Persistent cross-session memory, code intelligence, and phased planning for Clau
 
 ## 26. Native Claude Code Commands
 
-Built-in slash commands that ship with Claude Code itself (not part of any plugin).
+Built-in slash commands that ship with the `claude` CLI binary itself (verified against v2.1.150). These resolve **before** plugins/skills with the same name — but installed plugins can override common names like `/review`, `/init`. When in doubt, check `/skills` for what's overriding.
+
+> **Override note:** This user has `gstack` installed which ships its own `/review` (visual + diff QA) — that overrides the native `/review` (pull-request review). Use `claude --bare` or disable gstack to invoke the native one.
+
+### Session Control
 
 | Command | What it does | When to use |
 |---------|-------------|-------------|
-| `/init` | Initialize a new CLAUDE.md file with codebase documentation | New project / first time onboarding Claude to the repo |
-| `/review` | Review a pull request | Before merging a PR — runs structured code review |
+| `/help` | Show help and available commands | Any time |
+| `/clear` | Start a new session with empty context; previous stays on disk (resumable via `/resume`) | Context is polluted but you might want it back later |
+| `/compact` | Free up context by summarizing the conversation so far | Context approaching limit, want to continue thread |
+| `/autocompact` | Configure the auto-compact window size | Tune when CC auto-summarizes |
+| `/context` | Visualize current context usage as a colored grid | "Why am I out of context?" — see what's eating it |
+| `/resume` | Resume a previous conversation | Pick up where you left off |
+| `/fork` | Spawn a background agent that inherits the full conversation | Branch the conversation without losing the main thread |
+| `/teleport` | Resume a Claude Code session from claude.ai | Continue a web session in the terminal |
+| `/stop` | Stop this background session; transcript + worktree are kept | End a `/fork` or background run cleanly |
+| `/recap` | Generate a one-line session recap now | Quick status snapshot |
+| `/insights` | Generate a report analyzing your Claude Code sessions | Usage analytics across sessions |
+| `/export` | Export the current conversation to a file or clipboard | Save the transcript |
+| `/copy` | Copy Claude's last response to clipboard (`/copy N` for Nth-latest) | Pipe an output into the OS clipboard |
+| `/status` | Show CC status — version, model, account, API connectivity, tool statuses | Health check |
+| `/version` | Print the version this session is running | Confirm exact build |
+| `/update` | Switch to the latest version (conversation continues) | Hot-upgrade mid-session |
+
+### Model & Effort
+
+| Command | What it does | When to use |
+|---------|-------------|-------------|
+| `/model` | Set the AI model for the session | Switch Opus ↔ Sonnet ↔ Haiku. Alias `opus` → `claude-opus-4-7`, `sonnet` → `claude-sonnet-4-6`, `haiku` → `claude-haiku-4-5` |
+| `/effort` | Set effort level: `low \| medium \| high \| xhigh \| max \| auto`. `xhigh` added in Opus 4.7 (best for coding/agentic). `max` is Opus-only | Tune thinking depth vs speed/cost |
+| `/fast` | Toggle Fast mode (Opus only) | Opus output speed-up |
+
+> **Current Claude 4.x model family (2026-05-26):**
+> | Model | ID | Context | Input | Output |
+> |-------|----|---------|-------|--------|
+> | Claude Opus 4.7 | `claude-opus-4-7` | 1M | $5/Mtok | $25/Mtok |
+> | Claude Opus 4.6 | `claude-opus-4-6` | 1M | $5/Mtok | $25/Mtok |
+> | Claude Sonnet 4.6 | `claude-sonnet-4-6` | 1M | $3/Mtok | $15/Mtok |
+> | Claude Haiku 4.5 | `claude-haiku-4-5` | 200K | $1/Mtok | $5/Mtok |
+>
+> **Thinking:** Use `thinking: {type: "adaptive"}` on Opus 4.6/4.7 and Sonnet 4.6. `budget_tokens` is deprecated on 4.6/4.7. Opus 4.7 also removes temperature/top_p sampling params.
+> **Effort:** `output_config: {effort: "xhigh"}` (Opus 4.7 default in CC), `"max"` for Opus-only max intelligence, `"high"` for most cases.
+> **Managed Agents:** server-side stateful agents with Anthropic-hosted tool execution — see `/claude-api` (§13).
+| `/brief` | Toggle brief-only mode | Shorter responses |
+| `/voice` | Toggle voice mode | Hands-free input |
+| `/focus` | Toggle focus view (show only prompt, tool summary, final response) | Hide tool-by-tool noise |
+| `/theme` | Change the theme | Terminal aesthetics |
+| `/color` | Set the prompt bar color for this session | Visual session identification |
+| `/tui` | Set terminal UI renderer (`default` or `fullscreen`) | TUI mode toggle |
+| `/scroll-speed` | Adjust mouse wheel scroll speed | TUI tuning |
+| `/keybindings` | Open or create your keybindings configuration file | Customize chord/key bindings |
+
+### Project Bootstrap
+
+| Command | What it does | When to use |
+|---------|-------------|-------------|
+| `/init` | Initialize a new CLAUDE.md file with codebase documentation (env-gated: `CLAUDE_CODE_NEW_INIT=1` enables multi-file CLAUDE.md + skills/hooks scaffold) | New repo onboarding |
+| `/init-verifiers` | Create verifier skill(s) for automated verification of code changes | After /init, add per-area verifiers |
+| `/agents` | Manage agent configurations | Add/edit/list custom subagents |
+| `/skills` | List available skills | See what's installed |
+| `/mcp` | Manage MCP servers | Add/remove/inspect MCP servers |
+| `/hooks` | View hook configurations for tool events | Audit hook surface |
+| `/reload-plugins` | Activate pending plugin changes in the current session | Just installed a plugin, don't want to restart |
+| `/memory` | Edit Claude memory files (CLAUDE.md, etc.) | Quick in-session memory edit |
+| `/toggle-memory` | Toggle automemory off/on for this session | Pause auto-capture |
+| `/add-dir` | Add a new working directory | Cross-repo work without restarting CC |
+| `/ide` | Manage IDE integrations and show status | VS Code / JetBrains hooks |
+
+### Git / PR Workflow
+
+| Command | What it does | When to use |
+|---------|-------------|-------------|
+| `/commit` | Create a git commit | Stage + commit in one step |
+| `/commit-push-pr` | Commit, push, and open a PR | Land work in one chain |
+| `/review` | Review a pull request (native — gstack `/review` overrides it if installed) | Pre-merge code review |
 | `/security-review` | Complete a security review of the pending changes on the current branch | Before landing security-sensitive changes |
+| `/autofix-pr` | Monitor and autofix any issues with the current PR | CI feedback loop on a live PR |
+| `/diff` | View uncommitted changes and per-turn diffs | Inspect what changed this turn |
+| `/simplify` | Review changed code for reuse, quality, efficiency, then fix issues | Post-implementation polish |
+| `/batch` | Research and plan a large-scale change, then execute in parallel across 5–30 isolated worktree agents that each open a PR | Fanout refactor across many files/repos |
+
+### Automation & Scheduling
+
+| Command | What it does | When to use |
+|---------|-------------|-------------|
+| `/plan` | Enable plan mode or view the current session plan | Discuss before coding |
+| `/loops` | List, create, and delete recurring loops and stop-hooks | Cron-style recurring runs |
+| `/daemon` | Manage background services: assistants, scheduled tasks, remote control | Background agent lifecycle |
+| `/goal` | Set a goal — keep working until the condition is met | Goal-directed autonomous run |
+| `/btw` | Ask a quick side question without interrupting the main conversation | Aside that doesn't dirty main context |
+| `/advisor` | Configure the Advisor Tool to consult a stronger model at key moments | Auto-escalate hard subproblems |
+| `/fewer-permission-prompts` | Scan transcripts and add an allowlist to `.claude/settings.json` | Reduce friction after first dirty session |
+| `/debug` | Enable debug logging for this session | Diagnose CC misbehavior |
+| `/doctor` | Diagnose and verify Claude Code installation and settings | Something seems broken |
+| `/feedback` | Submit feedback about Claude Code | File a comment to Anthropic |
+
+### Account / Setup / Distribution
+
+| Command | What it does | When to use |
+|---------|-------------|-------------|
+| `/login` | Sign in (or switch Anthropic accounts) | First-run or account swap |
+| `/logout` | Sign out from your Anthropic account | Hand over the machine |
+| `/usage` (aliases: `/cost`, `/stats`) | Show session cost, plan usage, and activity | Spend awareness |
+| `/upgrade` | Upgrade to Max for higher rate limits and more Opus | Hit a limit |
+| `/extra-usage` | Configure extra usage to keep working when limits are hit | Pay-as-you-go bridge |
+| `/privacy-settings` | View and update your privacy settings | Telemetry/data controls |
+| `/install` | Install Claude Code native build | First-time install |
+| `/install-github-app` | Set up Claude GitHub Actions for a repository | Wire CC into a repo's CI |
+| `/install-slack-app` | Install the Claude Slack app | Bring CC into Slack |
+| `/setup-bedrock` | Reconfigure Amazon Bedrock authentication, region, or model pins | AWS-hosted models |
+| `/setup-vertex` | Reconfigure Google Vertex AI authentication, project, region, or model pins | GCP-hosted models |
+| `/remote-env` | Configure the default remote environment for teleport sessions | Cloud workspace defaults |
+| `/web-setup` | Set up Claude Code on the web (requires connecting your GitHub account) | claude.ai/code wiring |
+| `/team-onboarding` | Help teammates ramp on Claude Code with a guide from your usage | New-hire onboarding |
+| `/powerup` | Discover Claude Code features through quick interactive lessons | Self-guided tour |
+| `/stickers` | Order Claude Code stickers | Free swag |
+| `/radio` | Listen to Claude FM lo-fi radio | Background music |
+
+### Browser Integration (beta)
+
+| Command | What it does | When to use |
+|---------|-------------|-------------|
+| `/chrome` | Claude in Chrome (beta) settings | Wire CC into Chrome session |
+| `/alias` | Create or list command aliases | Shorthand for frequent chains |
+
+> **Total native commands (v2.1.150):** ~77 surface-level. Many are situational (account/setup) — the day-to-day are `/clear /compact /context /resume /model /effort /memory /agents /mcp /hooks /commit /diff /plan /goal /btw`.
+
+> **Provenance gotcha:** When a plugin defines a command with the same name as a native one, the plugin wins. To force the native: `claude --bare` (skips plugins) or disable the shadowing plugin in settings.
 
 ---
 
@@ -1040,3 +1245,593 @@ End of week:     /retro               → retrospective
 /setup-browser-cookies <domain>        → import auth cookies for QA
 /fewer-permission-prompts              → cut permission prompts via allowlist
 ```
+
+### V. New Skill / MCP Authoring Pipeline
+
+```
+/plugin-structure                       → scaffold plugin layout (.claude-plugin/, skills/, agents/, commands/, hooks/, mcp/)
+/skill-development                      → bootstrap a SKILL.md with proper frontmatter
+/skill-creator                          → interactive scaffold for skill structure + metadata
+/build-mcp-server                       → wrap an API as an MCP server
+/mcp-integration                        → wire MCP into plugin via .mcp.json
+/build-mcpb                             → package MCP server as MCPB bundle
+/hook-development                       → add PreToolUse/PostToolUse/Stop hooks
+/command-development                    → add custom slash commands
+/agent-development                      → add subagent with proper frontmatter
+/playground                             → build interactive HTML preview for the plugin
+/superpowers:writing-skills             → apply skill-authoring best practices
+/superpowers:test-driven-development    → tests-first for skill behavior
+/plugin-settings                        → expose user-configurable plugin settings
+/review                                 → pre-landing diff review
+/ship                                   → PR with CHANGELOG bump
+```
+> **Why:** spans Plugin Authoring Toolkit (§33) + Superpowers + gstack — turns ad-hoc skill ideas into shipped, tested, reviewed plugin artifacts with full Claude Code surface (skills + commands + agents + hooks + MCP).
+
+### W. Onboarding to an Unknown Codebase (4 memory layers)
+
+```
+/init                                   → native CLAUDE.md scaffold
+/gsd:map-codebase                       → parallel-agent codebase map (STACK, ARCH, etc.)
+/claude-mem:learn-codebase              → persistent vector memory of architecture
+/graphify                               → knowledge graph for future Q&A
+/sync-gbrain                            → register code surface for gbrain search
+/context-save                           → checkpoint loaded context for resume
+```
+> **Why:** four different memory layers (file, planning docs, vector mem, graph) compound into instant productivity for any future session.
+
+### X. Idea → PRD → Tasks → Autonomous Build
+
+```
+/office-hours                           → validate the idea
+/prd-taskmaster                         → generate validated PRD + task breakdown
+/expand-tasks                           → Perplexity research per task
+/superpowers:write-plan                 → lock execution plan
+/superpowers:execute-plan               → subagent-driven implementation
+/autoresearch:ship                      → 8-phase shipping
+```
+> **Why:** bridges PRD-Taskmaster + Superpowers + Autoresearch — research, plan, and ship without losing fidelity between stages.
+
+### Y. Plan Hardening Gauntlet
+
+```
+/superpowers:write-plan                 → draft plan
+/plan-ceo-review                        → product/strategy critique
+/plan-design-review                     → designer's-eye critique
+/plan-eng-review                        → architecture lock-in
+/plan-devex-review                      → DX dimensions
+/codex consult                          → adversarial second opinion (cross-AI)
+/gsd:review --phase N --all             → multi-AI peer review
+/autoplan                               → auto-decide remaining open items
+```
+> **Why:** maximum-rigor plan review across CEO/design/eng/DX/external AI before a single line of code is written.
+
+### Z. Knowledge Compounding Session
+
+```
+/graphify                               → ingest sources into knowledge graph
+/claude-mem:knowledge-agent             → persistent memory of findings
+/idme-base:writer                       → RDR research-first spec
+/idme-base:adr-writer                   → capture architectural decisions
+/learn                                  → record gstack learnings
+```
+> **Why:** turns a research session's findings into queryable graph + vector memory + canonical written artifacts simultaneously.
+
+### AA. Live Site Forensic Replication
+
+> Uses `/forensics` (UI/UX site teardown) — distinct from `/gsd:forensics` (GSD workflow post-mortem).
+
+```
+/scrape <url>                           → pull data/structure
+/forensics <url>                        → multi-agent UI/UX teardown + replication blueprint
+/design-shotgun                         → generate competing variants
+/design-html                            → finalize Pretext-native HTML
+/design-review http://localhost:3000    → live visual QA + fixes
+/skillify                               → codify the scrape into a permanent skill
+```
+> **Why:** combines Browser-Use + Creative/Design + gstack QA — clone, improve, and codify in one chain.
+
+### AB. Parallel-Worktree Multi-Feature Sprint
+
+```
+/superpowers:using-git-worktrees        → spin per-feature worktrees
+/gsd:new-workspace                      → register each as a GSD workspace
+/superpowers:dispatching-parallel-agents → fan out subagents per worktree
+/godmode:parallel-execution             → orchestration discipline
+/superpowers:finishing-a-development-branch → land each branch cleanly
+/land-and-deploy                        → merge + verify per branch
+```
+> **Why:** enables true N-way parallel feature development without cross-contamination — Superpowers + Godmode + GSD + gstack.
+
+### AC. Production Incident Response
+
+```
+/guard                                  → lock edits + destructive warnings
+/careful                                → safety mode for prod
+/investigate                            → 4-phase root cause
+/superpowers:systematic-debugging       → hypothesis discipline
+/cso                                    → security audit if breach suspected
+/canary --duration 15m                  → post-fix monitoring
+/idme-base:adr-writer                   → record the decision/lesson
+```
+> **Why:** incident posture (guard/careful) + structured debugging + post-mortem capture — one chain instead of improvising under pressure.
+
+### AD. Autonomous Background Operator (24/7)
+
+```
+/schedule create "nightly health" --cron "0 3 * * *" --prompt "/health"
+/schedule create "nightly cso"   --cron "0 4 * * *" --prompt "/cso"
+/loop 10m /qa-only https://staging.app
+/ralph                                  → autonomous dev loop overnight
+/autoresearch                           → iterate toward goal in background
+/gws-workflow-weekly-digest             → Monday morning summary email
+```
+> **Why:** stitches scheduled agents + Ralph + Autoresearch + GWS digest into a self-driving engineering operation.
+
+### AE. Visual Asset → Production Component (Figma round-trip)
+
+```
+/figma:figma-implement-design           → Figma URL → reference code
+/frontend-design                        → adapt to project conventions
+/ui-ux-pro-max                          → polish to pro-grade
+/design-review http://localhost:3000    → visual audit + fixes
+/figma:figma-code-connect               → link component back to Figma
+/benchmark                              → perf regression check
+```
+> **Why:** Figma + UI/UX Pro Max + gstack benchmarks closes the loop from design → production → measured perf with bidirectional Figma sync.
+
+### AF. Meeting → Action → Tracked Work
+
+```
+/gws-workflow-meeting-prep              → prep brief
+/gws-meet                               → conference notes
+/gws-workflow-email-to-task             → emails → Tasks
+bd create "commitment" -t task -p 1     → file each commitment as a bead
+bd dep add COMMIT-X PROJ-Y              → wire dependencies
+bd ready                                → surface unblocked work next session
+```
+> **Why:** turns Google Workspace meeting outputs into structured Beads tasks with dependencies — meetings stop falling on the floor.
+
+### AG. Compress & Continue Across Context Limits
+
+```
+/gsd:session-report                     → summarize current session
+/context-save                           → checkpoint git + decisions
+/claude-mem:timeline-report             → persistent timeline narrative
+/caveman:compress CLAUDE.md             → token-compress memory files
+bd compact                              → semantic-summarize old issues
+[/clear]                                → flush context window
+/context-restore                        → resume in fresh context
+```
+> **Why:** spans claude-mem + Caveman + Beads + gstack context tools — cleanly hand off a long session into a fresh window without losing state or ballooning tokens.
+
+### AH. Full-Stack Plugin Authoring (Claude Code Plugin Toolkit)
+
+```
+/claude-automation-recommender           → scan codebase, recommend which automations to build
+/plugin-structure                        → scaffold plugin directory layout
+/plugin-settings                         → declare user-configurable plugin settings
+/skill-development                       → add SKILL.md(s) with frontmatter
+/command-development                     → add slash command(s)
+/agent-development                       → add subagent(s)
+/hook-development                        → add PreToolUse/PostToolUse/Stop hooks
+/writing-hookify-rules                   → write hookify rule syntax for automatic dispatch
+/build-mcp-server                        → wrap an API as MCP server
+/mcp-integration                         → wire .mcp.json into the plugin
+/build-mcpb                              → package as MCPB bundle for distribution
+/build-mcp-app                           → add interactive UI/widgets to the MCP
+/playground                              → ship an HTML playground demoing the plugin
+/example-skill + /example-command        → embed canonical examples for users
+/claude-md-improver                      → tighten the bundled CLAUDE.md docs
+/review → /ship                          → land + release
+```
+> **Why:** end-to-end pipeline using the new §33 Plugin Authoring Toolkit. Spans the full Claude Code plugin surface area — skills, commands, agents, hooks, MCP servers, packaging, and docs — without leaving the chat.
+
+### AI. M5Stack ESP32 Device Onboarding
+
+```
+/m5-onboard                              → detect device on USB, flash MicroPython firmware, mount filesystem
+/cardputer-buddy                         → iterate on the bundled Claude Buddy / Snake / Hello apps
+/playground                              → build an HTML playground that mirrors the on-device UI
+/learn                                   → record device-specific quirks (boot pins, USB chip, partition table)
+```
+> **Why:** turns a fresh M5Stack Cardputer / Core / Stick into a Claude-driven embedded device with a working app bundle in a single chain. Uses the new §34 IoT suite.
+
+### AJ. Apple Ingest & Map (iOS / macOS / visionOS / tvOS / watchOS)
+
+```
+/gsd:new-workspace                       → register the inbound build dir
+/gsd:new-project "Ingest <App>"          → seed PROJECT.md + ROADMAP.md
+/gsd:settings                            → enable plan-auditor, code-review-expert, deep-analyst
+
+/apple-dissect <artifact-path>           → normalize .ipa/.app/.xcarchive/.xcodeproj → .apple-dissect/<run-id>/
+                                            (manifest.json, source-map.json, dep-graph.json, asset-map.json,
+                                             symbol-map.json, signing-report.md)
+
+/gsd:map-codebase                        → parallel-agent map (STACK/ARCH/CONCERNS/QUALITY)
+/idme-base:codebase-deep-analyzer        → arch + tech debt sweep
+
+/init                                    → CLAUDE.md scaffold pointed at the dissect run
+/claude-mem:learn-codebase               → push summaries into persistent vector memory
+/graphify <artifact-root>                → knowledge graph from source + symbol map + dep graph
+/sync-gbrain                             → register surface for gbrain semantic search
+
+/idme-base:writer                        → RDR: "What is <App>?"
+/idme-base:adr-writer                    → ADR-0001 baseline
+/learn                                   → record heuristic surprises
+
+/autoresearch:plan                       → goal = 100% symbol coverage; metric = coverage%
+/autoresearch                            → iterate (calls /apple-dissect --inquire as needed)
+
+/context-save && /gsd:pause-work         → checkpoint + resumable handoff
+```
+> **Why:** turns any Apple build artifact into a four-layer-memory inventory (file / planning doc / vector / graph) plus a runnable extraction backlog. Built on the new `apple-dissect` skill (§17). Spec: `Skills-Cheatsheet/SEQUENCE-AJ-apple-ingest.md`.
+
+### AK. Apple Inquisitor — Max-Depth `/investigate` for Apple Builds
+
+```
+/guard && /freeze                        → lock edits during forensic phase
+/gsd:resume-work                         → continue AJ's workspace if paused
+
+[ -d .apple-dissect ] || /apple-dissect <path>   → ensure inventory exists
+
+/investigate                             → open 4-phase inquiry (do NOT exit Phase 3 in this chain)
+/superpowers:systematic-debugging        → scientific-method discipline
+/gsd:debug "<top-level question>"        → persistent debug session across resets
+
+/autoresearch:plan                       → goal: refute or confirm every plausible hypothesis
+                                            metric: hypotheses moved from `pending` → {accepted|refuted}
+/autoresearch:debug                      → concurrent autonomous bug-hunting
+
+# Parallel deep-dives (spawn together):
+Agent: idme-base:deep-analyst            → thread-safety + state-machine analysis
+Agent: idme-base:java-debugger           → iOS-26 behavior analysis (analogue)
+Agent: idme-base:adr-researcher          → embedded historical decisions
+/superpowers:dispatching-parallel-agents → fan out + join into hypothesis-tree.json
+
+/cso                                     → security audit
+/autoresearch:security                   → STRIDE + OWASP-MASVS, ATS / keychain / app-group checks
+/code-review (high effort)               → bug-flavored review of every src dir
+/simplify (dry-run)                      → propose reuse / dedup wins (do not apply yet)
+/superpowers:finding-duplicate-functions → quantify dedup opportunities
+
+/gsd:verify-work && /gsd:audit-uat       → close the loop with rigorous UAT
+/idme-base:adr-writer                    → ADR per architectural surprise
+
+/idme-base:writer                        → final dossier RDR
+/document-release                        → docs for any fixes that landed
+/retro && /learn && /unfreeze            → retrospective + capture + release lock
+```
+> **Why:** runs `/investigate` recursively inside `/autoresearch`, with parallel deep-analyst / security / structural / dedup agents. Exit criterion is hypothesis-tree coverage, not "first fix landed". Spec: `Skills-Cheatsheet/SEQUENCE-AK-apple-inquisitor.md`.
+
+### AL. Apple Loom — Component Extraction into Reusable Kits
+
+```
+# Five standard kits: <App>UIKit · <App>Core · <App>APIClient · <App>Assets · <App>Schema
+
+/superpowers:brainstorming               → confirm which kits are realistic (gate)
+
+/superpowers:dispatching-parallel-agents → one /superpowers:write-plan per kit (parallel)
+  ├── <App>UIKit · <App>Core · <App>APIClient · <App>Assets · <App>Schema
+
+/autoplan                                → CEO+Design+Eng+DX review every PLAN.md in one shot
+/plan-eng-review                         → architecture lock-in per kit
+/plan-design-review                      → only for UIKit + Assets
+
+/superpowers:using-git-worktrees         → per-kit worktree ../<App>-loom/<kit>/
+/gsd:new-workspace                       → per worktree
+/gsd:plan-phase 1 → /gsd:execute-phase 1 → atomic commits for "move + minimal compile"
+/superpowers:subagent-driven-development → parallel sub-tasks per phase
+/superpowers:test-driven-development     → test-first for every Public symbol moved
+
+# Protocolize project-specific deps (must reach zero cross-kit concrete refs):
+/code-review (high effort) → /simplify → /verify
+
+/superpowers:requesting-code-review      → cross-team `public` surface review
+/code-review --comment                   → inline API surface review
+
+/web-artifacts-builder | /playground     → demo per kit
+/design-consultation                     → DESIGN.md for the UIKit kit
+
+/gsd:ship (per kit)                      → PR + CHANGELOG + VERSION bump
+/superpowers:finishing-a-development-branch → land each branch
+/document-release                        → "Five kits extracted from <App>"
+
+/idme-base:adr-writer (per kit)          → "Why we drew the boundary here"
+/learn && /retro && /os-integrate        → capture and wire new patterns into the OS
+```
+> **Why:** consumes AJ's `component-candidates.md` + AK's `hypothesis-tree.json` and ships five reusable Swift Packages (UI kit / business kernel / API client / asset pack / schema pack). Maximum parallelism via worktrees + subagent fan-out. Spec: `Skills-Cheatsheet/SEQUENCE-AL-apple-loom.md`.
+
+---
+
+## 28. Language Server Protocol (LSP) Plugins
+
+Background plugins that give Claude Code IDE-grade code intelligence — go-to-definition, find references, error checking, and refactoring. Not slash commands; they activate automatically when working in the relevant language.
+
+| Plugin | Language | File extensions | Prerequisites |
+|--------|----------|-----------------|---------------|
+| `swift-lsp` | Swift | `.swift` | Xcode or `brew install swift` (SourceKit-LSP bundled) |
+| `jdtls-lsp` | Java | `.java` | Java 17+ JDK, `brew install jdtls` on macOS |
+| `typescript-lsp` | TypeScript / JavaScript | `.ts`, `.tsx`, `.js`, `.jsx`, `.mts`, `.cts`, `.mjs`, `.cjs` | `npm install -g typescript-language-server typescript` |
+| `ruby-lsp` | Ruby | `.rb`, `.rake`, `.gemspec`, `.ru`, `.erb` | `gem install ruby-lsp` (Ruby 3.0+) |
+
+> **How they work:** Once installed, Claude Code automatically connects to the language server when editing files in those languages. Provides real-time diagnostics, symbol navigation, and intelligent completions without any explicit invocation.
+
+---
+
+## 29. Ralph — Autonomous Dev Loop
+
+Ralph (v0.11.5) is an implementation of Geoffrey Huntley's technique that wraps Claude Code in a continuous autonomous development loop — iterate until done with built-in safeguards. Install once globally via `ralph_enable.sh`.
+
+### Core Scripts
+
+| Command | What it does | Mini use case |
+|---------|-------------|---------------|
+| `ralph_loop.sh` | Main autonomous loop. Calls Claude Code repeatedly with dual-condition exit gate (completion indicators + explicit EXIT_SIGNAL). Rate-limited to 100 calls/hour. | `ralph_loop.sh` → Claude works autonomously → exits when done or circuit breaker trips |
+| `ralph_enable.sh` | Interactive wizard — detects environment, sets up `.ralphrc`, imports tasks from beads / GitHub Issues / PRD | `ralph_enable.sh` → answers setup questions → creates `.ralphrc` → writes PROMPT.md, AGENT.md |
+| `ralph_enable_ci.sh` | Non-interactive version for CI/automation. Same wizard, CLI flags only | `ralph_enable_ci.sh --task-source beads --project-name MyApp` |
+| `ralph_import.sh` | Import a PRD or spec doc into Ralph's task format | `ralph_import.sh prd.md` → converts PRD sections → creates Ralph task files |
+| `ralph_monitor.sh` | Live monitoring dashboard via tmux — shows loop status, circuit breaker state, iteration count | `ralph_monitor.sh` → tmux pane → real-time loop health |
+
+### Key Safeguards
+
+```
+Circuit breaker  → halts runaway loops (3 states: CLOSED / HALF_OPEN / OPEN)
+Rate limiter     → 100 calls/hour, resets on the hour
+Session continuity → --resume <session_id> for context preservation (24h TTL)
+--live flag      → stream Claude Code output in real time
+```
+
+### Ralph vs /btw
+
+| | `/btw` | Ralph |
+|-|--------|-------|
+| Invocation | Claude Code slash command | Shell script (`ralph_loop.sh`) |
+| Duration | ~60 min autonomous run | Unbounded (until completion) |
+| Config | Inline conversation | `.ralphrc` project file |
+| Rate limiting | No | Yes (100 calls/hour) |
+| Circuit breaker | No | Yes |
+| Session resume | No | Yes (`--resume`) |
+
+---
+
+## 30. Caveman — Response Compression
+
+Compresses Claude's output to terse, information-dense responses. Drops articles, filler, pleasantries, and hedging. All technical substance stays intact. Code, commits, and security warnings are always written normally.
+
+Plugin: **caveman@caveman** (version ef6050c5e184)
+
+### Modes
+
+| Level | Behavior |
+|-------|---------|
+| `full` | Drop articles, fragments OK, short synonyms. Classic caveman. *(default)* |
+| `lite` | Lighter compression — drop filler, keep articles |
+| `ultra` | Maximum compression |
+
+Switch with `/caveman lite`, `/caveman full`, or `/caveman ultra`.
+Stop with "stop caveman" or "normal mode".
+
+### Skills
+
+| Skill | What it does | When to use |
+|-------|-------------|-------------|
+| `/caveman:caveman` | Activate caveman mode (terse responses) | "stop wasting tokens, be direct" |
+| `/caveman:caveman-help` | Show caveman mode reference | Check current level and rules |
+| `/caveman:caveman-review` | Code review in caveman style — one line per finding, severity-tagged, no praise | `caveman:cavecrew-reviewer` agent wrapper |
+| `/caveman:caveman-commit` | Generate terse commit messages | After code changes |
+| `/caveman:caveman-stats` | Session stats: tokens saved, compression ratio | Measure compression impact |
+| `/caveman:compress` | Compress a block of text in caveman style | Paste verbose text → get terse version |
+| `/caveman:cavecrew` | Launch cavecrew subagents (investigator, builder, reviewer) | Delegate surgical tasks to specialized terse agents |
+
+### Cavecrew Agents
+
+| Agent | Role | Scope |
+|-------|------|-------|
+| `caveman:cavecrew-investigator` | Read-only code locator. Returns file:line table for symbol definitions, callers, usages | "where is X", "what calls Y" |
+| `caveman:cavecrew-builder` | Surgical 1-2 file edits. Typo fixes, single-function rewrites, mechanical renames | Hard refuses 3+ file scope |
+| `caveman:cavecrew-reviewer` | Diff/branch/file reviewer. One line per finding, severity-tagged | "review this PR", "audit this file" |
+
+### Auto-Clarity
+
+Caveman mode drops automatically for: security warnings, irreversible action confirmations, multi-step sequences where fragment order risks misread, technical ambiguity. Resumes after the clear part.
+
+```
+Response pattern:  [thing] [action] [reason]. [next step].
+Not:  "Sure! I'd be happy to help you with that. The issue you're experiencing is likely..."
+Yes:  "Bug in auth middleware. Token expiry check use < not <=. Fix:"
+```
+
+---
+
+## 31. ML / LLM Training
+
+Specialized wrappers for hands-on language-model training experiments. Both built around Karpathy's nanochat / autoresearch repos. **Require an NVIDIA GPU with CUDA** — these do not run on macOS or CPU.
+
+| Skill | What it does | When to use | Mini use case |
+|-------|-------------|-------------|---------------|
+| `/nanochat` | Wrapper for Karpathy's `nanochat` — minimal hackable LLM training harness covering tokenization, pretraining, SFT, RL, evaluation, inference, and chat UI | "Train a small LM from scratch" / educational deep-dive into the full training pipeline | `/nanochat` → "start nanochat speedrun" → tokenizes → pretrains base → SFT → RL → ships chat UI |
+| `/karpathy-autoresearch` | Autonomous LLM-pretraining experiment loop. Edits `train.py`, runs 5-min training budgets, tracks `val_bpb` in `results.tsv`, **keeps wins / reverts losses on a dedicated git branch** | "Iterate on a training recipe overnight" — Karpathy's auto-experiment loop | `/karpathy-autoresearch` → reads `program.md` → runs experiment → improves val_bpb → commits → repeats |
+
+### ML Training Workflow
+
+```
+/nanochat                               → set up training harness (one-time)
+/karpathy-autoresearch                  → autonomous experiment loop on train.py
+/learn                                  → record successful training tweaks
+/idme-base:adr-writer                   → capture the architectural decision (e.g. "switched to RoPE")
+```
+
+> **Caveat:** these target language-model research, **not** Claude API consumption. For building apps that *use* Claude, see `/claude-api` in §13.
+
+---
+
+## 32. OS Management — Autonomous Self-Improvement
+
+Skills that run the autonomous OS layer. Auto-invoked by hooks, cron, and thresholds — rarely called manually. Lives in `~/.claude/skills/os-*/`.
+
+| Skill | Trigger | What it does | When to invoke manually |
+|-------|---------|-------------|------------------------|
+| `/os-sync` | Cron Mon 9am; SessionStart if >7 days stale; file watcher on skills/ | Scans all skill paths, diffs against SKILLS-CHEATSHEET.md, adds new skills, marks removed | "New plugin just installed, sync now" |
+| `/os-evolve` | Cron Fri 5pm; evolution-log ≥5 pending entries | Synthesizes evolution-log.md into Tier 1/2/3 changes, generates weekly digest | "I want to process pending learnings now" |
+| `/os-audit` | Cron 1st Mon 9am; 35+ days since last audit | Monthly health check: skill usage, sequence pass rates, capability gaps, growth metrics | "Audit the OS health manually" |
+| `/os-integrate` | After /os-sync detects new skills | Wires new skills into routing table §B and precedence §C (Tier 2 — queued for review) | "I just added several skills, integrate them" |
+
+### Auto-Sync Rules
+
+| Tier | What changes | Approval |
+|------|-------------|---------|
+| 1 | Manifests, timestamps, health reports, digests | Auto-applied, logged |
+| 2 | Routing table §B, precedence §C, sequence updates | 7-day review window |
+| 3 | Hard rules §F, session protocol §D, auto-rules.md | Always manual |
+
+### OS Self-Improvement Cycle
+
+```
+Mon 9am:  /os-sync      → detect + catalog new skills
+Fri 5pm:  /os-evolve    → synthesize learnings → digest
+1st Mon:  /os-audit     → health report + growth metrics
+          /os-integrate → wire new skills (queued, 7-day review)
+```
+
+---
+
+## 33. Plugin Authoring Toolkit
+
+Skills for building, packaging, and shipping Claude Code plugins. Synced 2026-05-12 from `claude-plugins-official` marketplace. Covers the full plugin surface area: structure, skills, commands, agents, hooks, MCP servers, packaging, and demos.
+
+### Plugin Structure & Settings
+
+| Skill | What it does | When to use | Mini use case |
+|-------|-------------|-------------|---------------|
+| `/plugin-structure` | Scaffold plugin directory layout — `.claude-plugin/`, `skills/`, `agents/`, `commands/`, `hooks/`, `mcp/` | "Create a plugin", "scaffold a plugin", "organize plugin files" | New plugin → `/plugin-structure` → produces canonical directory tree with manifest stubs |
+| `/plugin-settings` | Declare user-configurable plugin settings (env vars, defaults, validation) | "Store plugin configuration", ".user-configurable plugin" | Plugin needs an API key → `/plugin-settings` → adds settings.json schema + reader helper |
+| `/example-skill` | Canonical example skill demonstrating frontmatter + layout | Reference when teaching skill format | Show new contributors what a SKILL.md should look like |
+| `/example-command` | Canonical example user-invoked slash command | Reference for command authoring | Demonstrates frontmatter options + `skills/<name>/SKILL.md` layout |
+
+### Skill / Command / Agent / Hook Development
+
+| Skill | What it does | When to use | Mini use case |
+|-------|-------------|-------------|---------------|
+| `/skill-development` | Bootstrap a SKILL.md with proper frontmatter (name, description, trigger guidance) | "Create a skill", "add a skill to plugin", "improve skill description" | Plugin needs a new behavior → `/skill-development` → emits SKILL.md with idiomatic trigger phrasing |
+| `/command-development` | Create a custom slash command (`commands/<name>.md`) with frontmatter | "Create a slash command", "add a command", "define command parameters" | Plugin exposes a new `/foo` → `/command-development` → produces commands/foo.md |
+| `/agent-development` | Write a subagent (`agents/<name>.md`) with role + tool scoping | "Create an agent", "add a subagent", "agent frontmatter" | Plugin needs a specialized reviewer agent → `/agent-development` → produces agents/reviewer.md |
+| `/hook-development` | Add PreToolUse / PostToolUse / Stop / SessionStart hooks | "Create a hook", "validate tool use", "intercept Stop event" | Plugin needs to block dangerous bash → `/hook-development` → emits hooks.json + script |
+| `/writing-hookify-rules` | Author hookify rule syntax for declarative hook dispatch | "Create a hookify rule", "configure hookify", "add a hookify rule" | Plugin uses hookify → `/writing-hookify-rules` → emits rule with matcher + action |
+
+### MCP & Packaging
+
+| Skill | What it does | When to use | Mini use case |
+|-------|-------------|-------------|---------------|
+| `/build-mcp-server` | Wrap an API as an MCP server (tools, resources, prompts) | "Build an MCP server", "wrap an API for Claude", "create an MCP" | Internal API → `/build-mcp-server` → emits TS/Python MCP server with tool defs |
+| `/mcp-integration` | Wire MCP into plugin via `.mcp.json` | "Add MCP server", "integrate MCP", "use .mcp.json" | Plugin needs MCP → `/mcp-integration` → updates .mcp.json + plugin manifest |
+| `/build-mcp-app` | Add interactive UI / widgets / "rendered components" to an MCP server | "MCP app", "interactive UI for MCP", "widgets" | MCP returns a chart → `/build-mcp-app` → adds rendered widget descriptor |
+| `/build-mcpb` | Package an MCP server as a distributable MCPB bundle | "Package an MCP", "ship a local MCP server", "MCPB" | Internal MCP → `/build-mcpb` → emits .mcpb archive for distribution |
+
+### Discovery & Polish
+
+| Skill | What it does | When to use | Mini use case |
+|-------|-------------|-------------|---------------|
+| `/claude-automation-recommender` | Scan a codebase and recommend which automations (hooks, subagents, skills, plugins, MCPs) to build | "Recommend Claude Code automations", "what should I automate" | Existing repo → `/claude-automation-recommender` → ranked list of automation opportunities |
+| `/claude-md-improver` | Audit & improve CLAUDE.md files — scope, signal-to-noise, missing sections | "Check, audit, update, or fix CLAUDE.md" | Old CLAUDE.md → `/claude-md-improver` → tightened version with rationale per change |
+| `/playground` | Generate an interactive single-file HTML playground that demos the plugin / skill / MCP | "Make a playground", "demo this skill in a browser" | Plugin needs a demo page → `/playground` → emits self-contained HTML explorer |
+
+### Plugin Authoring Workflow
+
+```
+1. /claude-automation-recommender  → identify what to build
+2. /plugin-structure               → scaffold directory tree
+3. /plugin-settings                → declare user-configurable settings
+4. /skill-development              → add skills
+5. /command-development            → add slash commands
+6. /agent-development              → add agents
+7. /hook-development               → add hooks (+/writing-hookify-rules if using hookify)
+8. /build-mcp-server               → wrap APIs as MCP
+9. /mcp-integration                → wire .mcp.json
+10. /build-mcpb / /build-mcp-app   → package + add UI
+11. /playground                    → ship interactive demo
+12. /claude-md-improver            → polish docs
+13. /review → /ship                → land & release
+```
+
+> See **Sequence AH** in §27 for the full Plugin Authoring chain.
+> Related: `/skill-creator` (§13) is the interactive single-skill scaffolder; this suite covers the entire plugin.
+
+---
+
+## 34. M5Stack / ESP32 IoT
+
+End-to-end onboarding for M5Stack ESP32 devices (Cardputer, Cardputer-Adv, Core, CoreS3, Stick). Provisioning + bundled apps + iterative dev — designed for Claude Buddy / Snake / Hello starter apps. From `cwc-makers` plugin.
+
+| Skill | What it does | When to use | Mini use case |
+|-------|-------------|-------------|---------------|
+| `/m5-onboard` | Detect a freshly-plugged-in M5Stack ESP32 over USB, identify model + USB chip, flash MicroPython firmware, mount filesystem, deploy starter bundle | First-time setup of a Cardputer / Core / Stick | Plug in Cardputer → `/m5-onboard` → autoflashed MicroPython + Claude Buddy bundle ready in <5 min |
+| `/cardputer-buddy` | Iterate on the bundled MicroPython apps (Claude Buddy chat client, Snake, Hello) post-onboarding | After `m5-onboard` succeeded — edit / debug / deploy app changes | `/cardputer-buddy` → tweak Claude Buddy prompt → redeploy to device → live test |
+
+### IoT Workflow
+
+```
+1. /m5-onboard                  → provision device (one-time per device)
+2. /cardputer-buddy             → iterate on the app bundle
+3. /playground (§33)            → optional — mirror device UI in browser for design iteration
+4. /learn                       → record device-specific quirks (boot pins, partition layout)
+```
+
+> **Prerequisites:** USB cable, `esptool.py`, USB serial driver for the device's chip (CH340/CP210x/native). The skill auto-detects and prompts for the driver if missing.
+> See **Sequence AI** in §27 for the IoT onboarding chain.
+
+---
+
+## 35. Vercel Plugin
+
+Auto-injecting skill suite from the official `vercel` Claude plugin (v0.43.0). Skills activate automatically based on file patterns, imports, and bash commands — no manual invocation needed. Three specialist **agents** are also available for complex tasks.
+
+> **How it works:** SessionStart hook profiles the project → `VERCEL_PLUGIN_LIKELY_SKILLS` set → skills auto-inject on tool use (file edits, bash commands, imports) and prompt submit. Up to 3 skills per tool call within 18KB budget.
+
+### Auto-Injecting Skills (context-aware, no `/` command needed)
+
+| Skill | Triggers on | What it does |
+|-------|------------|-------------|
+| `ai-sdk` | `app/api/chat/**`, `@ai-sdk/*` imports, "build AI chat" | Vercel AI SDK — chat, streaming, tool calling, agents, embeddings, MCP |
+| `ai-gateway` | `@ai-sdk/gateway` imports, `vercel env pull` | AI Gateway — model routing, provider failover, cost tracking |
+| `nextjs` | `next.config.*`, `app/**`, `.next/` | Next.js App Router guidance — layouts, server components, RSC patterns |
+| `vercel-functions` | `api/**`, `app/api/**`, Vercel function patterns | Serverless + Edge functions, streaming responses |
+| `vercel-cli` | `vercel` bash commands | Vercel CLI — deploy, env, domains, logs, inspect |
+| `vercel-storage` | `@vercel/kv`, `@vercel/postgres`, `@vercel/blob` imports | KV, Postgres, Blob storage patterns |
+| `auth` | `auth.ts`, `next-auth`, `authjs` patterns | Auth.js / NextAuth configuration |
+| `shadcn` | `components/ui/**`, `@/components/ui` | shadcn/ui component installation and usage |
+| `chat-sdk` | Chat SDK imports | Vercel Chat SDK — multi-turn, persistence, tool UX |
+| `react-best-practices` | After 3+ `.tsx` file edits | React patterns — hooks, performance, composition, accessibility |
+| `bootstrap` | Empty/greenfield project detection | Greenfield Next.js setup from scratch |
+| `deployments-cicd` | `.github/workflows/**` with vercel patterns | CI/CD pipeline configuration |
+| `env-vars` | `vercel env` commands | Environment variable management and `.env` patterns |
+| `marketplace` | Marketplace integration patterns | Vercel Marketplace product integrations |
+| `turbopack` | `--turbopack` flag, turbopack config | Turbopack configuration and migration |
+| `routing-middleware` | `middleware.ts`, matcher patterns | Next.js middleware and routing |
+| `runtime-cache` | Cache headers, `revalidate`, `unstable_cache` | Runtime caching strategies |
+| `next-cache-components` | Next.js cache imports | Next.js data caching and `use cache` directive |
+| `next-forge` | `next-forge` config patterns | next-forge monorepo setup |
+| `next-upgrade` | Version upgrade contexts | Next.js version migration guidance |
+| `vercel-firewall` | Firewall config patterns | Vercel WAF and DDoS protection |
+| `vercel-sandbox` | Sandbox API patterns | Vercel Sandboxes — ephemeral microVMs for code execution |
+| `workflow` | Workflow DevKit imports | Durable workflow orchestration (Workflow DevKit) |
+| `verification` | Test file patterns | Testing and verification best practices |
+| `knowledge-update` | Prompt: "update docs", "knowledge update" | Vercel platform knowledge refresh guidance |
+
+### Specialist Agents (via Agent tool)
+
+| Agent | What it does | When to use |
+|-------|-------------|-------------|
+| `vercel:ai-architect` | Architect AI apps — AI SDK patterns, provider config, agents, MCP, durable workflows | Designing AI features, chatbots, agentic apps |
+| `vercel:deployment-expert` | Deployment strategy, CI/CD, preview URLs, rollbacks, env vars, domains | Troubleshooting deploys, setting up pipelines |
+| `vercel:performance-optimizer` | Core Web Vitals, rendering strategies, caching, image/font optimization, bundle size | Slow pages, Lighthouse scores, loading perf |
+
+### Benchmark / Eval Skills (internal, invokable)
+
+| Skill | What it does |
+|-------|-------------|
+| `/benchmark-agents` | Advanced AI agent scenarios stressing AI Gateway, MCP, Queues, Flags, Sandbox |
+| `/benchmark-e2e` | E2E suite: inject skills → dev server → analyze logs → improvement report |
+| `/benchmark-sandbox` | Run eval scenarios in Vercel Sandboxes (ephemeral microVMs) |
+| `/benchmark-testing` | Create/launch benchmark test projects in isolated dirs with WezTerm panes |
+| `/vercel-plugin-eval` | Live eval: verify hook behavior, skill injection, dedup, coverage report |
+| `/plugin-audit` | Audit plugin perf on real projects — extract tool calls, test pattern coverage, check cache staleness |
