@@ -580,12 +580,12 @@
 <aside class="sidebar" id="sidebar">
   <div class="sidebar-header">
     <h1>Claude Code Skills</h1>
-    <p>555+ skills &middot; 35 suites &middot; 38 workflows &middot; v2.1.151</p>
+    <p>570+ skills &middot; 37 suites &middot; 42 workflows &middot; v2.1.152</p>
   </div>
   <nav class="sidebar-nav">
     <div class="nav-group-label">Workflows</div>
     <a class="nav-item active" href="#workflows" data-section="workflows">
-      <span>Workflow Sequences</span><span class="nav-badge">38</span>
+      <span>Workflow Sequences</span><span class="nav-badge">42</span>
     </a>
     <div class="nav-group-label">Suites</div>
     <a class="nav-item" href="#gstack" data-section="gstack">
@@ -707,7 +707,7 @@
     <div class="stats-bar">
       <div class="stat"><div class="stat-value" style="color:var(--accent)">555+</div><div class="stat-label">Total Skills</div></div>
       <div class="stat"><div class="stat-value" style="color:var(--green)">35</div><div class="stat-label">Suites</div></div>
-      <div class="stat"><div class="stat-value" style="color:var(--cyan)">38</div><div class="stat-label">Workflows</div></div>
+      <div class="stat"><div class="stat-value" style="color:var(--cyan)">42</div><div class="stat-label">Workflows</div></div>
       <div class="stat"><div class="stat-value" style="color:var(--orange)">~77</div><div class="stat-label">Native Cmds</div></div>
     </div>
 
@@ -716,7 +716,7 @@
       <div class="section-header">
         <div class="section-icon" style="background:rgba(74,222,128,0.15)">&#128260;</div>
         <h2>Workflow Sequences</h2>
-        <span class="count" id="workflow-count">38 workflows</span>
+        <span class="count" id="workflow-count">42 workflows</span>
       </div>
       <div class="workflow-tabs" id="workflow-tabs" role="tablist" aria-label="Workflow categories"></div>
       <div id="workflow-cards"></div>
@@ -2040,6 +2040,10 @@ const workflows = [
   {name:"AJ. Apple Ingest & Map (iOS / macOS)", category:"platform", steps:["/gsd:new-workspace","/gsd:new-project","/apple-dissect <artifact>","/gsd:map-codebase","/idme-base:codebase-deep-analyzer","/init","/claude-mem:learn-codebase","/graphify","/sync-gbrain","/idme-base:writer","/idme-base:adr-writer","/autoresearch:plan","/autoresearch","/context-save","/gsd:pause-work"]},
   {name:"AK. Apple Inquisitor (max-depth /investigate)", category:"platform", steps:["/guard","/freeze","/apple-dissect (if missing)","/investigate","/superpowers:systematic-debugging","/gsd:debug","/autoresearch:plan","/autoresearch:debug","/superpowers:dispatching-parallel-agents","/cso","/autoresearch:security","/code-review (high)","/simplify (dry-run)","/superpowers:finding-duplicate-functions","/gsd:verify-work","/gsd:audit-uat","/idme-base:adr-writer","/idme-base:writer","/retro","/learn","/unfreeze"]},
   {name:"AL. Apple Loom (component extraction \u2192 5 reusable kits)", category:"platform", steps:["/superpowers:brainstorming","/superpowers:dispatching-parallel-agents (\u00d75 kits)","/autoplan","/plan-eng-review","/plan-design-review","/superpowers:using-git-worktrees","/gsd:new-workspace (per kit)","/gsd:plan-phase 1","/gsd:execute-phase 1","/superpowers:subagent-driven-development","/superpowers:test-driven-development","/code-review (high)","/simplify","/verify","/web-artifacts-builder","/gsd:ship (per kit)","/superpowers:finishing-a-development-branch","/document-release","/idme-base:adr-writer","/learn","/retro","/os-integrate"]},
+  {name:"AM. Pull Request Review Pipeline", category:"debug-audit", steps:["/pr-review-toolkit","/code-review (high)","/security-review","/codex:adversarial-review","/codex:review","/advisor","/gsd:review --all","/simplify","/superpowers:requesting-code-review","/review (gstack)","/ship"]},
+  {name:"AN. Code Modernization Sweep", category:"plan-build", steps:["/code-modernization","/code-simplifier","/simplify","/code-review (high)","/superpowers:test-driven-development","/superpowers:finding-duplicate-functions","/verify","/benchmark","/document-release"]},
+  {name:"AO. Cross-Channel Comms (Discord/Telegram/iMessage)", category:"productivity", steps:["/discord","/telegram","/imessage","/gws-gmail-send","/gws-chat-send","/recipe-send-team-announcement"]},
+  {name:"AP. LSP-Augmented Refactor", category:"debug-audit", steps:["swift-lsp | pyright-lsp | gopls-lsp | clangd-lsp | csharp-lsp | kotlin-lsp | lua-lsp | php-lsp | jdtls-lsp | typescript-lsp | ruby-lsp","/code-review (high)","/simplify","/superpowers:finding-duplicate-functions","/superpowers:test-driven-development","/verify","/benchmark","/code-review --comment","/ship"]},
 ];
 
 const cavemanData = [

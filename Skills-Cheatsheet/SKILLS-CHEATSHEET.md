@@ -73,7 +73,7 @@
 25. [claude-mem — Memory & Planning (8 skills)](#25-claude-mem--memory--planning)
 26. [Native Claude Code Commands (~77 commands)](#26-native-claude-code-commands)
 27. [Workflow Sequences](#27-workflow-sequences)
-28. [Language Server Protocol (LSP) Plugins (4 plugins)](#28-language-server-protocol-lsp-plugins)
+28. [Language Server Protocol (LSP) Plugins (11 plugins)](#28-language-server-protocol-lsp-plugins)
 29. [Ralph — Autonomous Dev Loop](#29-ralph--autonomous-dev-loop)
 30. [Caveman — Response Compression (7 skills)](#30-caveman--response-compression)
 31. [ML / LLM Training (2 skills)](#31-ml--llm-training)
@@ -1104,14 +1104,17 @@ Per phase:
 /document-release      → update docs
 ```
 
-### G. Figma → Code → Figma
+### G. Figma → Code → Figma  (v2.2.12 refresh)
 
 ```
-/figma:figma-implement-design          → Figma URL → production code
+/figma:figma-use                       → MANDATORY first — loads context for any write op
+/figma:figma-generate-design           → Figma URL/spec → production code (replaces figma-implement-design)
    ... build the feature ...
 /figma:figma-use + /figma:figma-generate-design  → push updates back to Figma
-/figma:figma-code-connect-components   → link components
+/figma:figma-code-connect              → link components bidirectionally
+/figma:figma-use-slides                → if presenting the design as a deck (new in 2.2.12)
 ```
+> **Why:** Figma 2.2.12 dropped `figma-implement-design`. The supported flow is `figma-use` (mandatory pre-call) plus the generation skills.
 
 ### H. Session Management
 
@@ -1124,14 +1127,17 @@ End of day:      /gsd:session-report  → summary
 End of week:     /retro               → retrospective
 ```
 
-### I. Security Audit
+### I. Security Audit  (v2026.5 — adds native /security-review + cross-AI red-team)
 
 ```
-/cso                                   → daily or comprehensive audit
-/autoresearch:security                 → autonomous STRIDE + OWASP + red-team
+/guard                                 → lock edits + destructive warnings FIRST
 /careful                               → enable destructive command warnings
-/guard                                 → lock edits + warnings (for prod debugging)
+/cso                                   → daily or comprehensive audit (gstack)
+/security-review                       → native dedicated security review (NEW)
+/autoresearch:security                 → autonomous STRIDE + OWASP MASVS + red-team
+/codex:adversarial-review              → cross-AI red-team of the diff (NEW Codex command)
 ```
+> **Why:** lock the environment BEFORE auditing (not after). Native `/security-review` runs alongside `/cso`. `/codex:adversarial-review` is the new Codex command for red-teaming.
 
 ### J. Documentation Writing
 
@@ -1219,14 +1225,20 @@ End of week:     /retro               → retrospective
 /loop 5m /health                       → live health monitoring
 ```
 
-### S. Cross-AI Second Opinion
+### S. Cross-AI Second Opinion  (v2026.5 — Codex 1.0.4 + /advisor)
 
 ```
 /codex:setup                           → verify Codex CLI is ready (one-time)
+/codex:status                          → status of running Codex tasks (NEW)
+/codex:adversarial-review              → red-team the diff with Codex (NEW v1.0.4)
+/codex:review                          → independent diff review
 /codex:rescue                          → hand stuck task to Codex via shared runtime
-/codex review                          → (gstack) independent diff review
+/codex:result                          → fetch async Codex task result (NEW)
+/codex:cancel                          → cancel a running Codex task (NEW)
+/advisor                               → native — consult a stronger model on the hardest finding (NEW)
 /gsd:review --phase 3 --all            → multi-AI peer review of plans
 ```
+> **Why:** Codex 1.0.4 added 5 new commands. Native `/advisor` is the strongest cross-model escalation.
 
 ### T. Library Documentation Lookup
 
@@ -1246,26 +1258,36 @@ End of week:     /retro               → retrospective
 /fewer-permission-prompts              → cut permission prompts via allowlist
 ```
 
-### V. New Skill / MCP Authoring Pipeline
+### V. New Skill / MCP Authoring Pipeline  (v2026.5 — composes 11 new Anthropic plugins)
 
 ```
+/plugin-dev                             → top-level plugin dev tooling (NEW)
 /plugin-structure                       → scaffold plugin layout (.claude-plugin/, skills/, agents/, commands/, hooks/, mcp/)
 /skill-development                      → bootstrap a SKILL.md with proper frontmatter
 /skill-creator                          → interactive scaffold for skill structure + metadata
+/example-plugin                         → use as canonical template (NEW)
+/agent-sdk-dev                          → build agents with the Claude Agent SDK (NEW)
+/mcp-server-dev                         → build MCP servers from scratch (NEW)
 /build-mcp-server                       → wrap an API as an MCP server
 /mcp-integration                        → wire MCP into plugin via .mcp.json
+/mcp-tunnels                            → expose local MCP to remote callers (NEW)
 /build-mcpb                             → package MCP server as MCPB bundle
+/hookify                                → generate hook rule files (NEW)
 /hook-development                       → add PreToolUse/PostToolUse/Stop hooks
+/commit-commands                        → author commit-time slash commands (NEW)
 /command-development                    → add custom slash commands
 /agent-development                      → add subagent with proper frontmatter
+/cwc-makers                             → "Claude Writes Code" opinionated build commands (NEW)
 /playground                             → build interactive HTML preview for the plugin
+/claude-md-management                   → curate the bundled CLAUDE.md (NEW)
 /superpowers:writing-skills             → apply skill-authoring best practices
 /superpowers:test-driven-development    → tests-first for skill behavior
 /plugin-settings                        → expose user-configurable plugin settings
-/review                                 → pre-landing diff review
+/code-review                            → native pre-landing diff review
+/review                                 → gstack pre-landing diff review
 /ship                                   → PR with CHANGELOG bump
 ```
-> **Why:** spans Plugin Authoring Toolkit (§33) + Superpowers + gstack — turns ad-hoc skill ideas into shipped, tested, reviewed plugin artifacts with full Claude Code surface (skills + commands + agents + hooks + MCP).
+> **Why:** the Anthropic marketplace shipped 11 new plugin-authoring skills since the cheatsheet was last synced. V composes them in order (plugin → skills → agents → MCP → hooks → commands → polish → ship).
 
 ### W. Onboarding to an Unknown Codebase (4 memory layers)
 
@@ -1291,18 +1313,16 @@ End of week:     /retro               → retrospective
 ```
 > **Why:** bridges PRD-Taskmaster + Superpowers + Autoresearch — research, plan, and ship without losing fidelity between stages.
 
-### Y. Plan Hardening Gauntlet
+### Y. Plan Hardening Gauntlet  (v2026.5 — /autoplan collapses 4 plan reviews)
 
 ```
 /superpowers:write-plan                 → draft plan
-/plan-ceo-review                        → product/strategy critique
-/plan-design-review                     → designer's-eye critique
-/plan-eng-review                        → architecture lock-in
-/plan-devex-review                      → DX dimensions
-/codex consult                          → adversarial second opinion (cross-AI)
+/autoplan                               → run CEO+Design+Eng+DX review in one shot with auto-decisions
+/codex:adversarial-review               → red-team the plan (NEW Codex command)
+/advisor                                → native — consult stronger model on the hardest finding (NEW)
 /gsd:review --phase N --all             → multi-AI peer review
-/autoplan                               → auto-decide remaining open items
 ```
+> **Why:** `/autoplan` collapses four sequential plan reviews into one execution; `/codex:adversarial-review` and `/advisor` are the new cross-AI escalations.
 > **Why:** maximum-rigor plan review across CEO/design/eng/DX/external AI before a single line of code is written.
 
 ### Z. Knowledge Compounding Session
@@ -1330,16 +1350,19 @@ End of week:     /retro               → retrospective
 ```
 > **Why:** combines Browser-Use + Creative/Design + gstack QA — clone, improve, and codify in one chain.
 
-### AB. Parallel-Worktree Multi-Feature Sprint
+### AB. Parallel-Worktree Multi-Feature Sprint  (v2026.5 — adds native /batch primitive)
 
 ```
+/batch                                  → native fan-out primitive across worktrees / parallel PRs (NEW)
 /superpowers:using-git-worktrees        → spin per-feature worktrees
 /gsd:new-workspace                      → register each as a GSD workspace
 /superpowers:dispatching-parallel-agents → fan out subagents per worktree
+/superpowers:subagent-driven-development → parallel sub-tasks inside each worktree
 /godmode:parallel-execution             → orchestration discipline
 /superpowers:finishing-a-development-branch → land each branch cleanly
 /land-and-deploy                        → merge + verify per branch
 ```
+> **Why:** native `/batch` is the new fan-out primitive; `/superpowers:subagent-driven-development` adds the per-worktree discipline.
 > **Why:** enables true N-way parallel feature development without cross-contamination — Superpowers + Godmode + GSD + gstack.
 
 ### AC. Production Incident Response
@@ -1367,16 +1390,19 @@ End of week:     /retro               → retrospective
 ```
 > **Why:** stitches scheduled agents + Ralph + Autoresearch + GWS digest into a self-driving engineering operation.
 
-### AE. Visual Asset → Production Component (Figma round-trip)
+### AE. Visual Asset → Production Component (Figma round-trip)  (v2.2.12 refresh)
 
 ```
-/figma:figma-implement-design           → Figma URL → reference code
+/figma:figma-use                        → MANDATORY first for any write to Figma
+/figma:figma-generate-design            → Figma URL/spec → reference code (replaces figma-implement-design)
 /frontend-design                        → adapt to project conventions
 /ui-ux-pro-max                          → polish to pro-grade
 /design-review http://localhost:3000    → visual audit + fixes
 /figma:figma-code-connect               → link component back to Figma
+/figma:figma-use-slides                 → if presenting as a deck (NEW in 2.2.12)
 /benchmark                              → perf regression check
 ```
+> **Why:** Figma 2.2.12 dropped `figma-implement-design`; `figma-use-slides` is the new presentation path.
 > **Why:** Figma + UI/UX Pro Max + gstack benchmarks closes the loop from design → production → measured perf with bidirectional Figma sync.
 
 ### AF. Meeting → Action → Tracked Work
@@ -1404,27 +1430,36 @@ bd compact                              → semantic-summarize old issues
 ```
 > **Why:** spans claude-mem + Caveman + Beads + gstack context tools — cleanly hand off a long session into a fresh window without losing state or ballooning tokens.
 
-### AH. Full-Stack Plugin Authoring (Claude Code Plugin Toolkit)
+### AH. Full-Stack Plugin Authoring (Claude Code Plugin Toolkit)  (v2026.5 — adds 7 new Anthropic plugins)
 
 ```
 /claude-automation-recommender           → scan codebase, recommend which automations to build
+/plugin-dev                              → top-level plugin dev tooling (NEW)
 /plugin-structure                        → scaffold plugin directory layout
 /plugin-settings                         → declare user-configurable plugin settings
 /skill-development                       → add SKILL.md(s) with frontmatter
+/example-plugin                          → canonical template (NEW)
 /command-development                     → add slash command(s)
+/commit-commands                         → author commit-time slash commands (NEW)
 /agent-development                       → add subagent(s)
+/agent-sdk-dev                           → build agents with the Claude Agent SDK (NEW)
 /hook-development                        → add PreToolUse/PostToolUse/Stop hooks
-/writing-hookify-rules                   → write hookify rule syntax for automatic dispatch
+/hookify + /writing-hookify-rules        → generate hook rule files (hookify is NEW)
+/mcp-server-dev                          → build MCP servers from scratch (NEW)
 /build-mcp-server                        → wrap an API as MCP server
 /mcp-integration                         → wire .mcp.json into the plugin
+/mcp-tunnels                             → expose local MCP to remote callers (NEW)
 /build-mcpb                              → package as MCPB bundle for distribution
 /build-mcp-app                           → add interactive UI/widgets to the MCP
 /playground                              → ship an HTML playground demoing the plugin
 /example-skill + /example-command        → embed canonical examples for users
+/cwc-makers                              → "Claude Writes Code" opinionated build commands (NEW)
 /claude-md-improver                      → tighten the bundled CLAUDE.md docs
-/review → /ship                          → land + release
+/claude-md-management                    → curate the full CLAUDE.md hierarchy (NEW)
+/pr-review-toolkit                       → multi-agent PR review on the resulting branch (NEW)
+/code-review → /review → /ship           → land + release
 ```
-> **Why:** end-to-end pipeline using the new §33 Plugin Authoring Toolkit. Spans the full Claude Code plugin surface area — skills, commands, agents, hooks, MCP servers, packaging, and docs — without leaving the chat.
+> **Why:** the Anthropic marketplace shipped 7 new plugin-authoring skills (`plugin-dev`, `agent-sdk-dev`, `mcp-server-dev`, `mcp-tunnels`, `commit-commands`, `hookify`, `cwc-makers`) plus `claude-md-management`, `example-plugin`, `pr-review-toolkit`. AH composes all of them.
 
 ### AI. M5Stack ESP32 Device Onboarding
 
@@ -1541,6 +1576,68 @@ Agent: idme-base:adr-researcher          → embedded historical decisions
 ```
 > **Why:** consumes AJ's `component-candidates.md` + AK's `hypothesis-tree.json` and ships five reusable Swift Packages (UI kit / business kernel / API client / asset pack / schema pack). Maximum parallelism via worktrees + subagent fan-out. Spec: `Skills-Cheatsheet/SEQUENCE-AL-apple-loom.md`.
 
+### AM. Pull Request Review Pipeline  (NEW v2026.5)
+
+```
+/pr-review-toolkit                       → multi-agent PR review (NEW Anthropic plugin)
+/code-review (high effort)               → native diff review with severity
+/security-review                         → dedicated security pass (NEW native)
+/codex:adversarial-review                → cross-AI red-team (NEW Codex command)
+/codex:review                            → independent Codex diff review
+/advisor                                 → escalate hardest finding to a stronger model (NEW)
+/gsd:review --phase N --all              → multi-AI peer review
+/simplify                                → apply code-review --fix recommendations
+/superpowers:requesting-code-review      → request cross-team review on the API surface
+/review (gstack)                         → pre-landing review
+/ship                                    → land + release
+```
+> **Why:** the Anthropic marketplace shipped `pr-review-toolkit` + Codex shipped 5 new commands (adversarial-review, status, cancel, result, etc.). AM is the dedicated diff-review chain that runs *before* `/ship` for any PR > 200 lines.
+
+### AN. Code Modernization Sweep  (NEW v2026.5)
+
+```
+/code-modernization                      → migrate across major framework / language versions (NEW)
+/code-simplifier                         → apply reuse / dedup wins surfaced by review (NEW)
+/simplify                                → native — apply code-review --fix
+/code-review (high effort)               → catch regressions introduced by the migration
+/superpowers:test-driven-development     → write tests for any new surface area
+/superpowers:finding-duplicate-functions → quantify dedup opportunities post-migration
+/verify                                  → run the app end-to-end
+/benchmark                               → confirm no perf regression
+/document-release                        → record the migration in the release notes
+```
+> **Why:** new Anthropic `code-modernization` + `code-simplifier` plugins make framework/version migrations a first-class chain.
+
+### AO. Cross-Channel Comms (Discord / Telegram / iMessage)  (NEW v2026.5)
+
+```
+/discord                                 → send / receive on Discord (NEW external plugin)
+/telegram                                → send / receive on Telegram (NEW external plugin)
+/imessage                                → send / receive on iMessage (NEW external plugin — macOS only)
+/gws-gmail-send                          → email path
+/gws-chat-send                           → Google Chat path
+/recipe-send-team-announcement           → Gmail + Google Chat fan-out
+```
+> **Why:** the Anthropic marketplace shipped Discord / Telegram / iMessage as separate plugins. AO is the unified outbound-comms chain that picks the right channel per audience.
+
+### AP. LSP-Augmented Refactor  (NEW v2026.5 — 11 LSPs now available)
+
+```
+# Pick the LSP for the file you are editing (loads automatically):
+swift-lsp | pyright-lsp | gopls-lsp | clangd-lsp | csharp-lsp | kotlin-lsp | lua-lsp
+| php-lsp | jdtls-lsp | typescript-lsp | ruby-lsp
+
+/code-review (high effort)               → find refactor candidates with LSP-aware navigation
+/simplify                                → apply mechanical refactors via LSP rename-symbol
+/superpowers:finding-duplicate-functions → cross-file dedup
+/superpowers:test-driven-development     → write tests around the refactored surface
+/verify                                  → run the app
+/benchmark                               → confirm no perf regression
+/code-review --comment                   → inline PR review
+/ship                                    → land
+```
+> **Why:** §28 now ships 11 LSPs (up from 4). AP is the language-agnostic refactor chain that exploits LSP rename-symbol + go-to-definition during the entire flow.
+
 ---
 
 ## 28. Language Server Protocol (LSP) Plugins
@@ -1553,8 +1650,15 @@ Background plugins that give Claude Code IDE-grade code intelligence — go-to-d
 | `jdtls-lsp` | Java | `.java` | Java 17+ JDK, `brew install jdtls` on macOS |
 | `typescript-lsp` | TypeScript / JavaScript | `.ts`, `.tsx`, `.js`, `.jsx`, `.mts`, `.cts`, `.mjs`, `.cjs` | `npm install -g typescript-language-server typescript` |
 | `ruby-lsp` | Ruby | `.rb`, `.rake`, `.gemspec`, `.ru`, `.erb` | `gem install ruby-lsp` (Ruby 3.0+) |
+| `pyright-lsp` | Python | `.py`, `.pyi` | `npm install -g pyright` (NEW) |
+| `gopls-lsp` | Go | `.go` | `go install golang.org/x/tools/gopls@latest` (NEW) |
+| `clangd-lsp` | C / C++ / Obj-C | `.c`, `.cpp`, `.cc`, `.h`, `.hpp`, `.m`, `.mm` | `brew install llvm` (clangd bundled) (NEW) |
+| `csharp-lsp` | C# | `.cs` | .NET SDK 8+ (NEW) |
+| `kotlin-lsp` | Kotlin | `.kt`, `.kts` | `brew install kotlin-language-server` (NEW) |
+| `lua-lsp` | Lua | `.lua` | `brew install lua-language-server` (NEW) |
+| `php-lsp` | PHP | `.php` | `composer global require intelephense` (NEW) |
 
-> **How they work:** Once installed, Claude Code automatically connects to the language server when editing files in those languages. Provides real-time diagnostics, symbol navigation, and intelligent completions without any explicit invocation.
+> **How they work:** Once installed, Claude Code automatically connects to the language server when editing files in those languages. Provides real-time diagnostics, symbol navigation, and intelligent completions without any explicit invocation. **Sequence AP** composes LSP awareness with `/code-review`, `/simplify`, and dedup discovery for language-agnostic refactors.
 
 ---
 
