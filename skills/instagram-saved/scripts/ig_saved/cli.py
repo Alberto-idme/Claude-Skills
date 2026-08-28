@@ -127,7 +127,12 @@ def cmd_index(args) -> int:
                 print("Indexing all saved posts…", file=sys.stderr)
                 posts = list(session.all_saved(max_pages=args.max_pages))
 
-                collections = session.list_collections()
+                # "All posts" is a pseudo-collection: it has no per-collection
+                # feed, and all_saved() above already covers it. Asking for
+                # /feed/collection/ALL_MEDIA_AUTO_COLLECTION/posts/ returns the
+                # HTML app shell with a 200, which api() rejects.
+                collections = [c for c in session.list_collections()
+                               if c["id"] != "ALL_MEDIA_AUTO_COLLECTION"]
                 print(f"\nLabelling {len(collections)} collections…",
                       file=sys.stderr)
                 for n, entry in enumerate(collections, 1):

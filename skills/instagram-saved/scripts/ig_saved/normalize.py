@@ -166,16 +166,30 @@ def _walk(
 # --------------------------------------------------------------------------
 
 
+def _usable(version: dict) -> bool:
+    """Reject Instagram's placeholder stand-ins.
+
+    Some carousel slots come back with static.cdninstagram.com/rsrc.php/null.jpg
+    instead of real media. Stored as-is they become permanently undownloadable
+    rows — every fetch 400s, and re-hydrating returns the same placeholder — so
+    they never stop showing up as failures.
+    """
+    url = (version or {}).get("url") or ""
+    return bool(url) and "rsrc.php" not in url
+
+
 def _media_refs(media: dict) -> list[MediaRef]:
     refs: list[MediaRef] = []
 
     def one(node: dict, idx: int) -> MediaRef | None:
-        videos = node.get("video_versions") or []
+        videos = [v for v in (node.get("video_versions") or []) if _usable(v)]
         if videos:
             best = videos[0]
             return MediaRef(idx, "video", best.get("url"),
                             best.get("width"), best.get("height"))
-        candidates = ((node.get("image_versions2") or {}).get("candidates")) or []
+        candidates = [c for c in
+                      ((node.get("image_versions2") or {}).get("candidates")) or []
+                      if _usable(c)]
         if candidates:
             best = candidates[0]  # candidates are ordered largest-first
             return MediaRef(idx, "image", best.get("url"),
