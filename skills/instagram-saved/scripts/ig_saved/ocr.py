@@ -16,6 +16,7 @@ import json
 import sqlite3
 import sys
 import time
+from difflib import SequenceMatcher
 from pathlib import Path
 
 from . import db, frames as frames_mod
@@ -81,32 +82,98 @@ def _normalise(text: str) -> str:
     return " ".join(text.split()).casefold()
 
 
-def dedupe(lines: list[str]) -> list[str]:
-    """Collapse repeats and partials across frames.
+SIMILARITY = 0.86
 
-    The same caption appears on every sampled frame, and animated text is
-    caught mid-reveal ("Tokyo Ram" then "Tokyo Ramen"), so a plain set is not
-    enough — a line contained in one already kept is dropped, and one that
-    contains a kept line replaces it.
+
+def _near_duplicate(a: str, b: str, threshold: float = SIMILARITY) -> bool:
+    """Whether two reads are the same text with OCR jitter between them.
+
+    A caption that holds for 30 frames is read 30 times, and the reads differ:
+    ICHIRAN / ICHlRAN / 1CHIRAN, OPEN / 0PEN. None is a substring of another,
+    so containment alone leaves all of them — one real reel produced 266 lines
+    from 178 frames that way.
+    """
+    longest = max(len(a), len(b), 1)
+    # Cheap length gate before the O(n*m) comparison.
+    if abs(len(a) - len(b)) / longest > 0.3:
+        return False
+    return SequenceMatcher(None, a, b).ratio() >= threshold
+
+
+def dedupe(lines: list[str], threshold: float = SIMILARITY) -> list[str]:
+    """Collapse repeats, partials and near-identical reads across frames.
+
+    Three cases, in order of cost: exact repeats, a line contained in one
+    already kept (animated text caught mid-reveal — "Tokyo Ram" then "Tokyo
+    Ramen"), and fuzzy matches from OCR jitter. The longest read of a group
+    wins, since truncation is the more common failure than hallucinated extra
+    characters.
     """
     kept: list[str] = []
+    normalised: list[str] = []
+
     for line in lines:
         candidate = _normalise(line)
         if not candidate:
             continue
+
         replaced = False
-        for i, existing in enumerate(kept):
-            current = _normalise(existing)
+        for i, current in enumerate(normalised):
             if candidate == current or candidate in current:
                 replaced = True
                 break
-            if current in candidate:
-                kept[i] = line
+            if current in candidate or _near_duplicate(candidate, current,
+                                                       threshold):
+                if len(candidate) > len(current):
+                    kept[i], normalised[i] = line, candidate
                 replaced = True
                 break
         if not replaced:
             kept.append(line)
+            normalised.append(candidate)
+
     return kept
+
+
+def reclean(conn: sqlite3.Connection, threshold: float = SIMILARITY) -> dict:
+    """Re-apply dedupe to OCR rows already in the database.
+
+    Runs no OCR, so it is seconds rather than minutes — for cleaning up rows
+    written before the fuzzy pass existed, or after changing the threshold.
+    """
+    changed = removed = 0
+    rows = conn.execute(
+        "SELECT media_id, shortcode, lines_json FROM ocr WHERE status = 'ok'"
+    ).fetchall()
+
+    for row in rows:
+        lines = json.loads(row["lines_json"] or "[]")
+        if not lines:
+            continue
+
+        kept = dedupe([item["text"] for item in lines], threshold)
+        keep = {_normalise(t) for t in kept}
+        seen: set[str] = set()
+        cleaned = []
+        for item in lines:
+            key = _normalise(item["text"])
+            if key in keep and key not in seen:
+                seen.add(key)
+                cleaned.append(item)
+
+        if len(cleaned) == len(lines):
+            continue
+
+        removed += len(lines) - len(cleaned)
+        changed += 1
+        conn.execute(
+            "UPDATE ocr SET text = ?, lines_json = ? WHERE media_id = ?",
+            ("\n".join(i["text"] for i in cleaned),
+             json.dumps(cleaned, ensure_ascii=False), row["media_id"]),
+        )
+
+    conn.commit()
+    return {"files": changed, "lines_removed": removed, "scanned": len(rows)}
 
 
 def ocr_video(

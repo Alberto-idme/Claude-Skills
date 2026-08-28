@@ -376,7 +376,15 @@ only signal for reels that come back `no_speech`, which are typically
 music-over-captions.
 
 Frame sampling skips static frames, so a caption held for five seconds costs
-one OCR call rather than five. The threshold is deliberately low: measured on a
+one OCR call rather than five. Reads are then deduped three ways: exact
+repeats, partial reveals ("Tokyo Ram" → "Tokyo Ramen"), and engine jitter
+(ICHIRAN / ICHlRAN / 1CHIRAN), which substring matching alone cannot collapse —
+one real reel produced 266 lines from 178 frames before that was added. To
+re-clean rows written earlier, without re-running OCR:
+
+```bash
+ig-saved ocr --reclean
+``` The threshold is deliberately low: measured on a
 clip whose caption changes completely, the frame-difference score moves only
 2.9–4.1 while genuinely static frames score 0.000–0.001.
 

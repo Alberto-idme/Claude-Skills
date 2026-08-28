@@ -265,6 +265,13 @@ def cmd_ocr(args) -> int:
 
     cfg = _config(args)
     conn = db.connect(cfg.db_path)
+    if getattr(args, "reclean", False):
+        moved = ocr_mod.reclean(conn)
+        db.reindex(conn)
+        print(f"Re-cleaned {moved['files']} of {moved['scanned']} files, "
+              f"dropped {moved['lines_removed']} duplicate lines.")
+        return 0
+
     collection = _collection_name(getattr(args, "collection", None))
     if collection:
         print(f"Scoped to collection '{collection}'.", file=sys.stderr)
@@ -619,6 +626,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="seconds between sampled frames (default 1.0)")
     p.add_argument("--videos-only", action="store_true",
                    help="skip still images")
+    p.add_argument("--reclean", action="store_true",
+                   help="re-dedupe stored OCR lines without re-running OCR")
     p.set_defaults(func=cmd_ocr)
 
     p = sub.add_parser("describe", help="describe what each video shows")

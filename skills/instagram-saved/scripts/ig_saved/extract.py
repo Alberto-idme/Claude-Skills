@@ -103,6 +103,12 @@ def _evidence(conn: sqlite3.Connection, shortcode: str) -> tuple[str, dict]:
     for entry in data["screen_text"]:
         for item in json.loads(entry["lines_json"] or "[]"):
             lines.append(item["text"])
+    # Dedupe again on the way out: rows written before the fuzzy pass existed
+    # still carry near-identical reads, and sending 266 lines of the same
+    # caption is both wasted tokens and worse extraction.
+    from .ocr import dedupe as _dedupe
+
+    lines = _dedupe(lines)
     if lines:
         parts.append("ON-SCREEN TEXT:\n" + "\n".join(lines))
         present["screen_text"] = True

@@ -1483,6 +1483,92 @@ def test_search_never_returns_a_stale_empty_index():
         assert db.ensure_fresh_index(conn) is False  # no needless rebuilds
 
 
+def test_ocr_dedupe_collapses_engine_jitter():
+    """266 lines from 178 frames: the same caption read slightly differently
+    each frame, none a substring of another."""
+    from ig_saved.ocr import dedupe
+
+    jitter = ["ICHIRAN SHIBUYA", "ICHlRAN SHIBUYA", "1CHIRAN SHIBUYA",
+              "ICHIRAN SHIBUYA.", "ICHIRAN  SHIBUYA",
+              "OPEN UNTIL MIDNIGHT", "OPEN UNTIL MIDNlGHT",
+              "0PEN UNTIL MIDNIGHT"]
+    assert len(dedupe(jitter)) == 2
+
+
+def test_ocr_dedupe_keeps_genuinely_different_names():
+    """Over-collapsing would merge distinct restaurants into one."""
+    from ig_saved.ocr import dedupe
+
+    distinct = ["Ichiran Shibuya", "Ippudo Shibuya", "Afuri Harajuku",
+                "Tsuta Sugamo", "Menya Saimi", "Ramen Jiro Mita"]
+    assert len(dedupe(distinct)) == len(distinct)
+
+
+def test_ocr_dedupe_still_collapses_partial_reveals():
+    from ig_saved.ocr import dedupe
+
+    assert dedupe(["Tokyo Ram", "Tokyo Ramen", "Tokyo Ramen"]) == ["Tokyo Ramen"]
+
+
+def test_ocr_reclean_fixes_rows_written_before_the_fuzzy_pass():
+    from ig_saved.config import Config as Cfg
+    from ig_saved import ocr as ocr_mod
+
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = Cfg(root=Path(tmp))
+        cfg.ensure_dirs()
+        conn = db.connect(cfg.db_path)
+        db.upsert_posts(conn, [Post(shortcode="R", url="u",
+                                    media=[MediaRef(0, "video", "x")])])
+        mid = db.pending_downloads(conn)[0]["id"]
+        db.mark_downloaded(conn, mid, "/tmp/v.mp4")
+
+        bloated = []
+        for i in range(40):
+            bloated.append({"t": float(i), "text":
+                            ["ICHIRAN SHIBUYA", "ICHlRAN SHIBUYA",
+                             "1CHIRAN SHIBUYA", "ICHIRAN SHIBUYA."][i % 4]})
+        db.save_ocr(conn, media_id=mid, shortcode="R", text="x",
+                    lines=bloated, frames=178, engine="rapidocr")
+
+        moved = ocr_mod.reclean(conn)
+        assert moved["files"] == 1
+        assert moved["lines_removed"] == 39
+
+        stored = json.loads(conn.execute(
+            "SELECT lines_json FROM ocr").fetchone()["lines_json"])
+        assert len(stored) == 1
+        assert [r["shortcode"] for r in db.search(conn, "ichiran")] == ["R"]
+
+        # Idempotent.
+        assert ocr_mod.reclean(conn)["lines_removed"] == 0
+
+
+def test_extract_dedupes_screen_text_before_sending():
+    """Existing rows benefit without re-running the 13-minute OCR pass."""
+    from ig_saved.config import Config as Cfg
+    from ig_saved import extract as extract_mod
+
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = Cfg(root=Path(tmp))
+        cfg.ensure_dirs()
+        conn = db.connect(cfg.db_path)
+        db.upsert_posts(conn, [Post(shortcode="R", url="u", caption="c",
+                                    media=[MediaRef(0, "video", "x")])])
+        mid = db.pending_downloads(conn)[0]["id"]
+        db.mark_downloaded(conn, mid, "/tmp/v.mp4")
+        db.save_ocr(conn, media_id=mid, shortcode="R", text="x",
+                    lines=[{"t": float(i), "text": v} for i, v in enumerate(
+                        ["ICHIRAN SHIBUYA", "ICHlRAN SHIBUYA",
+                         "1CHIRAN SHIBUYA"] * 10)],
+                    frames=30, engine="rapidocr")
+
+        evidence, present = extract_mod._evidence(conn, "R")
+        block = evidence.split("ON-SCREEN TEXT:\n", 1)[1]
+        assert len(block.strip().splitlines()) == 1, block
+        assert present["screen_text"]
+
+
 def _run() -> int:
     tests = [(n, f) for n, f in sorted(globals().items())
              if n.startswith("test_") and callable(f)]
