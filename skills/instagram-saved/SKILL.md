@@ -182,6 +182,11 @@ and Markdown.
   static frames. Anything above ~2 silently drops real text changes.
 - **Extraction must never invent.** The prompt forbids guessing a name, price
   or opening time; thin sources come back empty and `needs_review`.
+- **`doctor` must not overclaim.** It once printed "Everything needed is
+  present" while listing a missing OCR engine, which is how a run reached the
+  point of failing. Anything absent that gates a command is named as such, and
+  credential checks follow the SDK's whole chain (env vars *and* an `ant auth
+  login` profile) rather than one variable.
 - **Never leave a failed transcript without a row.** `pending_transcripts`
   queues any downloaded video lacking one, so a reel that can never be
   transcribed (no audio, no speech) would otherwise be re-attempted on every

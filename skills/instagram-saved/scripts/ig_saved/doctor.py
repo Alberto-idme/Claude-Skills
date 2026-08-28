@@ -22,11 +22,16 @@ class Report:
     def __init__(self) -> None:
         self.rows: list[tuple[str, str, str]] = []
         self.blockers: list[str] = []
+        self.unavailable: list[tuple[str, str]] = []
 
-    def add(self, mark: str, label: str, detail: str = "", fix: str = "") -> None:
+    def add(self, mark: str, label: str, detail: str = "", fix: str = "",
+            stage: str = "") -> None:
+        """`stage` names the command this row gates, if it gates one."""
         self.rows.append((mark, label, detail))
         if mark == BAD and fix:
             self.blockers.append(fix)
+        if mark != OK and stage:
+            self.unavailable.append((stage, fix))
 
     def render(self) -> int:
         width = max(len(label) for _, label, _ in self.rows)
@@ -39,6 +44,20 @@ class Report:
                 for line in fix.splitlines():
                     print(f"    {line}")
             return 1
+
+        # "Everything needed is present" was printed with a missing OCR engine
+        # listed directly above it, which is how a run got as far as failing.
+        # Absent optional pieces are fine, but they must be named as absent.
+        if self.unavailable:
+            stages = ", ".join(dict.fromkeys(s for s, _f in self.unavailable))
+            print(f"\nNothing is blocking, but these stages cannot run: {stages}")
+            fixes = [f for _s, f in self.unavailable if f]
+            if fixes:
+                print("\nTo enable them:")
+                for fix in dict.fromkeys(fixes):
+                    for line in fix.splitlines():
+                        print(f"    {line}")
+            return 0
 
         print("\nEverything needed is present.")
         return 0
@@ -86,6 +105,42 @@ def _system_chrome() -> str | None:
         if Path(path).exists():
             return path
     return None
+
+
+def _anthropic_credentials() -> tuple[bool, str]:
+    """Whether the SDK can authenticate, without making an API call.
+
+    An unset ANTHROPIC_API_KEY does not mean there are no credentials: the SDK
+    falls back to ANTHROPIC_AUTH_TOKEN and then to the profile `ant auth login`
+    writes to disk, which a zero-arg client picks up on its own. Checking only
+    the env var reports "missing" against a perfectly working profile — and the
+    suggested fix then does not clear the flag.
+    """
+    for variable in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"):
+        if os.environ.get(variable):
+            return True, f"{variable} set"
+
+    profile = os.environ.get("ANTHROPIC_PROFILE", "default")
+    roots = [
+        Path(os.environ["XDG_CONFIG_HOME"]) / "anthropic/credentials"
+        if os.environ.get("XDG_CONFIG_HOME") else None,
+        Path.home() / ".config/anthropic/credentials",
+        Path(os.environ["APPDATA"]) / "anthropic/credentials"
+        if os.environ.get("APPDATA") else None,
+    ]
+    for root in roots:
+        if root is None or not root.is_dir():
+            continue
+        named = root / f"{profile}.json"
+        if named.exists():
+            return True, f"ant profile '{profile}'"
+        others = sorted(root.glob("*.json"))
+        if others:
+            return True, f"ant profile '{others[0].stem}'"
+
+    if shutil.which("ant"):
+        return False, "no key and no ant profile"
+    return False, "no key, and the ant CLI is not installed"
 
 
 def _session_cookie(cfg: Config) -> bool | None:
@@ -156,7 +211,8 @@ def run(cfg: Config) -> int:
         report.add(WARN, "session", "profile exists but no Instagram cookie",
                    fix="ig-saved login")
     else:
-        report.add(WARN, "session", "not signed in yet", fix="ig-saved login")
+        report.add(WARN, "session", "not signed in yet", fix="ig-saved login",
+                   stage="login/index --source browser")
 
     backend = None
     for module, label in (("faster_whisper", "faster-whisper"),
@@ -176,7 +232,7 @@ def run(cfg: Config) -> int:
             report.add(OK, "transcription", detail)
     else:
         report.add(WARN, "transcription", "no Whisper backend",
-                   fix="pip install faster-whisper  # only needed for reels")
+                   fix="pip install faster-whisper", stage="transcribe")
 
     engine = None
     for module, label in (("rapidocr_onnxruntime", "rapidocr"),
@@ -190,7 +246,8 @@ def run(cfg: Config) -> int:
     report.add(OK if engine else WARN, "on-screen text",
                engine or "no OCR engine",
                fix="" if engine else
-                   "pip install rapidocr-onnxruntime  # reads CJK, no torch")
+                   "pip install rapidocr-onnxruntime  # reads CJK, no torch",
+               stage="ocr")
 
     try:
         __import__("anthropic")
@@ -199,12 +256,14 @@ def run(cfg: Config) -> int:
         has_sdk = False
     if not has_sdk:
         report.add(WARN, "describe/extract", "anthropic SDK missing",
-                   fix="pip install anthropic")
-    elif cfg.anthropic_key:
-        report.add(OK, "describe/extract", "ANTHROPIC_API_KEY set")
+                   fix="pip install anthropic", stage="describe/extract")
     else:
-        report.add(WARN, "describe/extract",
-                   "no ANTHROPIC_API_KEY (an `ant auth login` profile also works)")
+        available, detail = _anthropic_credentials()
+        report.add(OK if available else WARN, "describe/extract", detail,
+                   fix="" if available else
+                       "ant auth login          # stores a profile the SDK reads\n"
+                       "# or: export ANTHROPIC_API_KEY=...",
+                   stage="describe/extract")
 
     report.add(
         OK if cfg.apify_token else WARN,

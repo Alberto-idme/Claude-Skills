@@ -1654,6 +1654,82 @@ def test_report_offers_a_region_filter_and_shows_why_flagged():
         assert "California" in csv_text
 
 
+def test_doctor_finds_an_ant_profile_with_no_env_var():
+    """Regression: doctor reported "no ANTHROPIC_API_KEY" against a working
+    `ant auth login` profile, and its suggested fix did not clear the flag."""
+    import os
+
+    from ig_saved.doctor import _anthropic_credentials
+
+    saved = {k: os.environ.get(k) for k in
+             ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_PROFILE",
+              "HOME", "XDG_CONFIG_HOME")}
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            for key in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN",
+                        "ANTHROPIC_PROFILE", "XDG_CONFIG_HOME"):
+                os.environ.pop(key, None)
+            os.environ["HOME"] = tmp
+
+            assert _anthropic_credentials()[0] is False
+
+            creds = Path(tmp) / ".config/anthropic/credentials"
+            creds.mkdir(parents=True)
+            (creds / "default.json").write_text("{}")
+            available, detail = _anthropic_credentials()
+            assert available is True
+            assert "default" in detail
+
+            os.environ["ANTHROPIC_API_KEY"] = "sk-test"
+            assert _anthropic_credentials() == (True, "ANTHROPIC_API_KEY set")
+    finally:
+        for key, value in saved.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+
+def test_doctor_does_not_claim_everything_is_present_when_it_is_not():
+    """It printed "Everything needed is present" with a missing OCR engine
+    listed directly above — which is how a run got as far as failing."""
+    from ig_saved.doctor import OK, WARN, Report
+
+    report = Report()
+    report.add(OK, "python", "3.12")
+    report.add(WARN, "on-screen text", "no OCR engine",
+               fix="pip install rapidocr-onnxruntime", stage="ocr")
+
+    import io
+    import contextlib
+
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        code = report.render()
+    text = out.getvalue()
+
+    assert code == 0                       # absent-but-optional is not a blocker
+    assert "Everything needed is present" not in text
+    assert "cannot run: ocr" in text
+    assert "pip install rapidocr-onnxruntime" in text
+
+
+def test_doctor_still_says_all_clear_when_it_really_is():
+    from ig_saved.doctor import OK, Report
+
+    import contextlib
+    import io
+
+    report = Report()
+    report.add(OK, "python", "3.12")
+    report.add(OK, "on-screen text", "rapidocr", stage="ocr")
+
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        assert report.render() == 0
+    assert "Everything needed is present" in out.getvalue()
+
+
 def _run() -> int:
     tests = [(n, f) for n, f in sorted(globals().items())
              if n.startswith("test_") and callable(f)]

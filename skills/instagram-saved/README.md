@@ -75,7 +75,14 @@ To fix:
     playwright install chromium
 ```
 
-`[ok]` is fine, `[--]` is optional-and-absent, `[XX]` blocks you.
+`[ok]` is fine, `[--]` is optional-and-absent, `[XX]` blocks you. When
+something is only `[--]`, the summary names the stages that cannot run rather
+than claiming all-clear — an earlier version printed "Everything needed is
+present" with a missing OCR engine listed directly above it.
+
+Credentials for `describe`/`extract` are checked across the whole chain the SDK
+uses, not just `ANTHROPIC_API_KEY`: an `ant auth login` profile counts, because
+a zero-arg client resolves it on its own.
 
 Already have Chrome and would rather not download another browser:
 
