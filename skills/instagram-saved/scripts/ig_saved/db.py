@@ -186,21 +186,29 @@ def pending_hydration(conn: sqlite3.Connection, limit: int | None = None) -> lis
     return [r["shortcode"] for r in conn.execute(sql)]
 
 
-def pending_downloads(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+def pending_downloads(
+    conn: sqlite3.Connection, *, collection: str | None = None
+) -> list[sqlite3.Row]:
+    scope = "AND p.collection = :c" if collection else ""
     return list(
         conn.execute(
-            """
-            SELECT id, shortcode, idx, kind, remote_url
-            FROM media
-            WHERE local_path IS NULL AND remote_url IS NOT NULL
-            ORDER BY shortcode, idx
-            """
+            f"""
+            SELECT m.id, m.shortcode, m.idx, m.kind, m.remote_url
+            FROM media m
+            JOIN posts p ON p.shortcode = m.shortcode
+            WHERE m.local_path IS NULL AND m.remote_url IS NOT NULL {scope}
+            ORDER BY m.shortcode, m.idx
+            """,
+            {"c": collection} if collection else {},
         )
     )
 
 
 def pending_transcripts(
-    conn: sqlite3.Connection, *, retry_failed: bool = False
+    conn: sqlite3.Connection,
+    *,
+    retry_failed: bool = False,
+    collection: str | None = None,
 ) -> list[sqlite3.Row]:
     """Downloaded videos with no transcript row yet.
 
@@ -211,17 +219,20 @@ def pending_transcripts(
     condition = "t.media_id IS NULL"
     if retry_failed:
         condition = "(t.media_id IS NULL OR t.status = 'error')"
+    scope = "AND p.collection = :c" if collection else ""
     return list(
         conn.execute(
             f"""
             SELECT m.id, m.shortcode, m.local_path
             FROM media m
+            JOIN posts p ON p.shortcode = m.shortcode
             LEFT JOIN transcripts t ON t.media_id = m.id
             WHERE m.kind = 'video'
               AND m.local_path IS NOT NULL
-              AND {condition}
+              AND {condition} {scope}
             ORDER BY m.shortcode
-            """
+            """,
+            {"c": collection} if collection else {},
         )
     )
 
@@ -284,37 +295,59 @@ def reindex(conn: sqlite3.Connection) -> int:
     return conn.execute("SELECT count(*) AS n FROM search").fetchone()["n"]
 
 
-def search(conn: sqlite3.Connection, query: str, limit: int = 20) -> list[sqlite3.Row]:
+def search(
+    conn: sqlite3.Connection,
+    query: str,
+    limit: int = 20,
+    collection: str | None = None,
+) -> list[sqlite3.Row]:
+    scope = "AND p.collection = :c" if collection else ""
+    params = {"q": query, "limit": limit}
+    if collection:
+        params["c"] = collection
     return list(
         conn.execute(
-            """
+            f"""
             SELECT s.shortcode, p.url, p.author_username, p.collection,
                    snippet(search, 2, '[', ']', '…', 12) AS caption_hit,
                    snippet(search, 3, '[', ']', '…', 12) AS transcript_hit
             FROM search s
             JOIN posts p ON p.shortcode = s.shortcode
-            WHERE search MATCH ?
+            WHERE search MATCH :q {scope}
             ORDER BY rank
-            LIMIT ?
+            LIMIT :limit
             """,
-            (query, limit),
+            params,
         )
     )
 
 
-def stats(conn: sqlite3.Connection) -> dict:
-    row = conn.execute(
-        """
-        SELECT (SELECT count(*) FROM posts) AS posts,
-               (SELECT count(*) FROM posts WHERE hydrated_at IS NOT NULL) AS hydrated,
-               (SELECT count(*) FROM media) AS media,
-               (SELECT count(*) FROM media WHERE local_path IS NOT NULL) AS downloaded,
-               (SELECT count(*) FROM media WHERE kind = 'video') AS videos,
-               (SELECT count(*) FROM transcripts WHERE status = 'ok') AS transcripts,
-               (SELECT count(*) FROM transcripts WHERE status != 'ok')
-                   AS untranscribable,
-               (SELECT count(DISTINCT collection) FROM posts
-                 WHERE collection IS NOT NULL) AS collections
-        """
-    ).fetchone()
-    return dict(row)
+def stats(conn: sqlite3.Connection, collection: str | None = None) -> dict:
+    """Funnel counts, optionally for one collection only."""
+    params = {"c": collection} if collection else {}
+    where = "WHERE p.collection = :c" if collection else ""
+    and_ = "AND p.collection = :c" if collection else ""
+
+    def count(sql: str) -> int:
+        return conn.execute(sql, params).fetchone()[0]
+
+    media_join = "FROM media m JOIN posts p ON p.shortcode = m.shortcode"
+    txt_join = "FROM transcripts t JOIN posts p ON p.shortcode = t.shortcode"
+
+    return {
+        "posts": count(f"SELECT count(*) FROM posts p {where}"),
+        "hydrated": count(
+            f"SELECT count(*) FROM posts p WHERE p.hydrated_at IS NOT NULL {and_}"),
+        "media": count(f"SELECT count(*) {media_join} {where}"),
+        "downloaded": count(
+            f"SELECT count(*) {media_join} WHERE m.local_path IS NOT NULL {and_}"),
+        "videos": count(
+            f"SELECT count(*) {media_join} WHERE m.kind = 'video' {and_}"),
+        "transcripts": count(
+            f"SELECT count(*) {txt_join} WHERE t.status = 'ok' {and_}"),
+        "untranscribable": count(
+            f"SELECT count(*) {txt_join} WHERE t.status != 'ok' {and_}"),
+        "collections": count(
+            "SELECT count(DISTINCT p.collection) FROM posts p "
+            f"WHERE p.collection IS NOT NULL {and_}"),
+    }

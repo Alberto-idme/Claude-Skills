@@ -784,6 +784,120 @@ def test_profile_lock_blocks_a_second_browser_command():
         third.release()
 
 
+# ---------------------------------------------------------------------------
+# collection scoping
+#
+# The point of scoping is that a single-collection run can be measured without
+# the rest of the archive bleeding into the numbers.
+# ---------------------------------------------------------------------------
+
+JAPAN_URL = "https://www.instagram.com/tolis/saved/japan/18075071974439078/"
+
+
+def _two_collection_db(tmp):
+    """One post in 'japan', one in 'sf', one uncollected."""
+    from ig_saved.config import Config as Cfg
+
+    cfg = Cfg(root=Path(tmp))
+    cfg.ensure_dirs()
+    conn = db.connect(cfg.db_path)
+    db.upsert_posts(
+        conn,
+        [
+            Post(shortcode="J1", url="https://www.instagram.com/p/J1/",
+                 collection="japan", caption="kyoto ramen",
+                 media=[MediaRef(0, "image", "https://cdn/j.jpg"),
+                        MediaRef(1, "video", "https://cdn/j.mp4")]),
+            Post(shortcode="S1", url="https://www.instagram.com/p/S1/",
+                 collection="sf", caption="mission burrito",
+                 media=[MediaRef(0, "video", "https://cdn/s.mp4")]),
+            Post(shortcode="U1", url="https://www.instagram.com/p/U1/",
+                 caption="uncollected ramen",
+                 media=[MediaRef(0, "image", "https://cdn/u.jpg")]),
+        ],
+    )
+    return cfg, conn
+
+
+def test_collection_name_resolves_from_url():
+    from ig_saved.cli import _collection_name
+
+    assert _collection_name(JAPAN_URL) == "japan"
+    assert _collection_name("japan") == "japan"
+    assert _collection_name("18075071974439078") == "18075071974439078"
+    assert _collection_name(None) is None
+
+
+def test_pending_downloads_scoped_to_collection():
+    with tempfile.TemporaryDirectory() as tmp:
+        _cfg, conn = _two_collection_db(tmp)
+        assert len(db.pending_downloads(conn)) == 4  # everything
+        japan = db.pending_downloads(conn, collection="japan")
+        assert {r["shortcode"] for r in japan} == {"J1"}
+        assert len(japan) == 2  # both of J1's files
+
+
+def test_pending_transcripts_scoped_to_collection():
+    with tempfile.TemporaryDirectory() as tmp:
+        _cfg, conn = _two_collection_db(tmp)
+        for row in db.pending_downloads(conn):
+            db.mark_downloaded(conn, row["id"], f"/tmp/{row['shortcode']}-{row['idx']}")
+
+        assert len(db.pending_transcripts(conn)) == 2  # J1 video + S1 video
+        japan = db.pending_transcripts(conn, collection="japan")
+        assert [r["shortcode"] for r in japan] == ["J1"]
+
+
+def test_stats_scoped_to_collection():
+    with tempfile.TemporaryDirectory() as tmp:
+        _cfg, conn = _two_collection_db(tmp)
+        overall = db.stats(conn)
+        japan = db.stats(conn, "japan")
+
+        assert overall["posts"] == 3 and japan["posts"] == 1
+        assert overall["media"] == 4 and japan["media"] == 2
+        assert overall["videos"] == 2 and japan["videos"] == 1
+
+
+def test_search_scoped_to_collection():
+    with tempfile.TemporaryDirectory() as tmp:
+        _cfg, conn = _two_collection_db(tmp)
+        db.reindex(conn)
+
+        # 'ramen' appears in japan and in an uncollected post.
+        assert {r["shortcode"] for r in db.search(conn, "ramen")} == {"J1", "U1"}
+        assert [r["shortcode"] for r in db.search(conn, "ramen",
+                                                  collection="japan")] == ["J1"]
+        assert db.search(conn, "burrito", collection="japan") == []
+
+
+def test_scoped_download_leaves_other_collections_alone():
+    from ig_saved import media as media_mod
+
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg, conn = _two_collection_db(tmp)
+        # Mark only japan's files as downloaded, as a scoped run would.
+        for row in db.pending_downloads(conn, collection="japan"):
+            db.mark_downloaded(conn, row["id"], f"/tmp/{row['shortcode']}")
+
+        assert db.pending_downloads(conn, collection="japan") == []
+        assert len(db.pending_downloads(conn)) == 2  # sf + uncollected untouched
+        assert db.stats(conn, "japan")["downloaded"] == 2
+        assert db.stats(conn)["downloaded"] == 2
+
+
+def test_cli_wires_collection_through_every_stage():
+    from ig_saved.cli import build_parser, _collection_name
+
+    parser = build_parser()
+    for command in ("media", "transcribe", "stats"):
+        args = parser.parse_args([command, "--collection", JAPAN_URL])
+        assert _collection_name(args.collection) == "japan", command
+
+    args = parser.parse_args(["search", "ramen", "--collection", JAPAN_URL])
+    assert _collection_name(args.collection) == "japan"
+
+
 def test_doctor_runs_and_reports():
     from ig_saved import doctor
     from ig_saved.config import Config as Cfg

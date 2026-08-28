@@ -242,6 +242,48 @@ instead of costing model time on every future run. `ig-saved stats` reports
 > **CDN URLs expire within hours.** If `media` reports expired URLs, refresh
 > them rather than retrying: `ig-saved hydrate --only-expired`.
 
+## Validating on one collection
+
+Before committing to a full archive, run one collection end to end. Every stage
+takes `--collection`, so the numbers stay clean even when the database already
+holds other posts:
+
+```bash
+COLL='https://www.instagram.com/<you>/saved/japan/18075071974439078/'
+
+ig-saved index --source browser --collection "$COLL"
+ig-saved media      --collection japan
+ig-saved transcribe --collection japan
+ig-saved stats      --collection japan
+ig-saved search 'ramen' --collection japan
+```
+
+`--collection` accepts the URL, the numeric id, or the bare name — indexing
+stamps posts with the URL's slug, and the later stages resolve back to it.
+
+`stats` reads top to bottom as the funnel. A stage well below the one above it
+is where the problem is:
+
+```
+collection 'japan'
+
+           posts: 2
+        hydrated: 2  (100%)     ← below 100% means hydration is failing
+     media files: 2
+      downloaded: 2  (100%)     ← below 100% usually means expired CDN URLs
+          videos: 1
+     transcribed: 0  (0%)       ← 0% with videos > 0 means Whisper isn't running
+```
+
+What each shortfall means:
+
+| Symptom | Cause |
+|---|---|
+| `hydrated` < `posts` | posts indexed from an export, never hydrated |
+| `downloaded` < `media files` | CDN URLs expired — `hydrate --only-expired` |
+| `transcribed` + `no speech/audio` < `videos` | transcription hasn't finished |
+| `transcribed` 0%, no `no speech/audio` | no Whisper backend — run `doctor` |
+
 ## Large archives
 
 Transcription is orders of magnitude slower than everything else, so past a few

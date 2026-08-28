@@ -31,6 +31,21 @@ def _config(args: argparse.Namespace) -> Config:
     return cfg
 
 
+def _collection_name(value: str | None) -> str | None:
+    """Resolve whatever the user passed into the name stored on posts.
+
+    `index --collection <url>` stamps posts with the URL's slug, so the later
+    stages have to scope by that same slug, not the raw URL.
+    """
+    if not value:
+        return None
+    parsed = parse_collection_url(value)
+    if parsed:
+        _owner, slug, collection_id = parsed
+        return slug or collection_id
+    return value
+
+
 def _expired_shortcodes(conn) -> list[str]:
     return [
         r["shortcode"]
@@ -199,8 +214,11 @@ def cmd_hydrate(args) -> int:
 def cmd_media(args) -> int:
     cfg = _config(args)
     conn = db.connect(cfg.db_path)
+    collection = _collection_name(getattr(args, "collection", None))
+    if collection:
+        print(f"Scoped to collection '{collection}'.", file=sys.stderr)
     counts = media_mod.download_all(
-        conn, cfg, workers=args.workers, limit=args.limit
+        conn, cfg, workers=args.workers, limit=args.limit, collection=collection
     )
     print(
         f"Downloaded {counts['downloaded']} files "
@@ -213,9 +231,13 @@ def cmd_media(args) -> int:
 def cmd_transcribe(args) -> int:
     cfg = _config(args)
     conn = db.connect(cfg.db_path)
+    collection = _collection_name(getattr(args, "collection", None))
+    if collection:
+        print(f"Scoped to collection '{collection}'.", file=sys.stderr)
     counts = transcribe_mod.transcribe_all(
         conn, cfg, limit=args.limit,
         retry_failed=getattr(args, "retry_failed", False),
+        collection=collection,
     )
     db.reindex(conn)
     print(
@@ -231,7 +253,8 @@ def cmd_transcribe(args) -> int:
 def cmd_search(args) -> int:
     cfg = _config(args)
     conn = db.connect(cfg.db_path)
-    rows = db.search(conn, args.query, limit=args.limit)
+    rows = db.search(conn, args.query, limit=args.limit,
+                     collection=_collection_name(getattr(args, "collection", None)))
     if not rows:
         print("No matches.")
         return 0
@@ -249,10 +272,31 @@ def cmd_search(args) -> int:
 def cmd_stats(args) -> int:
     cfg = _config(args)
     conn = db.connect(cfg.db_path)
-    for key, value in db.stats(conn).items():
-        print(f"{key:>12}: {value}")
-    print(f"{'db':>12}: {cfg.db_path}")
-    print(f"{'media':>12}: {cfg.media_dir}")
+    collection = _collection_name(getattr(args, "collection", None))
+    s = db.stats(conn, collection)
+
+    scope = f"collection '{collection}'" if collection else "all collections"
+    print(f"{scope}\n")
+
+    def pct(part: int, whole: int) -> str:
+        return f"  ({100 * part // whole}%)" if whole else ""
+
+    # Read top to bottom as the funnel: indexed -> hydrated -> downloaded ->
+    # transcribed. A stage well below the one above it is where to look.
+    print(f"{'posts':>16}: {s['posts']}")
+    print(f"{'hydrated':>16}: {s['hydrated']}{pct(s['hydrated'], s['posts'])}")
+    print(f"{'media files':>16}: {s['media']}")
+    print(f"{'downloaded':>16}: {s['downloaded']}{pct(s['downloaded'], s['media'])}")
+    print(f"{'videos':>16}: {s['videos']}")
+    print(f"{'transcribed':>16}: {s['transcripts']}"
+          f"{pct(s['transcripts'], s['videos'])}")
+    if s["untranscribable"]:
+        print(f"{'no speech/audio':>16}: {s['untranscribable']}")
+    if not collection:
+        print(f"{'collections':>16}: {s['collections']}")
+
+    print(f"\n{'db':>16}: {cfg.db_path}")
+    print(f"{'media':>16}: {cfg.media_dir}")
     return 0
 
 
@@ -381,10 +425,12 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("media", help="download images and videos")
     p.add_argument("--workers", type=int, default=4)
     p.add_argument("--limit", type=int)
+    p.add_argument("--collection", help="only this collection (URL, id or name)")
     p.set_defaults(func=cmd_media)
 
     p = sub.add_parser("transcribe", help="transcribe saved reels")
     p.add_argument("--limit", type=int)
+    p.add_argument("--collection", help="only this collection (URL, id or name)")
     p.add_argument("--retry-failed", action="store_true",
                    help="re-attempt videos that errored (not ones with no "
                         "speech or no audio track, which will not change)")
@@ -394,9 +440,11 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("search", help="full-text search captions and transcripts")
     p.add_argument("query")
     p.add_argument("--limit", type=int, default=20)
+    p.add_argument("--collection", help="only this collection (URL, id or name)")
     p.set_defaults(func=cmd_search)
 
-    p = sub.add_parser("stats", help="what is in the database")
+    p = sub.add_parser("stats", help="funnel counts, overall or per collection")
+    p.add_argument("--collection", help="only this collection (URL, id or name)")
     p.set_defaults(func=cmd_stats)
 
     p = sub.add_parser("dump", help="write every post as JSONL")

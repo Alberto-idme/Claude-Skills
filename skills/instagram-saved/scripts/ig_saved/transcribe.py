@@ -107,8 +107,11 @@ def transcribe_all(
     *,
     limit: int | None = None,
     retry_failed: bool = False,
+    collection: str | None = None,
 ) -> dict:
-    rows = db.pending_transcripts(conn, retry_failed=retry_failed)
+    rows = db.pending_transcripts(
+        conn, retry_failed=retry_failed, collection=collection
+    )
     if limit:
         rows = rows[:limit]
     if not rows:
