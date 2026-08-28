@@ -10,6 +10,7 @@ Structured outputs guarantee the shape, so the report never has to parse prose.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 import sys
@@ -25,6 +26,9 @@ CATEGORIES = [
     "recipe", "tip", "guide", "product", "other",
 ]
 ACTIONS = ["visit", "book_ahead", "order", "cook", "buy", "read_more", "none"]
+
+# Why an entry is flagged decides whether another pass can ever help.
+REVIEW_KINDS = ["none", "fixable", "source_limit"]
 
 SCHEMA = {
     "type": "object",
@@ -62,10 +66,20 @@ SCHEMA = {
                            "few words (e.g. 'name legible but no city', "
                            "'lists 8 places, none detailed'). Empty otherwise.",
         },
+        "review_kind": {
+            "type": "string",
+            "enum": REVIEW_KINDS,
+            "description": "'fixable' when the detail looks present but came "
+                           "through garbled or partial, so a better read could "
+                           "recover it. 'source_limit' when the post itself "
+                           "never carried it — deliberately unnamed, a bare "
+                           "list, audio that is only music. 'none' when not "
+                           "flagged.",
+        },
     },
     "required": ["title", "category", "location", "summary", "highlights",
                  "action", "practical", "confidence", "needs_review",
-                 "review_reason"],
+                 "review_reason", "review_kind"],
     "additionalProperties": False,
 }
 
@@ -80,7 +94,10 @@ SYSTEM = (
     "list covering several places, describe the list as a whole and say so in "
     "the summary. Set confidence to low and needs_review to true when the "
     "sources are thin, contradictory, or name nothing specific, and say "
-    "which in review_reason so it can be triaged without reopening the post. "
+    "which in review_reason so it can be triaged without reopening the post, "
+    "and set review_kind to say whether another pass could ever recover it. "
+    "Text that arrived garbled or truncated is 'fixable'; detail the post "
+    "never contained is 'source_limit' and must not be chased. "
     "Write in "
     "English even when the sources are not, but keep proper names in their "
     "original script with a romanisation in parentheses where you are sure."
@@ -170,43 +187,65 @@ def run_all(
     dry_run: bool = False,
     redo: bool = False,
     only_flagged: bool = False,
+    force: bool = False,
 ) -> dict:
     rows = db.pending_entries(conn, collection=collection, redo=redo,
                               only_flagged=only_flagged)
     if limit:
         rows = rows[:limit]
     if not rows:
-        return {"extracted": 0, "skipped": 0, "failed": 0}
+        return {"extracted": 0, "skipped": 0, "failed": 0, "unchanged": 0}
+
+    # Re-running over evidence that has not moved bills the model to produce
+    # the answer already on disk. Only worth it once OCR or transcription has
+    # actually improved the input.
+    stored = {r["shortcode"]: r["evidence_hash"]
+              for r in conn.execute(
+                  "SELECT shortcode, evidence_hash FROM entries")}
 
     prepared: list[tuple[str, str, dict]] = []
+    unchanged = 0
     for row in rows:
         evidence, present = _evidence(conn, row["shortcode"])
-        if evidence.strip():
-            prepared.append((row["shortcode"], evidence, present))
+        if not evidence.strip():
+            continue
+        digest = hashlib.sha256(evidence.encode("utf-8")).hexdigest()
+        if not force and stored.get(row["shortcode"]) == digest:
+            unchanged += 1
+            continue
+        prepared.append((row["shortcode"], evidence, present, digest))
+
+    if unchanged:
+        print(f"  {unchanged} unchanged since last extract — skipping "
+              f"(--force to re-run anyway)", file=sys.stderr)
 
     if dry_run:
-        chars = sum(len(e) for _c, e, _p in prepared)
+        chars = sum(len(e) for _c, e, _p, _h in prepared)
         tokens = chars // 3 + 400 * len(prepared)
         cost = (tokens * 5 + 300 * len(prepared) * 25) / 1_000_000
         print(f"  {len(prepared)} posts, ~{tokens:,} input tokens", file=sys.stderr)
         print(f"  estimated ~${cost:.2f}"
               f"{'' if batch else f' (~${cost / 2:.2f} with --batch)'}",
               file=sys.stderr)
-        return {"extracted": 0, "skipped": len(rows), "failed": 0}
+        return {"extracted": 0, "skipped": len(rows), "failed": 0,
+                "unchanged": unchanged}
 
     if not prepared:
-        return {"extracted": 0, "skipped": len(rows), "failed": 0}
+        return {"extracted": 0, "skipped": len(rows), "failed": 0,
+                "unchanged": unchanged}
 
     client = _client(cfg)
     print(f"  {MODEL}: {len(prepared)} posts", file=sys.stderr)
-    if batch:
-        return _run_batch(conn, client, prepared)
-    return _run_serial(conn, client, prepared)
+    counts = (_run_batch(conn, client, prepared) if batch
+              else _run_serial(conn, client, prepared))
+    counts["unchanged"] = unchanged
+    return counts
 
 
-def _record(conn, shortcode: str, parsed: dict, present: dict) -> None:
+def _record(conn, shortcode: str, parsed: dict, present: dict,
+            digest: str = "") -> None:
     db.save_entry(
-        conn, shortcode=shortcode, model=MODEL,
+        conn, shortcode=shortcode, model=MODEL, evidence_hash=digest,
         sources=sorted(present), **parsed,
     )
 
@@ -215,7 +254,7 @@ def _run_serial(conn, client, prepared: Iterable[tuple]) -> dict:
     prepared = list(prepared)
     counts = {"extracted": 0, "skipped": 0, "failed": 0}
 
-    for n, (shortcode, evidence, present) in enumerate(prepared, 1):
+    for n, (shortcode, evidence, present, digest) in enumerate(prepared, 1):
         try:
             message = client.messages.create(**_params(evidence))
         except Exception as exc:  # noqa: BLE001 - keep going through the archive
@@ -228,7 +267,7 @@ def _run_serial(conn, client, prepared: Iterable[tuple]) -> dict:
             counts["failed"] += 1
             continue
 
-        _record(conn, shortcode, parsed, present)
+        _record(conn, shortcode, parsed, present, digest)
         counts["extracted"] += 1
         print(f"  [{n}/{len(prepared)}] {shortcode}: {parsed['category']} — "
               f"{parsed['title'] or parsed['summary'][:40]}", file=sys.stderr)
@@ -273,7 +312,7 @@ def _run_batch(conn, client, prepared: Iterable[tuple]) -> dict:
         if parsed is None:
             counts["failed"] += 1
             continue
-        _record(conn, item[0], parsed, item[2])
+        _record(conn, item[0], parsed, item[2], item[3])
         counts["extracted"] += 1
 
     return counts

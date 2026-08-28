@@ -1145,6 +1145,7 @@ def _save(conn, shortcode, **over):
         summary="Counter ramen.", highlights=["extra rich broth"],
         action="visit", practical="open late", confidence="high",
         needs_review=False, sources=["caption"], model="claude-opus-5",
+        review_kind="none",
     )
     payload.update(over)
     db.save_entry(conn, shortcode=shortcode, **payload)
@@ -1795,6 +1796,104 @@ def test_extract_and_describe_are_pinned_to_one_model():
     assert extract_mod.MODEL == "claude-opus-5"
     assert describe_mod.MODEL == "claude-opus-5"
     assert extract_mod._params("x")["model"] == extract_mod.MODEL
+
+
+def test_extract_skips_posts_whose_evidence_has_not_changed():
+    """Re-running over identical input bills the model to reproduce what is
+    already on disk — one real re-run was wasted exactly that way."""
+    from ig_saved.config import Config as Cfg
+    from ig_saved import extract as extract_mod
+
+    calls: list[str] = []
+
+    class _Stub:
+        def __init__(self):
+            self.messages = self
+
+        def create(self, **kw):
+            calls.append(kw["messages"][0]["content"])
+
+            class M:
+                class B:
+                    type = "text"
+                    text = json.dumps({
+                        "title": "X", "category": "restaurant", "location": "",
+                        "summary": "s", "highlights": [], "action": "visit",
+                        "practical": "", "confidence": "low",
+                        "needs_review": True, "review_reason": "thin",
+                        "review_kind": "fixable"})
+                content = [B()]
+            return M()
+
+    extract_mod._client = lambda _c: _Stub()
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = Cfg(root=Path(tmp))
+        cfg.ensure_dirs()
+        conn = db.connect(cfg.db_path)
+        db.upsert_posts(conn, [Post(shortcode="A", url="u",
+                                    caption="best ramen in shibuya")])
+
+        first = extract_mod.run_all(conn, cfg)
+        assert first["extracted"] == 1 and len(calls) == 1
+
+        # Nothing changed: the flagged re-run must cost nothing.
+        second = extract_mod.run_all(conn, cfg, only_flagged=True)
+        assert second["extracted"] == 0
+        assert second["unchanged"] == 1
+        assert len(calls) == 1
+
+        # --force overrides.
+        forced = extract_mod.run_all(conn, cfg, only_flagged=True, force=True)
+        assert forced["extracted"] == 1 and len(calls) == 2
+
+        # A better OCR read changes the evidence, so it runs again on its own.
+        db.upsert_posts(conn, [Post(shortcode="A", url="u",
+                                    media=[MediaRef(0, "video", "v")])])
+        mid = db.pending_downloads(conn)[0]["id"]
+        db.mark_downloaded(conn, mid, "/tmp/v.mp4")
+        db.save_ocr(conn, media_id=mid, shortcode="A", text="ICHIRAN SHIBUYA",
+                    lines=[{"t": 0, "text": "ICHIRAN SHIBUYA"}], frames=9,
+                    engine="rapidocr")
+        after = extract_mod.run_all(conn, cfg, only_flagged=True)
+        assert after["extracted"] == 1 and after["unchanged"] == 0
+        assert len(calls) == 3
+
+
+def test_review_kind_separates_fixable_from_the_source_floor():
+    """Halving the OCR interval buys better names; it cannot manufacture an
+    address that was never on screen. The flag has to say which."""
+    from ig_saved.extract import REVIEW_KINDS, SCHEMA
+
+    assert SCHEMA["properties"]["review_kind"]["enum"] == REVIEW_KINDS
+    assert set(SCHEMA["required"]) == set(SCHEMA["properties"])
+
+    with tempfile.TemporaryDirectory() as tmp:
+        _cfg, conn = _entry_db(tmp)
+        _save(conn, "J1", needs_review=True, review_reason="name garbled",
+              review_kind="fixable")
+        _save(conn, "S1", needs_review=True,
+              review_reason="deliberately unnamed", review_kind="source_limit")
+
+        kinds = {r["shortcode"]: r["review_kind"] for r in db.entries(conn)}
+        assert kinds == {"J1": "fixable", "S1": "source_limit"}
+
+
+def test_report_labels_the_floor_differently_from_the_recheck():
+    from ig_saved import report as report_mod
+
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg, conn = _entry_db(tmp)
+        _save(conn, "J1", title="Garbled", needs_review=True,
+              review_reason="name garbled", review_kind="fixable")
+        _save(conn, "S1", title="Unnamed", needs_review=True,
+              review_reason="deliberately unnamed", review_kind="source_limit")
+
+        page = report_mod.build(conn, cfg, Path(tmp) / "r")["html"].read_text()
+        assert ">recheck<" in page
+        assert ">source limit<" in page
+        assert 'data-kind="fixable"' in page
+        # The toggle isolates what is worth paying for, not every flag.
+        assert "worth another pass" in page
 
 
 def _run() -> int:

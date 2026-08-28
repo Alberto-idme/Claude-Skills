@@ -431,12 +431,28 @@ the outliers are real; the report groups by the trailing part of each location
 (`Shibuya, Tokyo` and `Otemachi, Tokyo` both become `Tokyo`) so anything
 out-of-place is one dropdown away.
 
-Flagged entries carry a `review_reason` saying what was missing, so a
-`needs_review` row can be triaged without reopening the post. To re-run just
-those, rather than re-billing the whole collection:
+Flagged entries carry a `review_reason` saying what was missing, and a
+`review_kind` saying whether another pass could ever recover it:
+
+| `review_kind` | Meaning |
+|---|---|
+| `fixable` | the detail is there but came through garbled — a denser OCR read may recover it |
+| `source_limit` | the post never carried it: deliberately unnamed, a bare list, audio that is only music |
+
+That distinction matters because the flag count is a poor progress metric. On a
+real run, halving the OCR interval resolved names on 6 of 14 flagged entries —
+浅草店 became 浅草一丁 — while the count stayed at 14, because the rest were floors
+rather than failures. The report's toggle isolates `fixable` only, so you chase
+what can move.
+
+Re-running is cheap by default: extraction hashes the evidence it sent and
+skips posts whose input has not changed, because re-billing the model to
+reproduce an answer already on disk is pure waste.
 
 ```bash
-ig-saved extract --collection japan --only-flagged
+ig-saved ocr     --collection japan --only-flagged --interval 0.5
+ig-saved extract --collection japan --only-flagged   # only what OCR improved
+ig-saved extract --collection japan --only-flagged --force   # ignore the hash
 ```
 
 Extraction uses structured outputs, so the shape is guaranteed and the report
@@ -497,8 +513,17 @@ other people's — fine to archive and search privately, not to republish.
 
 ```bash
 cd scripts
-python3 test_ig_saved.py       # 40 unit tests; no network, no session
-python3 test_browser_e2e.py    # 20 e2e checks against a mock Instagram
+./check.sh            # everything
+./check.sh --quick    # offline unit tests only, a few seconds
+```
+
+```
+test_ig_saved.py         offline unit tests                    98/98 passed
+test_browser_e2e.py      browser against mock Instagram        21/21 passed
+test_ocr_e2e.py          OCR and vision on real video          28/28 passed
+test_pipeline_smoke.py   whole chain, mock in -> report out    ok
+
+All suites passed.
 ```
 
 `test_ig_saved.py` covers URL parsing, shortcode↔id decoding, export-format

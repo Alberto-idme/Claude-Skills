@@ -118,6 +118,8 @@ CREATE TABLE IF NOT EXISTS entries (
     confidence   TEXT,
     needs_review INTEGER NOT NULL DEFAULT 0,
     review_reason TEXT,
+    review_kind  TEXT,
+    evidence_hash TEXT,
     sources      TEXT,
     model        TEXT,
     created_at   INTEGER
@@ -216,9 +218,10 @@ def _migrate(conn: sqlite3.Connection) -> None:
     columns added after someone started archiving have to be ALTERed in.
     """
     entry_columns = {r["name"] for r in conn.execute("PRAGMA table_info(entries)")}
-    if entry_columns and "review_reason" not in entry_columns:
-        conn.execute("ALTER TABLE entries ADD COLUMN review_reason TEXT")
-        conn.commit()
+    for column in ("review_reason", "review_kind", "evidence_hash"):
+        if entry_columns and column not in entry_columns:
+            conn.execute(f"ALTER TABLE entries ADD COLUMN {column} TEXT")
+            conn.commit()
 
     columns = {r["name"] for r in conn.execute("PRAGMA table_info(transcripts)")}
     if columns and "status" not in columns:
@@ -519,14 +522,15 @@ def save_entry(
     location: str, summary: str, highlights: list, action: str,
     practical: str, confidence: str, needs_review: bool,
     sources: list, model: str, review_reason: str = "",
+    review_kind: str = "none", evidence_hash: str = "",
 ) -> None:
     conn.execute(
         """
         INSERT INTO entries (shortcode, title, category, location, summary,
                              highlights, action, practical, confidence,
-                             needs_review, review_reason, sources, model,
-                             created_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                             needs_review, review_reason, review_kind,
+                             evidence_hash, sources, model, created_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         ON CONFLICT(shortcode) DO UPDATE SET
             title = excluded.title, category = excluded.category,
             location = excluded.location, summary = excluded.summary,
@@ -534,13 +538,15 @@ def save_entry(
             practical = excluded.practical, confidence = excluded.confidence,
             needs_review = excluded.needs_review,
             review_reason = excluded.review_reason,
+            review_kind = excluded.review_kind,
+            evidence_hash = excluded.evidence_hash,
             sources = excluded.sources,
             model = excluded.model, created_at = excluded.created_at
         """,
         (shortcode, title, category, location, summary,
          json.dumps(highlights, ensure_ascii=False), action, practical,
-         confidence, int(bool(needs_review)), review_reason,
-         json.dumps(sources), model, int(time.time())),
+         confidence, int(bool(needs_review)), review_reason, review_kind,
+         evidence_hash, json.dumps(sources), model, int(time.time())),
     )
     conn.commit()
 

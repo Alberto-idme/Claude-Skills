@@ -280,6 +280,7 @@ def cmd_ocr(args) -> int:
         interval=args.interval, images=not args.videos_only,
         redo=getattr(args, "redo", False),
         only_flagged=getattr(args, "only_flagged", False),
+        force=getattr(args, "force", False),
     )
     db.reindex(conn)
     print(f"Read text from {counts['read']} files "
@@ -389,11 +390,14 @@ def cmd_extract(args) -> int:
         conn, cfg, limit=args.limit, collection=collection,
         batch=args.batch, dry_run=args.dry_run, redo=args.redo,
         only_flagged=getattr(args, "only_flagged", False),
+        force=getattr(args, "force", False),
     )
     if args.dry_run:
         return 0
+    unchanged = counts.get("unchanged", 0)
     print(f"Extracted {counts['extracted']} entries "
-          f"({counts['skipped']} skipped, {counts['failed']} failed).")
+          f"({unchanged} unchanged, {counts['skipped']} skipped, "
+          f"{counts['failed']} failed).")
     return 0
 
 
@@ -669,6 +673,9 @@ def build_parser() -> argparse.ArgumentParser:
                    help="re-extract posts that already have an entry")
     p.add_argument("--only-flagged", action="store_true",
                    help="re-extract only entries marked needs_review")
+    p.add_argument("--force", action="store_true",
+                   help="re-extract even when the evidence has not changed "
+                        "since the last run")
     p.set_defaults(func=cmd_extract)
 
     p = sub.add_parser("report", help="build the categorised, actionable output")
@@ -719,6 +726,7 @@ def build_parser() -> argparse.ArgumentParser:
                    help="also distil entries and build the report")
     p.add_argument("--redo", action="store_true")
     p.add_argument("--only-flagged", action="store_true")
+    p.add_argument("--force", action="store_true")
     p.add_argument("--out")
     p.add_argument("--format", action="append", choices=["html", "csv", "md"])
     add_browser_flags(p)

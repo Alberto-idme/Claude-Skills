@@ -58,7 +58,7 @@ def _thumbnail(cfg: Config, conn: sqlite3.Connection, shortcode: str,
 
 CSV_FIELDS = ["category", "title", "location", "region", "summary", "action",
               "practical", "highlights", "confidence", "needs_review",
-              "review_reason", "collections", "author_username", "url", "sources"]
+              "review_reason", "review_kind", "collections", "author_username", "url", "sources"]
 
 
 def region_of(location: str | None) -> str:
@@ -192,7 +192,7 @@ function apply(){
       &&(!act.value||c.dataset.act===act.value)
       &&(!coll.value||(c.dataset.coll||'').split(', ').includes(coll.value))
       &&(!reg.value||c.dataset.region===reg.value)
-      &&(!rev.checked||c.dataset.review==='1');
+      &&(!rev.checked||c.dataset.kind==='fixable');
     c.hidden=!ok; if(ok)shown++;
   }
   for(const s of document.querySelectorAll('section')){
@@ -257,7 +257,10 @@ def write_html(rows: list[dict], path: Path, scope: str,
                               f'{_esc(reason)}</div>')
             chips = [f'<span class="chip act">{_esc(row["action"].replace("_", " "))}</span>']
             if row["needs_review"]:
-                chips.append('<span class="chip warn">check</span>')
+                kind = row.get("review_kind") or ""
+                label = "recheck" if kind == "fixable" else (
+                    "source limit" if kind == "source_limit" else "check")
+                chips.append(f'<span class="chip warn">{_esc(label)}</span>')
             if row.get("collections"):
                 chips.append(f'<span class="chip">{_esc(row["collections"])}</span>')
             chips.append(f'<span class="chip">{_esc(row["confidence"])}</span>')
@@ -268,6 +271,7 @@ def write_html(rows: list[dict], path: Path, scope: str,
       data-coll="{_esc(row.get('collections'))}"
       data-region="{_esc(row['region'])}"
       data-review="{1 if row['needs_review'] else 0}"
+      data-kind="{_esc(row.get('review_kind'))}"
       data-text="{_esc(haystack)}">
       {thumb_html}
       <div>
@@ -308,7 +312,7 @@ def write_html(rows: list[dict], path: Path, scope: str,
   <select id="act">{options(actions, 'Any action')}</select>
   <select id="reg">{options(regions, 'Anywhere')}</select>
   <select id="coll">{options(sorted(collections), 'All collections')}</select>
-  <label class="toggle"><input type="checkbox" id="rev"> needs checking</label>
+  <label class="toggle"><input type="checkbox" id="rev"> worth another pass</label>
   <span class="sub" id="tally"></span>
 </div>
 <main>{''.join(sections)}
