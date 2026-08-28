@@ -583,8 +583,9 @@ def test_transcribe_skips_missing_files_without_failing():
             db.mark_downloaded(conn, media_id, "/nonexistent/gone.mp4")
 
             counts = t.transcribe_all(conn, cfg)
-            assert counts == {"transcribed": 0, "skipped": 1, "failed": 0}
-            assert calls == []
+            assert counts["skipped"] == 1
+            assert counts["transcribed"] == counts["failed"] == 0
+            assert calls == []  # the model was never invoked
     finally:
         t._BACKEND = None
 
@@ -619,6 +620,168 @@ def test_transcribe_survives_a_bad_video():
             assert counts["failed"] == 2 and counts["transcribed"] == 0
     finally:
         t._BACKEND = None
+
+
+def test_failed_transcript_is_not_retried_forever():
+    """A reel that can never be transcribed must drop out of the queue.
+
+    Regression: `DSTB7SvkyIi: tuple index out of range` was re-attempted on
+    every run, which on a large archive burns model time indefinitely.
+    """
+    from ig_saved.config import Config as Cfg
+    from ig_saved import transcribe as t
+
+    def explode(path):
+        raise IndexError("tuple index out of range")
+
+    t._BACKEND = ("stub-whisper", explode)
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg = Cfg(root=Path(tmp))
+            cfg.ensure_dirs()
+            conn = db.connect(cfg.db_path)
+            db.upsert_posts(
+                conn,
+                [Post(shortcode="DSTB7SvkyIi", url="u",
+                      media=[MediaRef(0, "video", "https://cdn/v.mp4")])],
+            )
+            row = db.pending_downloads(conn)[0]
+            video = Path(tmp) / "v.mp4"
+            video.write_bytes(b"x")
+            db.mark_downloaded(conn, row["id"], str(video))
+
+            first = t.transcribe_all(conn, cfg)
+            assert first["no_speech"] == 1, first
+            assert first["failed"] == 0
+
+            # Second run must not pick it up again.
+            assert db.pending_transcripts(conn) == []
+            assert t.transcribe_all(conn, cfg)["no_speech"] == 0
+
+            # ...unless explicitly asked to retry real errors.
+            conn.execute("UPDATE transcripts SET status = 'error'")
+            conn.commit()
+            assert len(db.pending_transcripts(conn, retry_failed=True)) == 1
+    finally:
+        t._BACKEND = None
+
+
+def test_empty_transcript_is_recorded_as_no_speech():
+    from ig_saved.config import Config as Cfg
+
+    t, _ = _stub_backend([])  # model ran fine, found nothing to say
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg = Cfg(root=Path(tmp))
+            cfg.ensure_dirs()
+            conn = db.connect(cfg.db_path)
+            db.upsert_posts(
+                conn,
+                [Post(shortcode="V1", url="u",
+                      media=[MediaRef(0, "video", "https://cdn/v.mp4")])],
+            )
+            row = db.pending_downloads(conn)[0]
+            video = Path(tmp) / "v.mp4"
+            video.write_bytes(b"x")
+            db.mark_downloaded(conn, row["id"], str(video))
+
+            counts = t.transcribe_all(conn, cfg)
+            assert counts["no_speech"] == 1 and counts["transcribed"] == 0
+            assert db.pending_transcripts(conn) == []
+    finally:
+        t._BACKEND = None
+
+
+def test_transcribe_classifies_real_errors_separately():
+    from ig_saved.config import Config as Cfg
+    from ig_saved import transcribe as t
+
+    assert t._classify(IndexError("tuple index out of range")) == "no_speech"
+    assert t._classify(ValueError("cannot reshape array of size 0")) == "no_speech"
+    assert t._classify(RuntimeError("CUDA out of memory")) == "error"
+
+
+def test_missing_file_stays_pending():
+    """An absent file may come back; it must not be written off."""
+    from ig_saved.config import Config as Cfg
+
+    t, _ = _stub_backend([{"start": 0, "end": 1, "text": "x"}])
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg = Cfg(root=Path(tmp))
+            cfg.ensure_dirs()
+            conn = db.connect(cfg.db_path)
+            db.upsert_posts(
+                conn,
+                [Post(shortcode="V1", url="u",
+                      media=[MediaRef(0, "video", "https://cdn/v.mp4")])],
+            )
+            row = db.pending_downloads(conn)[0]
+            db.mark_downloaded(conn, row["id"], "/nonexistent/gone.mp4")
+
+            assert t.transcribe_all(conn, cfg)["skipped"] == 1
+            assert len(db.pending_transcripts(conn)) == 1  # still queued
+    finally:
+        t._BACKEND = None
+
+
+def test_migration_adds_status_to_an_existing_database():
+    """Their database already has data; the upgrade must be non-destructive."""
+    import sqlite3 as sq
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "old.db"
+        old = sq.connect(path)
+        old.executescript(
+            """
+            CREATE TABLE transcripts (
+                media_id      INTEGER PRIMARY KEY,
+                shortcode     TEXT NOT NULL,
+                text          TEXT,
+                segments_json TEXT,
+                language      TEXT,
+                model         TEXT,
+                created_at    INTEGER
+            );
+            INSERT INTO transcripts VALUES
+                (1, 'V1', 'existing transcript', '[]', 'en', 'old-model', 123);
+            """
+        )
+        old.commit()
+        old.close()
+
+        conn = db.connect(path)  # runs the migration
+        row = conn.execute("SELECT * FROM transcripts").fetchone()
+        assert row["text"] == "existing transcript"  # data preserved
+        assert row["status"] == "ok"                 # backfilled
+
+        # And the migration is idempotent.
+        db.connect(path)
+        assert conn.execute("SELECT count(*) c FROM transcripts").fetchone()["c"] == 1
+
+
+def test_profile_lock_blocks_a_second_browser_command():
+    from ig_saved.sources.browser import ProfileBusy, _ProfileLock
+
+    with tempfile.TemporaryDirectory() as tmp:
+        first = _ProfileLock(Path(tmp))
+        first.acquire()
+        try:
+            second = _ProfileLock(Path(tmp))
+            try:
+                second.acquire()
+            except ProfileBusy as exc:
+                assert "one process per profile" in str(exc)
+                assert "search" in str(exc)  # tells you what you can run
+            else:
+                raise AssertionError("second acquire should have failed")
+        finally:
+            first.release()
+
+        # Once released, the profile is free again.
+        third = _ProfileLock(Path(tmp))
+        third.acquire()
+        third.release()
 
 
 def test_doctor_runs_and_reports():

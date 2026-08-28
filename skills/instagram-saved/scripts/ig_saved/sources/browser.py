@@ -21,9 +21,11 @@ on your own account, from your own machine, at the default pacing.
 from __future__ import annotations
 
 import json
+import os
 import random
 import sys
 import time
+from pathlib import Path
 from typing import Callable, Iterator
 
 from ..config import IG_APP_ID, Config
@@ -56,6 +58,67 @@ class NotLoggedIn(RuntimeError):
     pass
 
 
+class ProfileBusy(RuntimeError):
+    """Another ig-saved browser command holds the Chrome profile."""
+
+
+class _ProfileLock:
+    """Advisory lock over the Chrome profile directory.
+
+    Chrome allows exactly one process per user-data-dir, and a second command
+    otherwise dies deep inside Playwright with an opaque launch failure. This
+    turns that into a message that says what to do. Commands that never touch
+    the browser — search, stats, dump, media — take no lock and run freely
+    alongside, which WAL mode makes safe at the database level.
+    """
+
+    def __init__(self, profile: Path):
+        self.path = profile / ".ig-saved.lock"
+        self._handle = None
+
+    def acquire(self) -> None:
+        try:
+            import fcntl
+        except ImportError:  # Windows: skip, Chrome reports its own error
+            return
+
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._handle = open(self.path, "a+")
+        try:
+            fcntl.flock(self._handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            self._handle.seek(0)
+            holder = self._handle.read().strip() or "another process"
+            self._handle.close()
+            self._handle = None
+            raise ProfileBusy(
+                f"The browser profile is already in use by {holder}.\n"
+                "Chrome allows one process per profile, so browser commands "
+                "(login, collections, index/hydrate --source browser) run one "
+                "at a time.\n\n"
+                "Wait for it to finish, or meanwhile run something that needs "
+                "no browser:\n"
+                "    ig-saved search '...' | stats | dump | media"
+            ) from None
+
+        self._handle.seek(0)
+        self._handle.truncate()
+        self._handle.write(f"pid {os.getpid()}")
+        self._handle.flush()
+
+    def release(self) -> None:
+        if self._handle is None:
+            return
+        try:
+            import fcntl
+
+            fcntl.flock(self._handle, fcntl.LOCK_UN)
+        except (ImportError, OSError):
+            pass
+        self._handle.close()
+        self._handle = None
+
+
 class BrowserSession:
     """A persistent Chrome profile pointed at instagram.com."""
 
@@ -65,6 +128,7 @@ class BrowserSession:
         self._pw = None
         self._ctx = None
         self.page = None
+        self._lock = _ProfileLock(cfg.browser_profile)
 
     def __enter__(self) -> "BrowserSession":
         try:
@@ -76,27 +140,37 @@ class BrowserSession:
             ) from exc
 
         self.cfg.browser_profile.mkdir(parents=True, exist_ok=True)
-        self._pw = sync_playwright().start()
+        self._lock.acquire()
 
-        launch: dict = {
-            "user_data_dir": str(self.cfg.browser_profile),
-            "headless": self.headless,
-            "viewport": {"width": 1280, "height": 900},
-            "args": ["--disable-blink-features=AutomationControlled"],
-        }
-        if self.cfg.chrome_path:
-            launch["executable_path"] = self.cfg.chrome_path
-
+        # From here on the lock is held, so every failure path has to drop it.
         try:
-            self._ctx = self._pw.chromium.launch_persistent_context(**launch)
-        except Exception as exc:
-            if "Executable doesn't exist" in str(exc):
-                raise SystemExit(
-                    "Playwright has no browser to launch. Either:\n"
-                    "    playwright install chromium\n"
-                    "or point it at a Chrome you already have:\n"
-                    "    export IG_SAVED_CHROME=/path/to/chrome"
-                ) from exc
+            self._pw = sync_playwright().start()
+
+            launch: dict = {
+                "user_data_dir": str(self.cfg.browser_profile),
+                "headless": self.headless,
+                "viewport": {"width": 1280, "height": 900},
+                "args": ["--disable-blink-features=AutomationControlled"],
+            }
+            if self.cfg.chrome_path:
+                launch["executable_path"] = self.cfg.chrome_path
+
+            try:
+                self._ctx = self._pw.chromium.launch_persistent_context(**launch)
+            except Exception as exc:
+                if "Executable doesn't exist" in str(exc):
+                    raise SystemExit(
+                        "Playwright has no browser to launch. Either:\n"
+                        "    playwright install chromium\n"
+                        "or point it at a Chrome you already have:\n"
+                        "    export IG_SAVED_CHROME=/path/to/chrome"
+                    ) from exc
+                raise
+        except BaseException:
+            if self._pw:
+                self._pw.stop()
+                self._pw = None
+            self._lock.release()
             raise
 
         self.page = self._ctx.pages[0] if self._ctx.pages else self._ctx.new_page()
@@ -104,10 +178,13 @@ class BrowserSession:
         return self
 
     def __exit__(self, *exc) -> None:
-        if self._ctx:
-            self._ctx.close()
-        if self._pw:
-            self._pw.stop()
+        try:
+            if self._ctx:
+                self._ctx.close()
+            if self._pw:
+                self._pw.stop()
+        finally:
+            self._lock.release()
 
     # -- auth ------------------------------------------------------------
 

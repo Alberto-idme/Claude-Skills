@@ -32,6 +32,8 @@ def _load_backend(model_name: str):
 
         def run(path: Path):
             segments, info = model.transcribe(str(path), vad_filter=True)
+            # Segments are lazy; consuming them here is what actually decodes,
+            # so VAD errors surface inside this call rather than at the caller.
             out = [
                 {"start": s.start, "end": s.end, "text": s.text.strip()}
                 for s in segments
@@ -68,54 +70,108 @@ def _load_backend(model_name: str):
     )
 
 
+def has_audio(path: Path) -> bool | None:
+    """True/False if the container can be inspected, None if we cannot tell.
+
+    faster-whisper pulls in PyAV, so this is usually available for free and
+    saves loading a whole video into the model just to find it is silent.
+    """
+    try:
+        import av
+    except ImportError:
+        return None
+    try:
+        with av.open(str(path)) as container:
+            return bool(container.streams.audio)
+    except Exception:  # noqa: BLE001 - unreadable file; let Whisper have a go
+        return None
+
+
+# faster-whisper raises this out of feature extraction when VAD leaves nothing
+# behind — a music-only or silent reel. It is a property of the video, not a
+# bug, so it must not be retried on every run.
+_EMPTY_AUDIO_SIGNS = ("tuple index out of range", "index out of range",
+                      "cannot reshape array of size 0", "zero-size array")
+
+
+def _classify(exc: Exception) -> str:
+    message = str(exc).lower()
+    if any(sign in message for sign in _EMPTY_AUDIO_SIGNS):
+        return "no_speech"
+    return "error"
+
+
 def transcribe_all(
     conn: sqlite3.Connection,
     cfg: Config,
     *,
     limit: int | None = None,
+    retry_failed: bool = False,
 ) -> dict:
-    rows = db.pending_transcripts(conn)
+    rows = db.pending_transcripts(conn, retry_failed=retry_failed)
     if limit:
         rows = rows[:limit]
     if not rows:
-        return {"transcribed": 0, "skipped": 0, "failed": 0}
+        return {"transcribed": 0, "skipped": 0, "failed": 0,
+                "no_audio": 0, "no_speech": 0}
 
     backend, run = _load_backend(cfg.whisper_model)
-    print(
-        f"  {backend} / {cfg.whisper_model}: {len(rows)} videos",
-        file=sys.stderr,
-    )
+    model_label = f"{backend}:{cfg.whisper_model}"
+    print(f"  {backend} / {cfg.whisper_model}: {len(rows)} videos",
+          file=sys.stderr)
 
-    counts = {"transcribed": 0, "skipped": 0, "failed": 0}
+    counts = {"transcribed": 0, "skipped": 0, "failed": 0,
+              "no_audio": 0, "no_speech": 0}
 
-    for n, row in enumerate(rows, 1):
-        path = Path(row["local_path"])
-        if not path.exists():
-            counts["skipped"] += 1
-            continue
-
-        try:
-            segments, language = run(path)
-        except Exception as exc:  # noqa: BLE001 - a silent reel is not fatal
-            print(f"  {row['shortcode']}: {exc}", file=sys.stderr)
-            counts["failed"] += 1
-            continue
-
-        text = " ".join(s["text"] for s in segments).strip()
+    def record(row, *, text="", segments=(), language=None, status="ok") -> None:
         db.save_transcript(
             conn,
             media_id=row["id"],
             shortcode=row["shortcode"],
             text=text,
-            segments=segments,
+            segments=list(segments),
             language=language,
-            model=f"{backend}:{cfg.whisper_model}",
+            model=model_label,
+            status=status,
         )
+
+    for n, row in enumerate(rows, 1):
+        path = Path(row["local_path"])
+
+        # A file that is simply absent may come back; leave it pending.
+        if not path.exists():
+            counts["skipped"] += 1
+            continue
+
+        if has_audio(path) is False:
+            record(row, status="no_audio")
+            counts["no_audio"] += 1
+            print(f"  [{n}/{len(rows)}] {row['shortcode']}: no audio track",
+                  file=sys.stderr)
+            continue
+
+        try:
+            segments, language = run(path)
+        except Exception as exc:  # noqa: BLE001 - one bad reel is not fatal
+            status = _classify(exc)
+            record(row, status=status)
+            counts["no_speech" if status == "no_speech" else "failed"] += 1
+            detail = "no speech found" if status == "no_speech" else str(exc)
+            print(f"  [{n}/{len(rows)}] {row['shortcode']}: {detail}",
+                  file=sys.stderr)
+            continue
+
+        text = " ".join(s["text"] for s in segments).strip()
+        if not text:
+            record(row, language=language, status="no_speech")
+            counts["no_speech"] += 1
+            print(f"  [{n}/{len(rows)}] {row['shortcode']}: no speech found",
+                  file=sys.stderr)
+            continue
+
+        record(row, text=text, segments=segments, language=language)
         counts["transcribed"] += 1
-        print(
-            f"  [{n}/{len(rows)}] {row['shortcode']}: "
-            f"{len(text)} chars ({language})",
-            file=sys.stderr,
-        )
+        print(f"  [{n}/{len(rows)}] {row['shortcode']}: "
+              f"{len(text)} chars ({language})", file=sys.stderr)
 
     return counts

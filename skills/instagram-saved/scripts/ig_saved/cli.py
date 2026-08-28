@@ -104,7 +104,26 @@ def cmd_index(args) -> int:
         with _session(cfg, headless=args.headless) as session:
             session.ensure_login()
 
-            if args.collection:
+            if getattr(args, "all_collections", False):
+                # The saved feed is the complete set but carries no collection
+                # names; the per-collection feeds carry names but omit anything
+                # uncollected. Walk both — upserts merge them, so each post ends
+                # up complete and labelled.
+                print("Indexing all saved posts…", file=sys.stderr)
+                posts = list(session.all_saved(max_pages=args.max_pages))
+
+                collections = session.list_collections()
+                print(f"\nLabelling {len(collections)} collections…",
+                      file=sys.stderr)
+                for n, entry in enumerate(collections, 1):
+                    print(f"[{n}/{len(collections)}] {entry['name']} "
+                          f"({entry['count']} posts)", file=sys.stderr)
+                    posts += list(
+                        session.collection(entry["id"], name=entry["name"],
+                                           max_pages=args.max_pages)
+                    )
+
+            elif args.collection:
                 parsed = parse_collection_url(args.collection)
                 if not parsed:
                     print(
@@ -194,12 +213,18 @@ def cmd_media(args) -> int:
 def cmd_transcribe(args) -> int:
     cfg = _config(args)
     conn = db.connect(cfg.db_path)
-    counts = transcribe_mod.transcribe_all(conn, cfg, limit=args.limit)
+    counts = transcribe_mod.transcribe_all(
+        conn, cfg, limit=args.limit,
+        retry_failed=getattr(args, "retry_failed", False),
+    )
     db.reindex(conn)
     print(
         f"Transcribed {counts['transcribed']} videos "
-        f"({counts['skipped']} skipped, {counts['failed']} failed)."
+        f"({counts['no_speech']} no speech, {counts['no_audio']} no audio, "
+        f"{counts['skipped']} skipped, {counts['failed']} failed)."
     )
+    if counts["failed"]:
+        print("Retry the errors with: ig-saved transcribe --retry-failed")
     return 0
 
 
@@ -263,7 +288,11 @@ def cmd_sync(args) -> int:
     steps = [("index", cmd_index)]
     if args.source == "export":
         steps.append(("hydrate", cmd_hydrate))
-    steps += [("media", cmd_media), ("transcribe", cmd_transcribe)]
+    steps.append(("media", cmd_media))
+    # Transcription runs orders of magnitude slower than the rest, so on a
+    # large archive it is usually better run separately, in chunks.
+    if not getattr(args, "skip_transcribe", False):
+        steps.append(("transcribe", cmd_transcribe))
 
     for name, fn in steps:
         print(f"\n=== {name} ===", file=sys.stderr)
@@ -330,6 +359,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--source", choices=["export", "browser"], default="browser")
     p.add_argument("--path", help="export .zip / folder (for --source export)")
     p.add_argument("--collection", help="saved-collection URL or numeric id")
+    p.add_argument("--all-collections", action="store_true",
+                   help="index everything, then walk every collection so each "
+                        "post is labelled with the collection it is in")
     p.add_argument("--max-pages", type=int, help="stop after N pages")
     add_browser_flags(p)
     p.set_defaults(func=cmd_index)
@@ -353,6 +385,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("transcribe", help="transcribe saved reels")
     p.add_argument("--limit", type=int)
+    p.add_argument("--retry-failed", action="store_true",
+                   help="re-attempt videos that errored (not ones with no "
+                        "speech or no audio track, which will not change)")
     add_whisper_flags(p)
     p.set_defaults(func=cmd_transcribe)
 
@@ -372,6 +407,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--source", choices=["export", "browser"], default="browser")
     p.add_argument("--path")
     p.add_argument("--collection")
+    p.add_argument("--all-collections", action="store_true")
+    p.add_argument("--retry-failed", action="store_true")
     p.add_argument("--max-pages", type=int)
     p.add_argument("--via", choices=["apify", "browser"], default="browser")
     p.add_argument("--limit", type=int)
@@ -379,6 +416,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--only-expired", action="store_true")
     p.add_argument("--workers", type=int, default=4)
+    p.add_argument("--skip-transcribe", action="store_true",
+                   help="stop after downloading media; transcribe separately")
     add_browser_flags(p)
     add_apify_flags(p)
     add_whisper_flags(p)
@@ -397,6 +436,14 @@ def main(argv: list[str] | None = None) -> int:
     except (FileNotFoundError, LookupError, ValueError) as exc:
         print(f"\n{exc}", file=sys.stderr)
         return 1
+    except Exception as exc:  # noqa: BLE001
+        # ProfileBusy and NotLoggedIn carry instructions, not stack traces.
+        from .sources.browser import NotLoggedIn, ProfileBusy
+
+        if isinstance(exc, (NotLoggedIn, ProfileBusy)):
+            print(f"\n{exc}", file=sys.stderr)
+            return 1
+        raise
 
 
 if __name__ == "__main__":

@@ -145,13 +145,20 @@ ig-saved login          # opens a window; sign in by hand, once
 ig-saved collections    # lists your collections and their ids
 ```
 
-Then index everything, or one collection:
+Then index everything, one collection, or everything *with* collection labels:
 
 ```bash
-ig-saved index --source browser
+ig-saved index --source browser                    # all saved posts, unlabelled
+ig-saved index --source browser --all-collections  # all posts + their collections
 ig-saved index --source browser \
     --collection https://www.instagram.com/tolis/saved/japan/18075071974439078/
 ```
+
+`--all-collections` exists because neither feed alone is complete: the saved
+feed has every post but no collection names, while per-collection feeds have
+names but omit anything uncollected. It walks both and lets the upsert merge
+them, so every post ends up complete *and* labelled. It costs roughly double
+the requests — budget about a minute per 150 posts.
 
 `--collection` accepts the full saved-collection URL or the bare numeric id.
 Saved collections are private to their owner, so a URL under `/tolis/saved/…`
@@ -208,6 +215,7 @@ decode to media ids locally, so this costs one request per post and no lookups.
 ```bash
 ig-saved media                       # download images and videos
 ig-saved transcribe                  # Whisper over saved reels
+ig-saved transcribe --limit 200      # a chunk at a time
 ig-saved transcribe --whisper-model medium
 ```
 
@@ -217,8 +225,52 @@ Transcription prefers `faster-whisper`, which decodes audio through bundled
 PyAV and therefore needs **no system ffmpeg**. `openai-whisper` works too but
 requires ffmpeg on PATH.
 
+Not every reel yields text, and the difference matters:
+
+| Outcome | Meaning | Retried? |
+|---------|---------|----------|
+| `ok` | speech transcribed | no |
+| `no_speech` | music-only or silent | no — it will never change |
+| `no_audio` | the video has no audio track | no — same |
+| `error` | something genuinely went wrong | with `--retry-failed` |
+| *(skipped)* | the file is missing from disk | yes, stays queued |
+
+Each outcome is recorded, so an untranscribable reel drops out of the queue
+instead of costing model time on every future run. `ig-saved stats` reports
+`untranscribable` separately from `transcripts`.
+
 > **CDN URLs expire within hours.** If `media` reports expired URLs, refresh
 > them rather than retrying: `ig-saved hydrate --only-expired`.
+
+## Large archives
+
+Transcription is orders of magnitude slower than everything else, so past a few
+hundred posts stop running it inside `sync`:
+
+```bash
+ig-saved sync --source browser --all-collections --skip-transcribe
+ig-saved transcribe --limit 200      # then chunk this, or leave it overnight
+```
+
+Rough shape, from a real archive: **1 post ≈ 3 media files ≈ 2 videos**. So a
+1,500-post account is around 4,500 files and 3,000 reels — call it 10 GB on
+disk and, at 15–30s per reel on CPU, 12–24 hours of transcription against
+minutes for everything else.
+
+Order matters. Index and download first, in one go: CDN URLs expire within
+hours, so anything still queued behind a long transcription run will go stale.
+`sync` already sequences it that way; `--skip-transcribe` keeps it that way.
+
+Two things run safely while a long job is going:
+
+```bash
+ig-saved search '...'    # WAL mode allows concurrent readers
+ig-saved stats
+```
+
+Browser commands do not. Chrome permits one process per profile, so `login`,
+`collections` and `index/hydrate --source browser` take an advisory lock and a
+second one exits immediately saying so.
 
 ## Searching
 

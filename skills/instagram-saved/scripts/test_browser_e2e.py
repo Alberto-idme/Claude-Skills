@@ -266,6 +266,20 @@ def run() -> int:
                 )
                 check("hydrate by shortcode", len(hydrated) == 1)
 
+                # A second browser command against the same profile must fail
+                # with instructions, not an opaque Chrome launch error.
+                from ig_saved.sources.browser import ProfileBusy
+
+                try:
+                    with BrowserSession(cfg, headless=True):
+                        check("second session blocked", False, "it launched")
+                except ProfileBusy as exc:
+                    check("second session blocked",
+                          "one process per profile" in str(exc))
+                except Exception as exc:  # noqa: BLE001
+                    check("second session blocked", False,
+                          f"wrong error: {type(exc).__name__}: {exc}")
+
                 db.upsert_posts(conn, saved + collection_posts)
 
             # Media download runs outside the browser, straight off the CDN URLs.
@@ -297,7 +311,7 @@ def run() -> int:
     finally:
         server.shutdown()
 
-    total = 20
+    total = 21
     print(f"\n{total - len(failures)}/{total} passed")
     return 1 if failures else 0
 

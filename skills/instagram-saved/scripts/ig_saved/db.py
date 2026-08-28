@@ -59,7 +59,10 @@ CREATE TABLE IF NOT EXISTS transcripts (
     segments_json TEXT,
     language      TEXT,
     model         TEXT,
-    created_at    INTEGER
+    created_at    INTEGER,
+    -- ok | no_audio | no_speech | error. Anything but 'ok' still gets a row,
+    -- so a reel that can never be transcribed is not re-attempted every run.
+    status        TEXT NOT NULL DEFAULT 'ok'
 );
 
 CREATE INDEX IF NOT EXISTS idx_posts_collection ON posts(collection);
@@ -82,7 +85,22 @@ def connect(path: Path) -> sqlite3.Connection:
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
+    _migrate(conn)
     return conn
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Bring an existing database up to the current schema, in place.
+
+    `CREATE TABLE IF NOT EXISTS` silently leaves an older table alone, so
+    columns added after someone started archiving have to be ALTERed in.
+    """
+    columns = {r["name"] for r in conn.execute("PRAGMA table_info(transcripts)")}
+    if columns and "status" not in columns:
+        conn.execute(
+            "ALTER TABLE transcripts ADD COLUMN status TEXT NOT NULL DEFAULT 'ok'"
+        )
+        conn.commit()
 
 
 def upsert_posts(conn: sqlite3.Connection, posts: Iterable[Post]) -> tuple[int, int]:
@@ -181,16 +199,27 @@ def pending_downloads(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     )
 
 
-def pending_transcripts(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+def pending_transcripts(
+    conn: sqlite3.Connection, *, retry_failed: bool = False
+) -> list[sqlite3.Row]:
+    """Downloaded videos with no transcript row yet.
+
+    A video that failed permanently (no audio track, no speech) still gets a
+    row, so it drops out of this list instead of burning model time on every
+    subsequent run. ``retry_failed`` brings those back.
+    """
+    condition = "t.media_id IS NULL"
+    if retry_failed:
+        condition = "(t.media_id IS NULL OR t.status = 'error')"
     return list(
         conn.execute(
-            """
+            f"""
             SELECT m.id, m.shortcode, m.local_path
             FROM media m
             LEFT JOIN transcripts t ON t.media_id = m.id
             WHERE m.kind = 'video'
               AND m.local_path IS NOT NULL
-              AND t.media_id IS NULL
+              AND {condition}
             ORDER BY m.shortcode
             """
         )
@@ -214,19 +243,20 @@ def save_transcript(
     segments: list,
     language: str | None,
     model: str,
+    status: str = "ok",
 ) -> None:
     conn.execute(
         """
         INSERT INTO transcripts (media_id, shortcode, text, segments_json,
-                                 language, model, created_at)
-        VALUES (?,?,?,?,?,?,?)
+                                 language, model, created_at, status)
+        VALUES (?,?,?,?,?,?,?,?)
         ON CONFLICT(media_id) DO UPDATE SET
             text = excluded.text, segments_json = excluded.segments_json,
             language = excluded.language, model = excluded.model,
-            created_at = excluded.created_at
+            created_at = excluded.created_at, status = excluded.status
         """,
         (media_id, shortcode, text, json.dumps(segments, ensure_ascii=False),
-         language, model, int(time.time())),
+         language, model, int(time.time()), status),
     )
     conn.commit()
 
@@ -280,7 +310,9 @@ def stats(conn: sqlite3.Connection) -> dict:
                (SELECT count(*) FROM media) AS media,
                (SELECT count(*) FROM media WHERE local_path IS NOT NULL) AS downloaded,
                (SELECT count(*) FROM media WHERE kind = 'video') AS videos,
-               (SELECT count(*) FROM transcripts) AS transcripts,
+               (SELECT count(*) FROM transcripts WHERE status = 'ok') AS transcripts,
+               (SELECT count(*) FROM transcripts WHERE status != 'ok')
+                   AS untranscribable,
                (SELECT count(DISTINCT collection) FROM posts
                  WHERE collection IS NOT NULL) AS collections
         """

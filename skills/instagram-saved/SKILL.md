@@ -116,6 +116,21 @@ pointed at anything else.
 | `stats` / `dump` | Inspect, or export everything as JSONL |
 | `sync` | index → hydrate → media → transcribe in one pass |
 
+## Scaling
+
+Past a few hundred posts, keep transcription out of the main pass — it is
+orders of magnitude slower than indexing and downloading, and CDN URLs expire
+within hours, so anything queued behind it goes stale:
+
+```bash
+ig-saved sync --source browser --all-collections --skip-transcribe
+ig-saved transcribe --limit 200
+```
+
+Observed ratio on a real archive: 1 post ≈ 3 media files ≈ 2 videos. A
+1,500-post account is ~4,500 files, ~3,000 reels, ~10 GB, and 12–24 hours of
+CPU transcription against minutes for everything else.
+
 ## Notes for whoever works on this next
 
 - **CDN URLs expire within hours.** Download promptly. When `media` reports
@@ -133,6 +148,17 @@ pointed at anything else.
   `BrowserSession` against a local server speaking Instagram's JSON shapes, so
   a broken cursor key or evaluate() signature fails there rather than on
   someone's account. Point the session at it with `IG_SAVED_BASE_URL`.
-- Tests: `python3 test_ig_saved.py` (40, offline) and
-  `python3 test_browser_e2e.py` (20, needs Playwright). Whisper's model is
+- **Never leave a failed transcript without a row.** `pending_transcripts`
+  queues any downloaded video lacking one, so a reel that can never be
+  transcribed (no audio, no speech) would otherwise be re-attempted on every
+  run forever. Record the outcome with a `status`; only `error` is retried,
+  and only under `--retry-failed`.
+- **Chrome allows one process per profile.** Browser commands take an advisory
+  `flock` on the profile dir and fail fast with instructions. Non-browser
+  commands take no lock — WAL mode makes concurrent reads safe.
+- Schema changes need a migration in `db._migrate`: `CREATE TABLE IF NOT
+  EXISTS` silently leaves an existing table alone, and people have live
+  archives.
+- Tests: `python3 test_ig_saved.py` (46, offline) and
+  `python3 test_browser_e2e.py` (21, needs Playwright). Whisper's model is
   stubbed in tests — the first real `transcribe` downloads one.
