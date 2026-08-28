@@ -178,6 +178,34 @@ def run(cfg: Config) -> int:
         report.add(WARN, "transcription", "no Whisper backend",
                    fix="pip install faster-whisper  # only needed for reels")
 
+    engine = None
+    for module, label in (("rapidocr_onnxruntime", "rapidocr"),
+                          ("easyocr", "easyocr"), ("pytesseract", "tesseract")):
+        try:
+            __import__(module)
+            engine = label
+            break
+        except ImportError:
+            continue
+    report.add(OK if engine else WARN, "on-screen text",
+               engine or "no OCR engine",
+               fix="" if engine else
+                   "pip install rapidocr-onnxruntime  # reads CJK, no torch")
+
+    try:
+        __import__("anthropic")
+        has_sdk = True
+    except ImportError:
+        has_sdk = False
+    if not has_sdk:
+        report.add(WARN, "describe/extract", "anthropic SDK missing",
+                   fix="pip install anthropic")
+    elif cfg.anthropic_key:
+        report.add(OK, "describe/extract", "ANTHROPIC_API_KEY set")
+    else:
+        report.add(WARN, "describe/extract",
+                   "no ANTHROPIC_API_KEY (an `ant auth login` profile also works)")
+
     report.add(
         OK if cfg.apify_token else WARN,
         "apify",

@@ -331,6 +331,89 @@ Browser commands do not. Chrome permits one process per profile, so `login`,
 `collections` and `index/hydrate --source browser` take an advisory lock and a
 second one exits immediately saying so.
 
+## The four tracks
+
+A saved post carries more than its caption, and the useful part is often not
+the spoken part. Each track is extracted separately and indexed together:
+
+| Track | Command | Where it comes from |
+|---|---|---|
+| Caption | (indexing) | the post itself |
+| Voice | `transcribe` | Whisper over the audio |
+| On-screen text | `ocr` | text burned into frames — usually where the name is |
+| Video | `describe` | Claude vision over sampled keyframes |
+
+```bash
+ig-saved ocr --collection japan            # on-screen text
+ig-saved describe --collection japan       # what the footage shows
+ig-saved transcript <shortcode>            # all four, rendered together
+ig-saved transcript --collection japan --out japan.txt
+```
+
+`transcript` is the readable combined view:
+
+```
+@kyoto_eats  [japan]
+https://www.instagram.com/p/CqxU.../
+
+── Caption ──
+best tonkotsu in Shibuya
+
+── Voice ── (ja)
+このお店は深夜まで開いています
+
+── On-screen text ──
+  [0:01]  ICHIRAN SHIBUYA
+  [0:04]  OPEN UNTIL MIDNIGHT
+
+── Video ──
+A narrow counter with individual wooden booths and a ticket machine by the door.
+```
+
+**On-screen text is the highest-value track for recommendation reels** — the
+place name is on a title card far more often than it is spoken. It is also the
+only signal for reels that come back `no_speech`, which are typically
+music-over-captions.
+
+Frame sampling skips static frames, so a caption held for five seconds costs
+one OCR call rather than five. The threshold is deliberately low: measured on a
+clip whose caption changes completely, the frame-difference score moves only
+2.9–4.1 while genuinely static frames score 0.000–0.001.
+
+`describe` and `extract` call the Claude API and cost money. Both take
+`--dry-run` to price a run first and `--batch` for half price asynchronously.
+Roughly $0.02 per video at 4 keyframes, so ~$50 for 3,000 reels, or ~$25
+batched.
+
+## Making it actionable
+
+Extraction distils all four tracks into the fields you triage on — what it is,
+where, what you would do with it, and whether the sources said enough to trust:
+
+```bash
+ig-saved extract --collection japan --dry-run   # price it
+ig-saved extract --collection japan --batch     # half price
+ig-saved report  --collection japan
+```
+
+`report` writes three files into `<home>/report/`:
+
+- **`report.html`** — the one to actually work from. Self-contained, opens from
+  disk, filter by text, category, action or collection, and a "needs checking"
+  toggle for the low-confidence ones. Thumbnails come from the media you
+  already downloaded.
+- **`report.csv`** — for spreadsheet triage and your own tooling.
+- **`report.md`** — grouped tables for pasting into a doc.
+
+Categories are `restaurant`, `cafe`, `bar`, `hotel`, `sight`, `shop`,
+`activity`, `recipe`, `tip`, `guide`, `product`, `other`; actions are `visit`,
+`book_ahead`, `order`, `cook`, `buy`, `read_more`, `none`.
+
+Extraction uses structured outputs, so the shape is guaranteed and the report
+never parses prose. The prompt forbids inventing a name, price or opening time
+— an unsupported field comes back empty and the entry is flagged
+`needs_review` rather than filled with a guess.
+
 ## Searching
 
 ```bash
@@ -339,8 +422,16 @@ ig-saved search "kyoto AND ramen"
 ig-saved search "ramen NOT instant"
 ```
 
-SQLite FTS5 over captions, authors **and** transcripts, so a reel that never
-mentions ramen in its caption still turns up if someone says it out loud.
+SQLite FTS5 over captions, authors, transcripts, on-screen text **and** video
+descriptions — a reel that never mentions ramen in its caption still turns up
+if someone says it out loud, writes it on a title card, or the footage shows it.
+
+The index uses the **trigram** tokenizer, not `unicode61`. Japanese and Korean
+have no word spaces, so `unicode61` indexes a whole caption as a single token —
+searching ラーメン inside 東京ラーメン二郎 returned nothing at all. Trigram matches
+substrings, which also recovers the spaces OCR loses on compressed video
+("ICHIRANSHIBUYA"). Queries under 3 characters fall back to a `LIKE` scan, so
+東京 still works.
 
 ```bash
 ig-saved stats

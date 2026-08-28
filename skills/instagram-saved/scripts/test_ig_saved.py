@@ -1001,6 +1001,311 @@ def test_reclassify_cleans_existing_rows_without_a_model():
         assert t.reclassify(conn) == {"demoted": 0, "promoted": 0}
 
 
+def test_japanese_and_korean_are_searchable():
+    """unicode61 indexed a whole CJK caption as one token and found nothing.
+
+    Their reels are ja/ko-heavy, so this decides whether search works at all
+    on most of the archive.
+    """
+    from ig_saved.config import Config as Cfg
+
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = Cfg(root=Path(tmp))
+        cfg.ensure_dirs()
+        conn = db.connect(cfg.db_path)
+        db.upsert_posts(conn, [
+            Post(shortcode="JP", url="u", caption="東京ラーメン二郎 渋谷店 本日開店"),
+            Post(shortcode="KR", url="u", caption="서울 맛집 추천 리스트"),
+        ])
+        db.reindex(conn)
+
+        assert [r["shortcode"] for r in db.search(conn, "ラーメン")] == ["JP"]
+        assert [r["shortcode"] for r in db.search(conn, "本日開店")] == ["JP"]
+        assert [r["shortcode"] for r in db.search(conn, "리스트")] == ["KR"]
+        # Two-character terms fall below trigram's minimum and take the
+        # LIKE path instead — 東京 is the obvious query for this collection.
+        assert [r["shortcode"] for r in db.search(conn, "東京")] == ["JP"]
+        assert [r["shortcode"] for r in db.search(conn, "맛집")] == ["KR"]
+
+
+def test_search_matches_inside_unspaced_ocr_text():
+    """OCR on compressed video drops spaces; substring matching recovers it."""
+    from ig_saved.config import Config as Cfg
+
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = Cfg(root=Path(tmp))
+        cfg.ensure_dirs()
+        conn = db.connect(cfg.db_path)
+        db.upsert_posts(conn, [Post(shortcode="R1", url="u",
+                                    media=[MediaRef(0, "video", "u")])])
+        media_id = db.pending_downloads(conn)[0]["id"]
+        db.mark_downloaded(conn, media_id, "/tmp/v.mp4")
+        db.save_ocr(conn, media_id=media_id, shortcode="R1",
+                    text="ICHIRANSHIBUYA", lines=[{"t": 0, "text": "ICHIRANSHIBUYA"}],
+                    frames=3, engine="stub")
+        db.reindex(conn)
+
+        assert [r["shortcode"] for r in db.search(conn, "ichiran")] == ["R1"]
+
+
+def test_fts_is_rebuilt_when_the_tokenizer_changes():
+    """A tokenizer swap keeps the same columns, so it needs its own check."""
+    import sqlite3 as sq
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "old.db"
+        old = sq.connect(path)
+        old.execute(
+            "CREATE VIRTUAL TABLE search USING fts5("
+            "shortcode UNINDEXED, author, caption, transcript, screen_text, "
+            "description, collection UNINDEXED, "
+            "tokenize='unicode61 remove_diacritics 2')"
+        )
+        old.commit()
+        old.close()
+
+        conn = db.connect(path)  # must notice and rebuild
+        sql = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE name='search'"
+        ).fetchone()["sql"]
+        assert "tokenize='trigram'" in sql
+        assert "tokenize='unicode61" not in sql
+
+
+def test_ocr_and_description_have_their_own_queues():
+    from ig_saved.config import Config as Cfg
+
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = Cfg(root=Path(tmp))
+        cfg.ensure_dirs()
+        conn = db.connect(cfg.db_path)
+        db.upsert_posts(conn, [Post(
+            shortcode="P1", url="u", collection="japan",
+            media=[MediaRef(0, "video", "a"), MediaRef(1, "image", "b")])])
+        for row in db.pending_downloads(conn):
+            db.mark_downloaded(conn, row["id"], f"/tmp/{row['idx']}")
+
+        # OCR covers images too; description is videos only.
+        assert len(db.pending_ocr(conn)) == 2
+        assert len(db.pending_ocr(conn, include_images=False)) == 1
+        assert len(db.pending_descriptions(conn)) == 1
+        assert len(db.pending_ocr(conn, collection="japan")) == 2
+        assert len(db.pending_ocr(conn, collection="sf")) == 0
+
+        ids = [r["id"] for r in db.pending_ocr(conn)]
+        db.save_ocr(conn, media_id=ids[0], shortcode="P1", text="x",
+                    lines=[], frames=1, engine="stub")
+        assert len(db.pending_ocr(conn)) == 1  # written rows leave the queue
+
+
+def test_empty_ocr_is_recorded_so_it_is_not_rescanned():
+    from ig_saved.config import Config as Cfg
+
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = Cfg(root=Path(tmp))
+        cfg.ensure_dirs()
+        conn = db.connect(cfg.db_path)
+        db.upsert_posts(conn, [Post(shortcode="P1", url="u",
+                                    media=[MediaRef(0, "video", "a")])])
+        row = db.pending_downloads(conn)[0]
+        db.mark_downloaded(conn, row["id"], "/tmp/v.mp4")
+        db.save_ocr(conn, media_id=row["id"], shortcode="P1", text="",
+                    lines=[], frames=5, engine="stub", status="empty")
+
+        assert db.pending_ocr(conn) == []
+        db.reindex(conn)
+        assert db.stats(conn)["screen_text"] == 0  # not counted as read
+
+
+# ---------------------------------------------------------------------------
+# extraction + report
+# ---------------------------------------------------------------------------
+
+
+def _entry_db(tmp):
+    from ig_saved.config import Config as Cfg
+
+    cfg = Cfg(root=Path(tmp))
+    cfg.ensure_dirs()
+    conn = db.connect(cfg.db_path)
+    db.upsert_posts(conn, [
+        Post(shortcode="J1", url="https://www.instagram.com/p/J1/",
+             author_username="kyoto_eats", collection="japan",
+             caption="best tonkotsu in Shibuya"),
+        Post(shortcode="S1", url="https://www.instagram.com/p/S1/",
+             collection="sf", caption="mission burrito"),
+        Post(shortcode="N1", url="https://www.instagram.com/p/N1/"),  # nothing
+    ])
+    return cfg, conn
+
+
+def _save(conn, shortcode, **over):
+    payload = dict(
+        title="Ichiran", category="restaurant", location="Shibuya",
+        summary="Counter ramen.", highlights=["extra rich broth"],
+        action="visit", practical="open late", confidence="high",
+        needs_review=False, sources=["caption"], model="claude-opus-5",
+    )
+    payload.update(over)
+    db.save_entry(conn, shortcode=shortcode, **payload)
+
+
+def test_pending_entries_needs_something_to_read():
+    with tempfile.TemporaryDirectory() as tmp:
+        _cfg, conn = _entry_db(tmp)
+        pending = {r["shortcode"] for r in db.pending_entries(conn)}
+        assert pending == {"J1", "S1"}  # N1 has no caption or tracks
+
+        _save(conn, "J1")
+        assert [r["shortcode"] for r in db.pending_entries(conn)] == ["S1"]
+        # --redo brings extracted posts back.
+        assert {r["shortcode"] for r in db.pending_entries(conn, redo=True)} \
+            == {"J1", "S1"}
+
+
+def test_pending_entries_scoped_by_collection():
+    with tempfile.TemporaryDirectory() as tmp:
+        _cfg, conn = _entry_db(tmp)
+        assert [r["shortcode"] for r in
+                db.pending_entries(conn, collection="japan")] == ["J1"]
+
+
+def test_entry_roundtrip_and_filters():
+    with tempfile.TemporaryDirectory() as tmp:
+        _cfg, conn = _entry_db(tmp)
+        _save(conn, "J1")
+        _save(conn, "S1", title="", category="cafe", confidence="low",
+              needs_review=True, highlights=[])
+
+        rows = db.entries(conn)
+        assert len(rows) == 2
+        assert json.loads(rows[0]["highlights"]) in (["extra rich broth"], [])
+
+        assert [r["shortcode"] for r in db.entries(conn, category="cafe")] == ["S1"]
+        assert [r["shortcode"] for r in db.entries(conn, needs_review=True)] == ["S1"]
+        assert [r["shortcode"] for r in db.entries(conn, collection="japan")] == ["J1"]
+
+
+def test_entry_upsert_replaces_not_duplicates():
+    with tempfile.TemporaryDirectory() as tmp:
+        _cfg, conn = _entry_db(tmp)
+        _save(conn, "J1", title="First")
+        _save(conn, "J1", title="Second")
+        rows = db.entries(conn)
+        assert len(rows) == 1 and rows[0]["title"] == "Second"
+
+
+def test_extract_evidence_labels_every_track():
+    from ig_saved import extract as extract_mod
+
+    with tempfile.TemporaryDirectory() as tmp:
+        _cfg, conn = _entry_db(tmp)
+        db.upsert_posts(conn, [Post(shortcode="J1", url="u",
+                                    media=[MediaRef(0, "video", "u")])])
+        media_id = db.pending_downloads(conn)[0]["id"]
+        db.mark_downloaded(conn, media_id, "/tmp/v.mp4")
+        db.save_transcript(conn, media_id=media_id, shortcode="J1",
+                           text="the broth is incredible", segments=[],
+                           language="en", model="m", status="ok")
+        db.save_ocr(conn, media_id=media_id, shortcode="J1",
+                    text="ICHIRAN SHIBUYA",
+                    lines=[{"t": 1.0, "text": "ICHIRAN SHIBUYA"}],
+                    frames=3, engine="stub")
+        db.save_description(conn, media_id=media_id, shortcode="J1",
+                            text="A narrow counter with wooden booths.",
+                            model="m", frames=4)
+
+        evidence, present = extract_mod._evidence(conn, "J1")
+        for header in ("CAPTION:", "SPEECH:", "ON-SCREEN TEXT:", "FOOTAGE:"):
+            assert header in evidence, header
+        assert set(present) == {"caption", "voice", "screen_text", "description"}
+        assert "ICHIRAN SHIBUYA" in evidence
+        assert "@kyoto_eats" in evidence
+
+
+def test_extract_schema_is_closed_and_enumerated():
+    from ig_saved.extract import ACTIONS, CATEGORIES, SCHEMA
+
+    assert SCHEMA["additionalProperties"] is False
+    assert set(SCHEMA["required"]) == set(SCHEMA["properties"])
+    assert SCHEMA["properties"]["category"]["enum"] == CATEGORIES
+    assert SCHEMA["properties"]["action"]["enum"] == ACTIONS
+
+
+def test_extract_prompt_forbids_invention():
+    from ig_saved.extract import SYSTEM
+
+    lowered = SYSTEM.lower()
+    assert "never invent" in lowered
+    assert "leave the field empty" in lowered
+
+
+def test_report_writes_all_three_formats():
+    from ig_saved import report as report_mod
+
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg, conn = _entry_db(tmp)
+        _save(conn, "J1")
+        _save(conn, "S1", title="Tartine", category="cafe", location="Mission",
+              needs_review=True)
+
+        out = Path(tmp) / "report"
+        written = report_mod.build(conn, cfg, out)
+        assert written["count"] == 2
+        for kind in ("html", "csv", "md"):
+            assert written[kind].exists(), kind
+
+        page = written["html"].read_text()
+        assert "Ichiran" in page and "Tartine" in page
+        assert 'data-review="1"' in page       # the flag reaches the markup
+        assert "All categories" in page        # filters rendered
+
+        csv_text = written["csv"].read_text()
+        assert "Tartine" in csv_text and "restaurant" in csv_text
+
+        markdown = written["md"].read_text()
+        assert "## Restaurant (1)" in markdown
+        assert "](https://www.instagram.com/p/J1/)" in markdown
+
+
+def test_report_scopes_to_one_collection():
+    from ig_saved import report as report_mod
+
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg, conn = _entry_db(tmp)
+        _save(conn, "J1")
+        _save(conn, "S1", category="cafe")
+
+        written = report_mod.build(conn, cfg, Path(tmp) / "jp",
+                                   collection="japan")
+        assert written["count"] == 1
+        assert "Tartine" not in written["html"].read_text()
+
+
+def test_report_escapes_html_in_extracted_text():
+    """Extracted fields come from captions — never trust them as markup."""
+    from ig_saved import report as report_mod
+
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg, conn = _entry_db(tmp)
+        _save(conn, "J1", title="<script>alert(1)</script>",
+              summary="a & b <b>bold</b>")
+        written = report_mod.build(conn, cfg, Path(tmp) / "r",
+                                   formats=("html",))
+        page = written["html"].read_text()
+        assert "<script>alert(1)</script>" not in page
+        assert "&lt;script&gt;" in page
+        assert "a &amp; b" in page
+
+
+def test_report_returns_nothing_when_no_entries():
+    from ig_saved import report as report_mod
+
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg, conn = _entry_db(tmp)
+        assert report_mod.build(conn, cfg, Path(tmp) / "r") == {}
+
+
 def test_collection_name_resolves_from_url():
     from ig_saved.cli import _collection_name
 

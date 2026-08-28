@@ -260,6 +260,154 @@ def cmd_transcribe(args) -> int:
     return 0
 
 
+def cmd_ocr(args) -> int:
+    from . import ocr as ocr_mod
+
+    cfg = _config(args)
+    conn = db.connect(cfg.db_path)
+    collection = _collection_name(getattr(args, "collection", None))
+    if collection:
+        print(f"Scoped to collection '{collection}'.", file=sys.stderr)
+    counts = ocr_mod.run_all(
+        conn, cfg, limit=args.limit, collection=collection,
+        interval=args.interval, images=not args.videos_only,
+    )
+    db.reindex(conn)
+    print(f"Read text from {counts['read']} files "
+          f"({counts['empty']} had none, {counts['skipped']} skipped, "
+          f"{counts['failed']} failed).")
+    return 0
+
+
+def cmd_describe(args) -> int:
+    from . import describe as describe_mod
+
+    cfg = _config(args)
+    conn = db.connect(cfg.db_path)
+    collection = _collection_name(getattr(args, "collection", None))
+    if collection:
+        print(f"Scoped to collection '{collection}'.", file=sys.stderr)
+    counts = describe_mod.run_all(
+        conn, cfg, limit=args.limit, collection=collection,
+        frames_per_video=args.frames, batch=args.batch, dry_run=args.dry_run,
+    )
+    if args.dry_run:
+        return 0
+    db.reindex(conn)
+    print(f"Described {counts['described']} videos "
+          f"({counts['skipped']} skipped, {counts['failed']} failed).")
+    return 0
+
+
+def _render_transcript(data: dict) -> str:
+    post = data["post"]
+    out: list[str] = []
+
+    author = f"@{post['author_username']}" if post["author_username"] else "?"
+    collections = f"  [{', '.join(data['collections'])}]" if data["collections"] else ""
+    out.append(f"{author}{collections}\n{post['url']}")
+
+    if post["caption"]:
+        out.append(f"\n── Caption ──\n{post['caption'].strip()}")
+
+    voice = " ".join(v["text"] for v in data["voice"] if v["text"]).strip()
+    if voice:
+        language = data["voice"][0].get("language")
+        label = f"── Voice ── ({language})" if language else "── Voice ──"
+        out.append(f"\n{label}\n{voice}")
+
+    lines: list[str] = []
+    for entry in data["screen_text"]:
+        for item in json.loads(entry["lines_json"] or "[]"):
+            stamp = int(item.get("t") or 0)
+            lines.append(f"  [{stamp // 60}:{stamp % 60:02d}]  {item['text']}")
+    if lines:
+        out.append("\n── On-screen text ──\n" + "\n".join(lines))
+
+    description = "\n".join(d for d in data["description"] if d).strip()
+    if description:
+        out.append(f"\n── Video ──\n{description}")
+
+    return "\n".join(out)
+
+
+def cmd_transcript(args) -> int:
+    """Voice + on-screen text + visual description, per post."""
+    cfg = _config(args)
+    conn = db.connect(cfg.db_path)
+
+    if args.shortcode:
+        codes = [args.shortcode]
+    else:
+        collection = _collection_name(getattr(args, "collection", None))
+        scope = "WHERE EXISTS (SELECT 1 FROM post_collections pc WHERE " \
+                "pc.shortcode = p.shortcode AND pc.collection = :c)" \
+                if collection else ""
+        sql = f"SELECT p.shortcode FROM posts p {scope} ORDER BY p.saved_at DESC"
+        if args.limit:
+            sql += f" LIMIT {int(args.limit)}"
+        codes = [r["shortcode"] for r in
+                 conn.execute(sql, {"c": collection} if collection else {})]
+
+    if not codes:
+        print("No matching posts.", file=sys.stderr)
+        return 1
+
+    rendered = []
+    for code in codes:
+        data = db.transcript_for(conn, code)
+        if data:
+            rendered.append(_render_transcript(data))
+
+    body = ("\n\n" + "─" * 66 + "\n\n").join(rendered)
+    if args.out and args.out != "-":
+        Path(args.out).write_text(body + "\n", encoding="utf-8")
+        print(f"Wrote {len(rendered)} transcripts to {args.out}", file=sys.stderr)
+    else:
+        print(body)
+    return 0
+
+
+def cmd_extract(args) -> int:
+    from . import extract as extract_mod
+
+    cfg = _config(args)
+    conn = db.connect(cfg.db_path)
+    collection = _collection_name(getattr(args, "collection", None))
+    if collection:
+        print(f"Scoped to collection '{collection}'.", file=sys.stderr)
+    counts = extract_mod.run_all(
+        conn, cfg, limit=args.limit, collection=collection,
+        batch=args.batch, dry_run=args.dry_run, redo=args.redo,
+    )
+    if args.dry_run:
+        return 0
+    print(f"Extracted {counts['extracted']} entries "
+          f"({counts['skipped']} skipped, {counts['failed']} failed).")
+    return 0
+
+
+def cmd_report(args) -> int:
+    from . import report as report_mod
+
+    cfg = _config(args)
+    conn = db.connect(cfg.db_path)
+    collection = _collection_name(getattr(args, "collection", None))
+    out_dir = Path(args.out).expanduser() if args.out else cfg.root / "report"
+
+    formats = tuple(args.format) if args.format else ("html", "csv", "md")
+    written = report_mod.build(conn, cfg, out_dir,
+                               collection=collection, formats=formats)
+    if not written:
+        print("No entries yet — run `ig-saved extract` first.", file=sys.stderr)
+        return 1
+
+    print(f"{written.pop('count')} entries")
+    for kind, path in written.items():
+        print(f"  {kind:<5} {path}")
+    return 0
+
+
 def cmd_search(args) -> int:
     cfg = _config(args)
     conn = db.connect(cfg.db_path)
@@ -272,10 +420,13 @@ def cmd_search(args) -> int:
         author = f"@{row['author_username']}" if row["author_username"] else "?"
         collection = f" [{row['collection']}]" if row["collection"] else ""
         print(f"\n{author}{collection}  {row['url']}")
-        if row["caption_hit"].strip():
-            print(f"  caption:    {row['caption_hit']}")
-        if row["transcript_hit"].strip():
-            print(f"  transcript: {row['transcript_hit']}")
+        for label, key in (("caption", "caption_hit"),
+                           ("voice", "transcript_hit"),
+                           ("on-screen", "screen_hit"),
+                           ("video", "description_hit")):
+            hit = (row[key] or "").strip()
+            if hit:
+                print(f"  {label + ':':<11} {hit}")
     return 0
 
 
@@ -302,6 +453,8 @@ def cmd_stats(args) -> int:
           f"{pct(s['transcripts'], s['videos'])}")
     if s["untranscribable"]:
         print(f"{'no speech/audio':>16}: {s['untranscribable']}")
+    print(f"{'screen text':>16}: {s['screen_text']}{pct(s['screen_text'], s['media'])}")
+    print(f"{'described':>16}: {s['described']}{pct(s['described'], s['videos'])}")
     if not collection:
         print(f"{'collections':>16}: {s['collections']}")
 
@@ -347,6 +500,12 @@ def cmd_sync(args) -> int:
     # large archive it is usually better run separately, in chunks.
     if not getattr(args, "skip_transcribe", False):
         steps.append(("transcribe", cmd_transcribe))
+    if getattr(args, "ocr", False):
+        steps.append(("ocr", cmd_ocr))
+    if getattr(args, "describe", False):
+        steps.append(("describe", cmd_describe))
+    if getattr(args, "extract", False):
+        steps += [("extract", cmd_extract), ("report", cmd_report)]
 
     for name, fn in steps:
         print(f"\n=== {name} ===", file=sys.stderr)
@@ -453,6 +612,53 @@ def build_parser() -> argparse.ArgumentParser:
     add_whisper_flags(p)
     p.set_defaults(func=cmd_transcribe)
 
+    p = sub.add_parser("ocr", help="read text burned into videos and images")
+    p.add_argument("--limit", type=int)
+    p.add_argument("--collection", help="only this collection (URL, id or name)")
+    p.add_argument("--interval", type=float, default=1.0,
+                   help="seconds between sampled frames (default 1.0)")
+    p.add_argument("--videos-only", action="store_true",
+                   help="skip still images")
+    p.set_defaults(func=cmd_ocr)
+
+    p = sub.add_parser("describe", help="describe what each video shows")
+    p.add_argument("--limit", type=int)
+    p.add_argument("--collection", help="only this collection (URL, id or name)")
+    p.add_argument("--frames", type=int, default=4,
+                   help="keyframes sent per video (default 4)")
+    p.add_argument("--batch", action="store_true",
+                   help="use the Batch API: half price, asynchronous")
+    p.add_argument("--dry-run", action="store_true",
+                   help="estimate cost without calling the API")
+    p.set_defaults(func=cmd_describe)
+
+    p = sub.add_parser("transcript",
+                       help="voice + on-screen text + description, per post")
+    p.add_argument("shortcode", nargs="?", help="one post; omit for many")
+    p.add_argument("--collection", help="only this collection (URL, id or name)")
+    p.add_argument("--limit", type=int)
+    p.add_argument("--out", help="write to a file instead of stdout")
+    p.set_defaults(func=cmd_transcript)
+
+    p = sub.add_parser("extract",
+                       help="distil each post into decidable fields")
+    p.add_argument("--limit", type=int)
+    p.add_argument("--collection", help="only this collection (URL, id or name)")
+    p.add_argument("--batch", action="store_true",
+                   help="use the Batch API: half price, asynchronous")
+    p.add_argument("--dry-run", action="store_true",
+                   help="estimate cost without calling the API")
+    p.add_argument("--redo", action="store_true",
+                   help="re-extract posts that already have an entry")
+    p.set_defaults(func=cmd_extract)
+
+    p = sub.add_parser("report", help="build the categorised, actionable output")
+    p.add_argument("--collection", help="only this collection (URL, id or name)")
+    p.add_argument("--out", help="directory to write into (default <home>/report)")
+    p.add_argument("--format", action="append", choices=["html", "csv", "md"],
+                   help="repeatable; default all three")
+    p.set_defaults(func=cmd_report)
+
     p = sub.add_parser("search", help="full-text search captions and transcripts")
     p.add_argument("query")
     p.add_argument("--limit", type=int, default=20)
@@ -482,6 +688,19 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--workers", type=int, default=4)
     p.add_argument("--skip-transcribe", action="store_true",
                    help="stop after downloading media; transcribe separately")
+    p.add_argument("--ocr", action="store_true",
+                   help="also read text burned into the media")
+    p.add_argument("--describe", action="store_true",
+                   help="also describe each video (uses the Claude API)")
+    p.add_argument("--interval", type=float, default=1.0)
+    p.add_argument("--videos-only", action="store_true")
+    p.add_argument("--frames", type=int, default=4)
+    p.add_argument("--batch", action="store_true")
+    p.add_argument("--extract", action="store_true",
+                   help="also distil entries and build the report")
+    p.add_argument("--redo", action="store_true")
+    p.add_argument("--out")
+    p.add_argument("--format", action="append", choices=["html", "csv", "md"])
     add_browser_flags(p)
     add_apify_flags(p)
     add_whisper_flags(p)

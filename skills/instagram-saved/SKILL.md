@@ -112,7 +112,12 @@ pointed at anything else.
 | `hydrate` | Stage 2 — fetch captions and media URLs |
 | `media` | Download images and videos |
 | `transcribe` | Whisper-transcribe saved reels |
-| `search` | FTS5 over captions **and** transcripts |
+| `ocr` | Read text burned into videos and images |
+| `describe` | Describe what each video shows (Claude vision) |
+| `transcript` | Voice + on-screen text + description, per post |
+| `extract` | Distil each post into decidable fields |
+| `report` | Categorised HTML / CSV / Markdown output |
+| `search` | FTS5 over captions, transcripts, on-screen text, descriptions |
 | `stats` / `dump` | Inspect, or export everything as JSONL |
 | `sync` | index → hydrate → media → transcribe in one pass |
 
@@ -130,6 +135,18 @@ ig-saved transcribe --limit 200
 Observed ratio on a real archive: 1 post ≈ 3 media files ≈ 2 videos. A
 1,500-post account is ~4,500 files, ~3,000 reels, ~10 GB, and 12–24 hours of
 CPU transcription against minutes for everything else.
+
+## The four tracks
+
+Caption, voice (`transcribe`), on-screen text (`ocr`), and what the footage
+shows (`describe`). For recommendation reels the name is usually on a title
+card rather than spoken, so OCR carries more than the audio does — and it is
+the only signal for `no_speech` reels. `extract` distils all four into typed
+fields via structured outputs; `report` renders them as filterable HTML, CSV
+and Markdown.
+
+`describe` and `extract` call the Claude API (`claude-opus-5`). Both support
+`--dry-run` to price a run and `--batch` for half price.
 
 ## Notes for whoever works on this next
 
@@ -155,6 +172,16 @@ CPU transcription against minutes for everything else.
 - **Whisper hallucinates over music rather than returning nothing.** Filter
   with `transcribe.is_meaningful` before recording a transcript as `ok`, and
   keep non-`ok` text out of the FTS index.
+- **The FTS index is trigram, not unicode61.** Japanese and Korean have no
+  word spaces, so unicode61 indexed a whole caption as one token and found
+  nothing; trigram matches substrings, which also survives OCR losing spaces.
+  Queries under 3 characters take a LIKE fallback. Changing columns *or*
+  tokenizer must drop and rebuild the table — `_rebuild_fts_if_stale`.
+- **Frame-change threshold is low on purpose.** Overlay text covers little of
+  the frame, so a full caption swap scores only 2.9-4.1 against 0.000-0.001 for
+  static frames. Anything above ~2 silently drops real text changes.
+- **Extraction must never invent.** The prompt forbids guessing a name, price
+  or opening time; thin sources come back empty and `needs_review`.
 - **Never leave a failed transcript without a row.** `pending_transcripts`
   queues any downloaded video lacking one, so a reel that can never be
   transcribed (no audio, no speech) would otherwise be re-attempted on every

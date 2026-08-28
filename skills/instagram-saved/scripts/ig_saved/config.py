@@ -33,6 +33,11 @@ class Config:
         default_factory=lambda: os.environ.get("IG_SAVED_WHISPER_MODEL", "small")
     )
 
+    anthropic_key: str | None = field(
+        default_factory=lambda: os.environ.get("ANTHROPIC_API_KEY")
+    )
+    """Left unset, the SDK also resolves an `ant auth login` profile."""
+
     chrome_path: str | None = field(
         default_factory=lambda: os.environ.get("IG_SAVED_CHROME")
     )

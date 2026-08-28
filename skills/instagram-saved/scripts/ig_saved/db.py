@@ -79,15 +79,77 @@ CREATE INDEX IF NOT EXISTS idx_posts_collection ON posts(collection);
 CREATE INDEX IF NOT EXISTS idx_posts_hydrated   ON posts(hydrated_at);
 CREATE INDEX IF NOT EXISTS idx_media_shortcode  ON media(shortcode);
 
+-- Text burned into the video or image. For recommendation reels this is often
+-- the only place the name appears.
+CREATE TABLE IF NOT EXISTS ocr (
+    media_id   INTEGER PRIMARY KEY REFERENCES media(id) ON DELETE CASCADE,
+    shortcode  TEXT NOT NULL,
+    text       TEXT,
+    lines_json TEXT,
+    frames     INTEGER,
+    engine     TEXT,
+    status     TEXT NOT NULL DEFAULT 'ok',
+    created_at INTEGER
+);
+
+-- What the video shows, from a vision model over sampled keyframes.
+CREATE TABLE IF NOT EXISTS descriptions (
+    media_id      INTEGER PRIMARY KEY REFERENCES media(id) ON DELETE CASCADE,
+    shortcode     TEXT NOT NULL,
+    text          TEXT,
+    model         TEXT,
+    frames        INTEGER,
+    input_tokens  INTEGER,
+    output_tokens INTEGER,
+    status        TEXT NOT NULL DEFAULT 'ok',
+    created_at    INTEGER
+);
+
+-- The triage record: the decidable fields distilled from all four tracks.
+CREATE TABLE IF NOT EXISTS entries (
+    shortcode    TEXT PRIMARY KEY REFERENCES posts(shortcode) ON DELETE CASCADE,
+    title        TEXT,
+    category     TEXT,
+    location     TEXT,
+    summary      TEXT,
+    highlights   TEXT,
+    action       TEXT,
+    practical    TEXT,
+    confidence   TEXT,
+    needs_review INTEGER NOT NULL DEFAULT 0,
+    sources      TEXT,
+    model        TEXT,
+    created_at   INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_entries_category ON entries(category);
+CREATE INDEX IF NOT EXISTS idx_ocr_shortcode  ON ocr(shortcode);
+CREATE INDEX IF NOT EXISTS idx_desc_shortcode ON descriptions(shortcode);
+
 CREATE VIRTUAL TABLE IF NOT EXISTS search USING fts5(
     shortcode UNINDEXED,
     author,
     caption,
     transcript,
+    screen_text,
+    description,
     collection UNINDEXED,
-    tokenize='unicode61 remove_diacritics 2'
+    -- Trigram, not unicode61. Two reasons, both measured:
+    --   * Japanese and Korean have no word spaces, so unicode61 indexes a whole
+    --     caption as one token — searching ラーメン inside 東京ラーメン二郎 returns
+    --     nothing at all. Trigram matches it.
+    --   * OCR on compressed video sometimes loses the spaces between words
+    --     ("ICHIRANSHIBUYA"), which unicode61 likewise cannot search into.
+    -- The cost is that queries shorter than 3 characters cannot match.
+    tokenize='trigram'
 );
 """
+
+# The FTS table has to be dropped and rebuilt whenever its columns or tokenizer
+# change, since CREATE ... IF NOT EXISTS silently keeps an older definition.
+FTS_COLUMNS = {"shortcode", "author", "caption", "transcript",
+               "screen_text", "description", "collection"}
+FTS_TOKENIZER = "trigram"
 
 
 def _in_collection(alias: str = "p") -> str:
@@ -107,9 +169,38 @@ def connect(path: Path) -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
+    _rebuild_fts_if_stale(conn)
     conn.executescript(SCHEMA)
     _migrate(conn)
     return conn
+
+
+def _rebuild_fts_if_stale(conn: sqlite3.Connection) -> None:
+    """Drop the FTS table when its columns no longer match the schema.
+
+    `CREATE VIRTUAL TABLE IF NOT EXISTS` silently keeps an older column list,
+    so adding a searchable field would otherwise never take effect. The index
+    is derived data — `reindex()` rebuilds it from the source tables.
+    """
+    try:
+        existing = {r["name"] for r in conn.execute("PRAGMA table_info(search)")}
+        definition = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='search'"
+        ).fetchone()
+    except sqlite3.Error:
+        return
+
+    if not existing:
+        return
+
+    stale_columns = existing != FTS_COLUMNS
+    # A tokenizer swap keeps the same columns, so it has to be checked directly.
+    stale_tokenizer = definition is not None and FTS_TOKENIZER not in (
+        definition["sql"] or ""
+    )
+    if stale_columns or stale_tokenizer:
+        conn.execute("DROP TABLE search")
+        conn.commit()
 
 
 def _migrate(conn: sqlite3.Connection) -> None:
@@ -280,6 +371,214 @@ def pending_transcripts(
     )
 
 
+def pending_ocr(
+    conn: sqlite3.Connection,
+    *,
+    collection: str | None = None,
+    include_images: bool = True,
+) -> list[sqlite3.Row]:
+    scope = f"AND {_in_collection()}" if collection else ""
+    kinds = "" if include_images else "AND m.kind = 'video'"
+    return list(
+        conn.execute(
+            f"""
+            SELECT m.id, m.shortcode, m.kind, m.local_path
+            FROM media m
+            JOIN posts p ON p.shortcode = m.shortcode
+            LEFT JOIN ocr o ON o.media_id = m.id
+            WHERE m.local_path IS NOT NULL AND o.media_id IS NULL
+              {kinds} {scope}
+            ORDER BY m.shortcode, m.idx
+            """,
+            {"c": collection} if collection else {},
+        )
+    )
+
+
+def pending_descriptions(
+    conn: sqlite3.Connection, *, collection: str | None = None
+) -> list[sqlite3.Row]:
+    scope = f"AND {_in_collection()}" if collection else ""
+    return list(
+        conn.execute(
+            f"""
+            SELECT m.id, m.shortcode, m.local_path
+            FROM media m
+            JOIN posts p ON p.shortcode = m.shortcode
+            LEFT JOIN descriptions d ON d.media_id = m.id
+            WHERE m.kind = 'video' AND m.local_path IS NOT NULL
+              AND d.media_id IS NULL {scope}
+            ORDER BY m.shortcode, m.idx
+            """,
+            {"c": collection} if collection else {},
+        )
+    )
+
+
+def save_ocr(
+    conn: sqlite3.Connection, *, media_id: int, shortcode: str, text: str,
+    lines: list, frames: int, engine: str, status: str = "ok",
+) -> None:
+    conn.execute(
+        """
+        INSERT INTO ocr (media_id, shortcode, text, lines_json, frames,
+                         engine, status, created_at)
+        VALUES (?,?,?,?,?,?,?,?)
+        ON CONFLICT(media_id) DO UPDATE SET
+            text = excluded.text, lines_json = excluded.lines_json,
+            frames = excluded.frames, engine = excluded.engine,
+            status = excluded.status, created_at = excluded.created_at
+        """,
+        (media_id, shortcode, text, json.dumps(lines, ensure_ascii=False),
+         frames, engine, status, int(time.time())),
+    )
+    conn.commit()
+
+
+def save_description(
+    conn: sqlite3.Connection, *, media_id: int, shortcode: str, text: str,
+    model: str, frames: int, input_tokens: int | None = None,
+    output_tokens: int | None = None, status: str = "ok",
+) -> None:
+    conn.execute(
+        """
+        INSERT INTO descriptions (media_id, shortcode, text, model, frames,
+                                  input_tokens, output_tokens, status, created_at)
+        VALUES (?,?,?,?,?,?,?,?,?)
+        ON CONFLICT(media_id) DO UPDATE SET
+            text = excluded.text, model = excluded.model,
+            frames = excluded.frames, input_tokens = excluded.input_tokens,
+            output_tokens = excluded.output_tokens, status = excluded.status,
+            created_at = excluded.created_at
+        """,
+        (media_id, shortcode, text, model, frames, input_tokens, output_tokens,
+         status, int(time.time())),
+    )
+    conn.commit()
+
+
+def pending_entries(
+    conn: sqlite3.Connection, *, collection: str | None = None,
+    redo: bool = False,
+) -> list[sqlite3.Row]:
+    """Posts with something to read but no triage record yet."""
+    scope = f"AND {_in_collection()}" if collection else ""
+    having = "" if redo else "AND e.shortcode IS NULL"
+    return list(
+        conn.execute(
+            f"""
+            SELECT p.shortcode
+            FROM posts p
+            LEFT JOIN entries e ON e.shortcode = p.shortcode
+            WHERE (
+                p.caption IS NOT NULL
+                OR EXISTS (SELECT 1 FROM transcripts t
+                            WHERE t.shortcode = p.shortcode AND t.status = 'ok')
+                OR EXISTS (SELECT 1 FROM ocr o
+                            WHERE o.shortcode = p.shortcode AND o.status = 'ok')
+                OR EXISTS (SELECT 1 FROM descriptions d
+                            WHERE d.shortcode = p.shortcode AND d.status = 'ok')
+            ) {having} {scope}
+            ORDER BY p.saved_at DESC
+            """,
+            {"c": collection} if collection else {},
+        )
+    )
+
+
+def save_entry(
+    conn: sqlite3.Connection, *, shortcode: str, title: str, category: str,
+    location: str, summary: str, highlights: list, action: str,
+    practical: str, confidence: str, needs_review: bool,
+    sources: list, model: str,
+) -> None:
+    conn.execute(
+        """
+        INSERT INTO entries (shortcode, title, category, location, summary,
+                             highlights, action, practical, confidence,
+                             needs_review, sources, model, created_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+        ON CONFLICT(shortcode) DO UPDATE SET
+            title = excluded.title, category = excluded.category,
+            location = excluded.location, summary = excluded.summary,
+            highlights = excluded.highlights, action = excluded.action,
+            practical = excluded.practical, confidence = excluded.confidence,
+            needs_review = excluded.needs_review, sources = excluded.sources,
+            model = excluded.model, created_at = excluded.created_at
+        """,
+        (shortcode, title, category, location, summary,
+         json.dumps(highlights, ensure_ascii=False), action, practical,
+         confidence, int(bool(needs_review)),
+         json.dumps(sources), model, int(time.time())),
+    )
+    conn.commit()
+
+
+def entries(
+    conn: sqlite3.Connection, *, collection: str | None = None,
+    category: str | None = None, needs_review: bool | None = None,
+) -> list[sqlite3.Row]:
+    where = ["1"]
+    params: dict = {}
+    if collection:
+        where.append(_in_collection())
+        params["c"] = collection
+    if category:
+        where.append("e.category = :cat")
+        params["cat"] = category
+    if needs_review is not None:
+        where.append(f"e.needs_review = {1 if needs_review else 0}")
+
+    return list(
+        conn.execute(
+            f"""
+            SELECT e.*, p.url, p.author_username, p.saved_at,
+                   (SELECT group_concat(pc.collection, ', ')
+                    FROM post_collections pc
+                    WHERE pc.shortcode = p.shortcode) AS collections
+            FROM entries e
+            JOIN posts p ON p.shortcode = e.shortcode
+            WHERE {' AND '.join(where)}
+            ORDER BY e.category, e.location, e.title
+            """,
+            params,
+        )
+    )
+
+
+def transcript_for(conn: sqlite3.Connection, shortcode: str) -> dict:
+    """Every track for one post, for rendering a combined transcript."""
+    post = conn.execute(
+        "SELECT * FROM posts WHERE shortcode = ?", (shortcode,)
+    ).fetchone()
+    if post is None:
+        return {}
+
+    return {
+        "post": dict(post),
+        "collections": [
+            r["collection"] for r in conn.execute(
+                "SELECT collection FROM post_collections WHERE shortcode = ? "
+                "ORDER BY collection", (shortcode,))
+        ],
+        "voice": [
+            dict(r) for r in conn.execute(
+                "SELECT text, language, status FROM transcripts "
+                "WHERE shortcode = ? AND status = 'ok'", (shortcode,))
+        ],
+        "screen_text": [
+            dict(r) for r in conn.execute(
+                "SELECT lines_json FROM ocr "
+                "WHERE shortcode = ? AND status = 'ok'", (shortcode,))
+        ],
+        "description": [
+            r["text"] for r in conn.execute(
+                "SELECT text FROM descriptions "
+                "WHERE shortcode = ? AND status = 'ok'", (shortcode,))
+        ],
+    }
+
+
 def mark_downloaded(conn: sqlite3.Connection, media_id: int, path: str) -> None:
     conn.execute(
         "UPDATE media SET local_path = ?, downloaded_at = ? WHERE id = ?",
@@ -324,7 +623,8 @@ def reindex(conn: sqlite3.Connection) -> int:
     conn.execute("DELETE FROM search")
     conn.execute(
         """
-        INSERT INTO search (shortcode, author, caption, transcript, collection)
+        INSERT INTO search (shortcode, author, caption, transcript,
+                            screen_text, description, collection)
         SELECT p.shortcode,
                COALESCE(p.author_username, ''),
                COALESCE(p.caption, ''),
@@ -334,6 +634,12 @@ def reindex(conn: sqlite3.Connection) -> int:
                COALESCE((SELECT group_concat(t.text, ' ')
                          FROM transcripts t
                          WHERE t.shortcode = p.shortcode AND t.status = 'ok'), ''),
+               COALESCE((SELECT group_concat(o.text, ' ')
+                         FROM ocr o
+                         WHERE o.shortcode = p.shortcode AND o.status = 'ok'), ''),
+               COALESCE((SELECT group_concat(d.text, ' ')
+                         FROM descriptions d
+                         WHERE d.shortcode = p.shortcode AND d.status = 'ok'), ''),
                COALESCE((SELECT group_concat(pc.collection, ' ')
                          FROM post_collections pc
                          WHERE pc.shortcode = p.shortcode), '')
@@ -344,6 +650,57 @@ def reindex(conn: sqlite3.Connection) -> int:
     return conn.execute("SELECT count(*) AS n FROM search").fetchone()["n"]
 
 
+def _too_short_for_trigram(query: str) -> bool:
+    """True when any bare term is under 3 characters.
+
+    FTS5 operators are left to the index; a query using them goes through MATCH
+    even if a term is short, because the LIKE fallback cannot express them.
+    """
+    if any(op in query for op in ('"', "*", "(", ")", " OR ", " NOT ", " AND ")):
+        return False
+    terms = [t for t in query.split() if t]
+    return bool(terms) and any(len(t) < 3 for t in terms)
+
+
+def _search_like(
+    conn: sqlite3.Connection, query: str, limit: int, collection: str | None
+) -> list[sqlite3.Row]:
+    """Substring scan over the same fields the FTS index covers."""
+    scope = f"AND {_in_collection()}" if collection else ""
+    terms = [t for t in query.split() if t]
+    # Every term must appear somewhere in the post — the same implicit AND
+    # that FTS5 applies to a bare multi-word query.
+    clauses, params = [], {"limit": limit}
+    if collection:
+        params["c"] = collection
+    for i, term in enumerate(terms):
+        params[f"t{i}"] = f"%{term}%"
+        clauses.append(f"(s.caption LIKE :t{i} OR s.transcript LIKE :t{i} "
+                       f"OR s.screen_text LIKE :t{i} OR s.description LIKE :t{i} "
+                       f"OR s.author LIKE :t{i})")
+    where = " AND ".join(clauses) or "1"
+
+    return list(
+        conn.execute(
+            f"""
+            SELECT s.shortcode, p.url, p.author_username,
+                   (SELECT group_concat(pc.collection, ', ')
+                    FROM post_collections pc
+                    WHERE pc.shortcode = p.shortcode) AS collection,
+                   substr(s.caption, 1, 120)     AS caption_hit,
+                   substr(s.transcript, 1, 120)  AS transcript_hit,
+                   substr(s.screen_text, 1, 120) AS screen_hit,
+                   substr(s.description, 1, 120) AS description_hit
+            FROM search s
+            JOIN posts p ON p.shortcode = s.shortcode
+            WHERE {where} {scope}
+            LIMIT :limit
+            """,
+            params,
+        )
+    )
+
+
 def search(
     conn: sqlite3.Connection,
     query: str,
@@ -351,6 +708,13 @@ def search(
     collection: str | None = None,
 ) -> list[sqlite3.Row]:
     scope = f"AND {_in_collection()}" if collection else ""
+
+    # Trigram cannot match a term shorter than 3 characters, which rules out
+    # plenty of real queries in CJK — 東京 is two. Scan for those instead; the
+    # archive is thousands of rows, not millions, so LIKE is fast enough.
+    if _too_short_for_trigram(query):
+        return _search_like(conn, query, limit, collection)
+
     params = {"q": query, "limit": limit}
     if collection:
         params["c"] = collection
@@ -362,7 +726,9 @@ def search(
                     FROM post_collections pc
                     WHERE pc.shortcode = p.shortcode) AS collection,
                    snippet(search, 2, '[', ']', '…', 12) AS caption_hit,
-                   snippet(search, 3, '[', ']', '…', 12) AS transcript_hit
+                   snippet(search, 3, '[', ']', '…', 12) AS transcript_hit,
+                   snippet(search, 4, '[', ']', '…', 12) AS screen_hit,
+                   snippet(search, 5, '[', ']', '…', 12) AS description_hit
             FROM search s
             JOIN posts p ON p.shortcode = s.shortcode
             WHERE search MATCH :q {scope}
@@ -399,6 +765,12 @@ def stats(conn: sqlite3.Connection, collection: str | None = None) -> dict:
             f"SELECT count(*) {txt_join} WHERE t.status = 'ok' {and_}"),
         "untranscribable": count(
             f"SELECT count(*) {txt_join} WHERE t.status != 'ok' {and_}"),
+        "screen_text": count(
+            "SELECT count(*) FROM ocr o JOIN posts p ON p.shortcode = o.shortcode "
+            f"WHERE o.status = 'ok' {and_}"),
+        "described": count(
+            "SELECT count(*) FROM descriptions d "
+            f"JOIN posts p ON p.shortcode = d.shortcode WHERE d.status = 'ok' {and_}"),
         "collections": count(
             "SELECT count(DISTINCT collection) FROM post_collections"),
     }
