@@ -1730,6 +1730,73 @@ def test_doctor_still_says_all_clear_when_it_really_is():
     assert "Everything needed is present" in out.getvalue()
 
 
+def _ocr_fixture(tmp):
+    """Two posts, both already OCR'd; one has a flagged entry."""
+    from ig_saved.config import Config as Cfg
+
+    cfg = Cfg(root=Path(tmp))
+    cfg.ensure_dirs()
+    conn = db.connect(cfg.db_path)
+    for code in ("FLAG", "FINE"):
+        db.upsert_posts(conn, [Post(shortcode=code, url="u", collection="japan",
+                                    caption="x",
+                                    media=[MediaRef(0, "video", "v")])])
+    for row in db.pending_downloads(conn):
+        db.mark_downloaded(conn, row["id"], "/tmp/v.mp4")
+    for row in db.pending_ocr(conn):
+        db.save_ocr(conn, media_id=row["id"], shortcode=row["shortcode"],
+                    text="garbled", lines=[], frames=6, engine="rapidocr")
+
+    common = dict(category="restaurant", summary="s", highlights=[],
+                  action="visit", practical="", sources=[], model="m")
+    db.save_entry(conn, shortcode="FLAG", title="", location="",
+                  confidence="low", needs_review=True,
+                  review_reason="name garbled", **common)
+    db.save_entry(conn, shortcode="FINE", title="Ok", location="Tokyo",
+                  confidence="high", needs_review=False, review_reason="",
+                  **common)
+    return cfg, conn
+
+
+def test_ocr_redo_re_reads_media_that_already_has_a_row():
+    """A garbled read is stored just like a good one, so re-scanning at a
+    finer --interval needs an explicit opt-in."""
+    with tempfile.TemporaryDirectory() as tmp:
+        _cfg, conn = _ocr_fixture(tmp)
+
+        assert db.pending_ocr(conn) == []                  # nothing outstanding
+        assert len(db.pending_ocr(conn, redo=True)) == 2    # both come back
+
+
+def test_ocr_only_flagged_targets_just_the_posts_worth_rescanning():
+    with tempfile.TemporaryDirectory() as tmp:
+        _cfg, conn = _ocr_fixture(tmp)
+
+        rows = db.pending_ocr(conn, only_flagged=True)
+        assert [r["shortcode"] for r in rows] == ["FLAG"]
+
+
+def test_ocr_only_flagged_composes_with_collection_scope():
+    with tempfile.TemporaryDirectory() as tmp:
+        _cfg, conn = _ocr_fixture(tmp)
+
+        assert [r["shortcode"] for r in
+                db.pending_ocr(conn, only_flagged=True, collection="japan")] \
+            == ["FLAG"]
+        assert db.pending_ocr(conn, only_flagged=True, collection="sf") == []
+
+
+def test_extract_and_describe_are_pinned_to_one_model():
+    """No conditional escalation: the flagged path uses the same model as the
+    bulk path, so a re-run cannot quietly cost a different rate."""
+    from ig_saved import describe as describe_mod
+    from ig_saved import extract as extract_mod
+
+    assert extract_mod.MODEL == "claude-opus-5"
+    assert describe_mod.MODEL == "claude-opus-5"
+    assert extract_mod._params("x")["model"] == extract_mod.MODEL
+
+
 def _run() -> int:
     tests = [(n, f) for n, f in sorted(globals().items())
              if n.startswith("test_") and callable(f)]

@@ -224,8 +224,11 @@ def run_all(
     collection: str | None = None,
     interval: float = 1.0,
     images: bool = True,
+    redo: bool = False,
+    only_flagged: bool = False,
 ) -> dict:
-    rows = db.pending_ocr(conn, collection=collection, include_images=images)
+    rows = db.pending_ocr(conn, collection=collection, include_images=images,
+                          redo=redo, only_flagged=only_flagged)
     if limit:
         rows = rows[:limit]
     if not rows:

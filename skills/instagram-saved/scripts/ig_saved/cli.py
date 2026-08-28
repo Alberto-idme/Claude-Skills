@@ -278,6 +278,8 @@ def cmd_ocr(args) -> int:
     counts = ocr_mod.run_all(
         conn, cfg, limit=args.limit, collection=collection,
         interval=args.interval, images=not args.videos_only,
+        redo=getattr(args, "redo", False),
+        only_flagged=getattr(args, "only_flagged", False),
     )
     db.reindex(conn)
     print(f"Read text from {counts['read']} files "
@@ -629,6 +631,11 @@ def build_parser() -> argparse.ArgumentParser:
                    help="skip still images")
     p.add_argument("--reclean", action="store_true",
                    help="re-dedupe stored OCR lines without re-running OCR")
+    p.add_argument("--redo", action="store_true",
+                   help="re-read media that already has OCR, e.g. at a finer "
+                        "--interval")
+    p.add_argument("--only-flagged", action="store_true",
+                   help="re-read only media whose post is marked needs_review")
     p.set_defaults(func=cmd_ocr)
 
     p = sub.add_parser("describe", help="describe what each video shows")

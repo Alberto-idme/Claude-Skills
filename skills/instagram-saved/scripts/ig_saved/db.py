@@ -387,9 +387,22 @@ def pending_ocr(
     *,
     collection: str | None = None,
     include_images: bool = True,
+    redo: bool = False,
+    only_flagged: bool = False,
 ) -> list[sqlite3.Row]:
+    """Downloaded media with no OCR row yet.
+
+    `redo` re-reads media that already has one — needed to re-scan at a finer
+    `--interval`, since a garbled read is stored just like a good one.
+    `only_flagged` narrows that to posts whose entry is marked needs_review,
+    which is the case worth paying denser sampling for.
+    """
     scope = f"AND {_in_collection()}" if collection else ""
     kinds = "" if include_images else "AND m.kind = 'video'"
+    unread = "" if (redo or only_flagged) else "AND o.media_id IS NULL"
+    flagged = ("AND EXISTS (SELECT 1 FROM entries e "
+               "WHERE e.shortcode = m.shortcode AND e.needs_review = 1)"
+               if only_flagged else "")
     return list(
         conn.execute(
             f"""
@@ -397,8 +410,8 @@ def pending_ocr(
             FROM media m
             JOIN posts p ON p.shortcode = m.shortcode
             LEFT JOIN ocr o ON o.media_id = m.id
-            WHERE m.local_path IS NOT NULL AND o.media_id IS NULL
-              {kinds} {scope}
+            WHERE m.local_path IS NOT NULL {unread}
+              {kinds} {flagged} {scope}
             ORDER BY m.shortcode, m.idx
             """,
             {"c": collection} if collection else {},
