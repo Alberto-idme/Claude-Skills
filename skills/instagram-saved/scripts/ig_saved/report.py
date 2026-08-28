@@ -31,6 +31,7 @@ def _rows(conn: sqlite3.Connection, collection: str | None) -> list[dict]:
         record = dict(row)
         record["highlights"] = json.loads(record.get("highlights") or "[]")
         record["sources"] = json.loads(record.get("sources") or "[]")
+        record["region"] = region_of(record.get("location"))
         out.append(record)
     return out
 
@@ -55,9 +56,21 @@ def _thumbnail(cfg: Config, conn: sqlite3.Connection, shortcode: str,
 # CSV / Markdown
 # ---------------------------------------------------------------------------
 
-CSV_FIELDS = ["category", "title", "location", "summary", "action",
+CSV_FIELDS = ["category", "title", "location", "region", "summary", "action",
               "practical", "highlights", "confidence", "needs_review",
-              "collections", "author_username", "url", "sources"]
+              "review_reason", "collections", "author_username", "url", "sources"]
+
+
+def region_of(location: str | None) -> str:
+    """The coarse place a location belongs to, for filtering.
+
+    Locations arrive free-text ("Shibuya, Tokyo", "Otemachi, Tokyo", "Ojai,
+    California"). The trailing component is the city or region, which groups
+    the first two together and makes an out-of-place entry obvious — a saved
+    collection is a folder, not a guarantee about geography.
+    """
+    parts = [p.strip() for p in (location or "").split(",") if p.strip()]
+    return parts[-1] if parts else ""
 
 
 def write_csv(rows: list[dict], path: Path) -> None:
@@ -69,6 +82,7 @@ def write_csv(rows: list[dict], path: Path) -> None:
             flat["highlights"] = " · ".join(row["highlights"])
             flat["sources"] = ",".join(row["sources"])
             flat["needs_review"] = "yes" if row["needs_review"] else ""
+            flat["review_reason"] = row.get("review_reason") or ""
             writer.writerow(flat)
 
 
@@ -89,7 +103,8 @@ def write_markdown(rows: list[dict], path: Path, scope: str) -> None:
             flag = "⚠️" if row["needs_review"] else ""
             title = f"[{_md(row['title'] or '—')}]({row['url']})"
             notes = " · ".join(filter(None, [
-                _md(row["practical"]), _md(" · ".join(row["highlights"][:2]))]))
+                _md(row["practical"]), _md(" · ".join(row["highlights"][:2])),
+                _md(row.get("review_reason")) if row["needs_review"] else ""]))
             lines.append(
                 f"| {flag} | {title} | {_md(row['location'])} | "
                 f"{_md(row['summary'])} | {row['action'].replace('_', ' ')} | "
@@ -148,6 +163,7 @@ border:1px solid var(--line);border-radius:12px;background:var(--card);margin-bo
 .hl{margin:6px 0 0;padding-left:18px;color:var(--muted);font-size:13.5px}
 .hl li{margin:1px 0}
 .practical{margin-top:6px;font-size:13px;color:var(--muted)}
+.reason{margin-top:4px;font-size:12.5px;color:var(--warn)}
 .meta{display:flex;flex-direction:column;align-items:flex-end;gap:6px;
 font-size:12px;color:var(--muted);white-space:nowrap}
 .chip{background:var(--chip);border-radius:999px;padding:2px 9px;font-size:12px}
@@ -165,6 +181,7 @@ _JS = """
 const cards=[...document.querySelectorAll('.card')];
 const q=document.getElementById('q'),cat=document.getElementById('cat'),
 act=document.getElementById('act'),coll=document.getElementById('coll'),
+reg=document.getElementById('reg'),
 rev=document.getElementById('rev'),tally=document.getElementById('tally');
 function apply(){
   const t=q.value.toLowerCase().trim();
@@ -174,6 +191,7 @@ function apply(){
       &&(!cat.value||c.dataset.cat===cat.value)
       &&(!act.value||c.dataset.act===act.value)
       &&(!coll.value||(c.dataset.coll||'').split(', ').includes(coll.value))
+      &&(!reg.value||c.dataset.region===reg.value)
       &&(!rev.checked||c.dataset.review==='1');
     c.hidden=!ok; if(ok)shown++;
   }
@@ -186,7 +204,7 @@ function apply(){
   tally.textContent=shown+' of '+cards.length+' shown';
   document.getElementById('none').hidden=shown>0;
 }
-[q,cat,act,coll,rev].forEach(el=>el.addEventListener('input',apply));
+[q,cat,act,coll,reg,rev].forEach(el=>el.addEventListener('input',apply));
 apply();
 """
 
@@ -206,6 +224,7 @@ def write_html(rows: list[dict], path: Path, scope: str,
                 collections.add(name)
 
     actions = sorted({r["action"] for r in rows if r["action"]})
+    regions = sorted({r["region"] for r in rows if r["region"]})
     review_count = sum(1 for r in rows if r["needs_review"])
     counts = Counter(r["category"] or "other" for r in rows)
 
@@ -232,6 +251,10 @@ def write_html(rows: list[dict], path: Path, scope: str,
             highlights = "".join(f"<li>{_esc(h)}</li>" for h in row["highlights"])
             practical = (f'<div class="practical">{_esc(row["practical"])}</div>'
                          if row["practical"] else "")
+            reason = row.get("review_reason") or ""
+            if row["needs_review"] and reason:
+                practical += (f'<div class="reason">needs checking: '
+                              f'{_esc(reason)}</div>')
             chips = [f'<span class="chip act">{_esc(row["action"].replace("_", " "))}</span>']
             if row["needs_review"]:
                 chips.append('<span class="chip warn">check</span>')
@@ -243,6 +266,7 @@ def write_html(rows: list[dict], path: Path, scope: str,
     <article class="card{' review' if row['needs_review'] else ''}"
       data-cat="{_esc(category)}" data-act="{_esc(row['action'])}"
       data-coll="{_esc(row.get('collections'))}"
+      data-region="{_esc(row['region'])}"
       data-review="{1 if row['needs_review'] else 0}"
       data-text="{_esc(haystack)}">
       {thumb_html}
@@ -282,6 +306,7 @@ def write_html(rows: list[dict], path: Path, scope: str,
   <input type="search" id="q" placeholder="Filter by name, place, note…">
   <select id="cat">{options(sorted(by_category, key=_category_rank), 'All categories')}</select>
   <select id="act">{options(actions, 'Any action')}</select>
+  <select id="reg">{options(regions, 'Anywhere')}</select>
   <select id="coll">{options(sorted(collections), 'All collections')}</select>
   <label class="toggle"><input type="checkbox" id="rev"> needs checking</label>
   <span class="sub" id="tally"></span>

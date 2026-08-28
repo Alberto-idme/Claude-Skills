@@ -117,6 +117,7 @@ CREATE TABLE IF NOT EXISTS entries (
     practical    TEXT,
     confidence   TEXT,
     needs_review INTEGER NOT NULL DEFAULT 0,
+    review_reason TEXT,
     sources      TEXT,
     model        TEXT,
     created_at   INTEGER
@@ -214,6 +215,11 @@ def _migrate(conn: sqlite3.Connection) -> None:
     `CREATE TABLE IF NOT EXISTS` silently leaves an older table alone, so
     columns added after someone started archiving have to be ALTERed in.
     """
+    entry_columns = {r["name"] for r in conn.execute("PRAGMA table_info(entries)")}
+    if entry_columns and "review_reason" not in entry_columns:
+        conn.execute("ALTER TABLE entries ADD COLUMN review_reason TEXT")
+        conn.commit()
+
     columns = {r["name"] for r in conn.execute("PRAGMA table_info(transcripts)")}
     if columns and "status" not in columns:
         conn.execute(
@@ -464,11 +470,15 @@ def save_description(
 
 def pending_entries(
     conn: sqlite3.Connection, *, collection: str | None = None,
-    redo: bool = False,
+    redo: bool = False, only_flagged: bool = False,
 ) -> list[sqlite3.Row]:
     """Posts with something to read but no triage record yet."""
     scope = f"AND {_in_collection()}" if collection else ""
-    having = "" if redo else "AND e.shortcode IS NULL"
+    if only_flagged:
+        # Re-run just what was flagged, rather than re-billing the archive.
+        having = "AND e.needs_review = 1"
+    else:
+        having = "" if redo else "AND e.shortcode IS NULL"
     return list(
         conn.execute(
             f"""
@@ -495,25 +505,28 @@ def save_entry(
     conn: sqlite3.Connection, *, shortcode: str, title: str, category: str,
     location: str, summary: str, highlights: list, action: str,
     practical: str, confidence: str, needs_review: bool,
-    sources: list, model: str,
+    sources: list, model: str, review_reason: str = "",
 ) -> None:
     conn.execute(
         """
         INSERT INTO entries (shortcode, title, category, location, summary,
                              highlights, action, practical, confidence,
-                             needs_review, sources, model, created_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                             needs_review, review_reason, sources, model,
+                             created_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         ON CONFLICT(shortcode) DO UPDATE SET
             title = excluded.title, category = excluded.category,
             location = excluded.location, summary = excluded.summary,
             highlights = excluded.highlights, action = excluded.action,
             practical = excluded.practical, confidence = excluded.confidence,
-            needs_review = excluded.needs_review, sources = excluded.sources,
+            needs_review = excluded.needs_review,
+            review_reason = excluded.review_reason,
+            sources = excluded.sources,
             model = excluded.model, created_at = excluded.created_at
         """,
         (shortcode, title, category, location, summary,
          json.dumps(highlights, ensure_ascii=False), action, practical,
-         confidence, int(bool(needs_review)),
+         confidence, int(bool(needs_review)), review_reason,
          json.dumps(sources), model, int(time.time())),
     )
     conn.commit()

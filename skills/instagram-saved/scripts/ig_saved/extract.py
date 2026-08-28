@@ -56,9 +56,16 @@ SCHEMA = {
             "type": "boolean",
             "description": "True when the source text was too thin to be sure.",
         },
+        "review_reason": {
+            "type": "string",
+            "description": "When needs_review is true, the specific gap in a "
+                           "few words (e.g. 'name legible but no city', "
+                           "'lists 8 places, none detailed'). Empty otherwise.",
+        },
     },
     "required": ["title", "category", "location", "summary", "highlights",
-                 "action", "practical", "confidence", "needs_review"],
+                 "action", "practical", "confidence", "needs_review",
+                 "review_reason"],
     "additionalProperties": False,
 }
 
@@ -72,7 +79,9 @@ SYSTEM = (
     "address or opening time; leave the field empty instead. If the post is a "
     "list covering several places, describe the list as a whole and say so in "
     "the summary. Set confidence to low and needs_review to true when the "
-    "sources are thin, contradictory, or name nothing specific. Write in "
+    "sources are thin, contradictory, or name nothing specific, and say "
+    "which in review_reason so it can be triaged without reopening the post. "
+    "Write in "
     "English even when the sources are not, but keep proper names in their "
     "original script with a romanisation in parentheses where you are sure."
 )
@@ -160,8 +169,10 @@ def run_all(
     batch: bool = False,
     dry_run: bool = False,
     redo: bool = False,
+    only_flagged: bool = False,
 ) -> dict:
-    rows = db.pending_entries(conn, collection=collection, redo=redo)
+    rows = db.pending_entries(conn, collection=collection, redo=redo,
+                              only_flagged=only_flagged)
     if limit:
         rows = rows[:limit]
     if not rows:

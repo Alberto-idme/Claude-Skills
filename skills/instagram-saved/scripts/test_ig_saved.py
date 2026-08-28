@@ -1569,6 +1569,91 @@ def test_extract_dedupes_screen_text_before_sending():
         assert present["screen_text"]
 
 
+def test_review_reason_survives_the_roundtrip():
+    """A flag with no reason is not actionable — 14 entries came back flagged
+    with nothing saying why."""
+    with tempfile.TemporaryDirectory() as tmp:
+        _cfg, conn = _entry_db(tmp)
+        _save(conn, "J1", needs_review=True, confidence="low",
+              review_reason="name legible but no city stated")
+        row = db.entries(conn)[0]
+        assert row["review_reason"] == "name legible but no city stated"
+        assert row["needs_review"] == 1
+
+
+def test_only_flagged_requeues_just_the_flagged_entries():
+    with tempfile.TemporaryDirectory() as tmp:
+        _cfg, conn = _entry_db(tmp)
+        _save(conn, "J1", needs_review=True, review_reason="thin")
+        _save(conn, "S1", needs_review=False)
+
+        assert db.pending_entries(conn) == []          # both extracted
+        flagged = db.pending_entries(conn, only_flagged=True)
+        assert [r["shortcode"] for r in flagged] == ["J1"]
+        # ...and --redo still means everything.
+        assert len(db.pending_entries(conn, redo=True)) == 2
+
+
+def test_entries_migrate_without_review_reason():
+    """Their database already holds 76 entries written before the column."""
+    import sqlite3 as sq
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "old.db"
+        old = sq.connect(path)
+        old.executescript("""
+            CREATE TABLE entries (
+                shortcode TEXT PRIMARY KEY, title TEXT, category TEXT,
+                location TEXT, summary TEXT, highlights TEXT, action TEXT,
+                practical TEXT, confidence TEXT,
+                needs_review INTEGER NOT NULL DEFAULT 0,
+                sources TEXT, model TEXT, created_at INTEGER
+            );
+            INSERT INTO entries (shortcode, title, needs_review)
+                VALUES ('J1', 'Ichiran', 1);
+        """)
+        old.commit(); old.close()
+
+        conn = db.connect(path)
+        row = conn.execute("SELECT * FROM entries").fetchone()
+        assert row["title"] == "Ichiran"        # preserved
+        assert row["review_reason"] is None     # added, empty
+
+
+def test_region_groups_neighbourhoods_and_exposes_outliers():
+    """A saved collection is a folder, not a promise about geography:
+    Izakaya Full Moon (Ojai, California) sat in the japan collection."""
+    from ig_saved.report import region_of
+
+    assert region_of("Shibuya, Tokyo") == "Tokyo"
+    assert region_of("Otemachi, Tokyo") == "Tokyo"
+    assert region_of("Ojai, California") == "California"
+    assert region_of("Seoul") == "Seoul"
+    assert region_of(None) == ""
+
+
+def test_report_offers_a_region_filter_and_shows_why_flagged():
+    from ig_saved import report as report_mod
+
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg, conn = _entry_db(tmp)
+        _save(conn, "J1", title="Ichiran", location="Shibuya, Tokyo")
+        _save(conn, "S1", title="Izakaya Full Moon",
+              location="Ojai, California", needs_review=True,
+              review_reason="named, but not in Japan")
+
+        written = report_mod.build(conn, cfg, Path(tmp) / "r")
+        page = written["html"].read_text()
+        assert 'data-region="Tokyo"' in page
+        assert 'data-region="California"' in page   # the outlier is filterable
+        assert "Anywhere" in page                   # region dropdown rendered
+        assert "named, but not in Japan" in page    # reason is visible
+
+        csv_text = written["csv"].read_text()
+        assert "region" in csv_text.splitlines()[0]
+        assert "California" in csv_text
+
+
 def _run() -> int:
     tests = [(n, f) for n, f in sorted(globals().items())
              if n.startswith("test_") and callable(f)]

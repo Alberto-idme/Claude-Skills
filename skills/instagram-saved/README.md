@@ -417,6 +417,21 @@ Categories are `restaurant`, `cafe`, `bar`, `hotel`, `sight`, `shop`,
 `activity`, `recipe`, `tip`, `guide`, `product`, `other`; actions are `visit`,
 `book_ahead`, `order`, `cook`, `buy`, `read_more`, `none`.
 
+**Filter by region, not by collection.** A saved collection is a folder, not a
+promise about geography — a real `japan` collection turned out to hold a place
+in Ojai, California and one in Seoul. Extraction is faithful to the post, so
+the outliers are real; the report groups by the trailing part of each location
+(`Shibuya, Tokyo` and `Otemachi, Tokyo` both become `Tokyo`) so anything
+out-of-place is one dropdown away.
+
+Flagged entries carry a `review_reason` saying what was missing, so a
+`needs_review` row can be triaged without reopening the post. To re-run just
+those, rather than re-billing the whole collection:
+
+```bash
+ig-saved extract --collection japan --only-flagged
+```
+
 Extraction uses structured outputs, so the shape is guaranteed and the report
 never parses prose. The prompt forbids inventing a name, price or opening time
 — an unsupported field comes back empty and the entry is flagged

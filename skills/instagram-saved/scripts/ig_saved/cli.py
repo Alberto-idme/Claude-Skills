@@ -386,6 +386,7 @@ def cmd_extract(args) -> int:
     counts = extract_mod.run_all(
         conn, cfg, limit=args.limit, collection=collection,
         batch=args.batch, dry_run=args.dry_run, redo=args.redo,
+        only_flagged=getattr(args, "only_flagged", False),
     )
     if args.dry_run:
         return 0
@@ -659,6 +660,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="estimate cost without calling the API")
     p.add_argument("--redo", action="store_true",
                    help="re-extract posts that already have an entry")
+    p.add_argument("--only-flagged", action="store_true",
+                   help="re-extract only entries marked needs_review")
     p.set_defaults(func=cmd_extract)
 
     p = sub.add_parser("report", help="build the categorised, actionable output")
@@ -708,6 +711,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--extract", action="store_true",
                    help="also distil entries and build the report")
     p.add_argument("--redo", action="store_true")
+    p.add_argument("--only-flagged", action="store_true")
     p.add_argument("--out")
     p.add_argument("--format", action="append", choices=["html", "csv", "md"])
     add_browser_flags(p)
