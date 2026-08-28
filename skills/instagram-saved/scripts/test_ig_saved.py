@@ -1448,6 +1448,41 @@ def test_cli_subcommands_exist():
                                  else [command, "q"])
 
 
+def test_search_never_returns_a_stale_empty_index():
+    """Regression: only the CLI called reindex, so any other writer left the
+    index empty — indistinguishable from "no matches"."""
+    from ig_saved.config import Config as Cfg
+
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = Cfg(root=Path(tmp))
+        cfg.ensure_dirs()
+        conn = db.connect(cfg.db_path)
+
+        db.upsert_posts(conn, [Post(shortcode="A", url="u",
+                                    caption="tonkotsu ramen")])
+        assert [r["shortcode"] for r in db.search(conn, "tonkotsu")] == ["A"]
+
+        # Same second as the reindex above — a timestamp watermark misses this.
+        db.upsert_posts(conn, [Post(shortcode="B", url="u", caption="gyoza")])
+        assert [r["shortcode"] for r in db.search(conn, "gyoza")] == ["B"]
+
+        db.upsert_posts(conn, [Post(shortcode="A", url="u",
+                                    media=[MediaRef(0, "video", "x")])])
+        mid = db.pending_downloads(conn)[0]["id"]
+        db.mark_downloaded(conn, mid, "/tmp/v.mp4")
+        db.save_transcript(conn, media_id=mid, shortcode="A",
+                           text="open past midnight", segments=[],
+                           language="en", model="m")
+        assert [r["shortcode"] for r in db.search(conn, "midnight")] == ["A"]
+
+        db.save_ocr(conn, media_id=mid, shortcode="A", text="ICHIRAN SHIBUYA",
+                    lines=[], frames=1, engine="e")
+        assert [r["shortcode"] for r in db.search(conn, "ichiran")] == ["A"]
+
+        assert db._index_is_stale(conn) is False
+        assert db.ensure_fresh_index(conn) is False  # no needless rebuilds
+
+
 def _run() -> int:
     tests = [(n, f) for n, f in sorted(globals().items())
              if n.startswith("test_") and callable(f)]

@@ -122,6 +122,11 @@ CREATE TABLE IF NOT EXISTS entries (
     created_at   INTEGER
 );
 
+CREATE TABLE IF NOT EXISTS meta (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_entries_category ON entries(category);
 CREATE INDEX IF NOT EXISTS idx_ocr_shortcode  ON ocr(shortcode);
 CREATE INDEX IF NOT EXISTS idx_desc_shortcode ON descriptions(shortcode);
@@ -646,8 +651,61 @@ def reindex(conn: sqlite3.Connection) -> int:
         FROM posts p
         """
     )
+    conn.execute(
+        "INSERT INTO meta (key, value) VALUES ('index_signature', ?) "
+        "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        (_index_signature(conn),),
+    )
     conn.commit()
     return conn.execute("SELECT count(*) AS n FROM search").fetchone()["n"]
+
+
+def _index_signature(conn: sqlite3.Connection) -> str:
+    """A cheap fingerprint of everything the FTS index is built from.
+
+    Timestamps are useless here: writes and the reindex that follows land in
+    the same second, so a second-resolution watermark reports "fresh" while the
+    index is empty. Counts change on every insert, and the caption-length sum
+    catches hydration filling text into rows that already existed.
+    """
+    row = conn.execute(
+        """
+        SELECT (SELECT count(*) FROM posts),
+               (SELECT coalesce(sum(length(caption)), 0) FROM posts),
+               (SELECT count(*) FROM transcripts WHERE status = 'ok'),
+               (SELECT coalesce(sum(length(text)), 0) FROM transcripts
+                 WHERE status = 'ok'),
+               (SELECT count(*) FROM ocr WHERE status = 'ok'),
+               (SELECT coalesce(sum(length(text)), 0) FROM ocr
+                 WHERE status = 'ok'),
+               (SELECT count(*) FROM descriptions WHERE status = 'ok'),
+               (SELECT count(*) FROM post_collections)
+        """
+    ).fetchone()
+    return ",".join(str(v) for v in row)
+
+
+def _index_is_stale(conn: sqlite3.Connection) -> bool:
+    try:
+        built = conn.execute(
+            "SELECT value FROM meta WHERE key = 'index_signature'"
+        ).fetchone()
+    except sqlite3.Error:
+        return True
+    return built is None or built["value"] != _index_signature(conn)
+
+
+def ensure_fresh_index(conn: sqlite3.Connection) -> bool:
+    """Rebuild the FTS index if the source tables moved on. Returns True if it did.
+
+    Every writer used to have to remember to call `reindex`, and a path that
+    forgot left search silently returning nothing — which looks identical to
+    "no matches". Checking here makes staleness impossible to ship.
+    """
+    if not _index_is_stale(conn):
+        return False
+    reindex(conn)
+    return True
 
 
 def _too_short_for_trigram(query: str) -> bool:
@@ -707,6 +765,7 @@ def search(
     limit: int = 20,
     collection: str | None = None,
 ) -> list[sqlite3.Row]:
+    ensure_fresh_index(conn)
     scope = f"AND {_in_collection()}" if collection else ""
 
     # Trigram cannot match a term shorter than 3 characters, which rules out

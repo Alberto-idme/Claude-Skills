@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import sys
 import tempfile
+from fractions import Fraction
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -26,8 +27,14 @@ FRAME_TEXT = [
 ]
 
 
-def build_video(path: Path, seconds: float = 6.0, fps: int = 12) -> None:
-    """Write an mp4 whose on-screen text changes every two seconds."""
+def build_video(path: Path, seconds: float = 6.0, fps: int = 12,
+                audio: bool = True) -> None:
+    """Write an mp4 whose on-screen text changes every two seconds.
+
+    An audio stream is included by default: without one the transcription pass
+    correctly classifies the file as `no_audio` and never runs, which silently
+    removes the voice track from any end-to-end check.
+    """
     import av
     import cv2
     import numpy as np
@@ -36,6 +43,27 @@ def build_video(path: Path, seconds: float = 6.0, fps: int = 12) -> None:
     stream = container.add_stream("libx264", rate=fps)
     stream.width, stream.height = 640, 360
     stream.pix_fmt = "yuv420p"
+
+    if audio:
+        rate = 44100
+        astream = container.add_stream("aac", rate=rate)
+        total = int(seconds * rate)
+        tone = (0.2 * np.sin(2 * np.pi * 220 *
+                             np.arange(total) / rate)).astype(np.float32)
+        chunk = astream.frame_size or 1024
+        for start in range(0, total, chunk):
+            block = tone[start:start + chunk]
+            if len(block) < chunk:
+                block = np.pad(block, (0, chunk - len(block)))
+            aframe = av.AudioFrame.from_ndarray(
+                block.reshape(1, -1), format="fltp", layout="mono")
+            aframe.sample_rate = rate
+            aframe.pts = start
+            aframe.time_base = Fraction(1, rate)
+            for packet in astream.encode(aframe):
+                container.mux(packet)
+        for packet in astream.encode():
+            container.mux(packet)
 
     for i in range(int(seconds * fps)):
         when = i / fps
@@ -124,6 +152,9 @@ def run() -> int:
         build_video(video)
         build_image(image)
         check("test video written", video.exists() and video.stat().st_size > 0)
+        from ig_saved.transcribe import has_audio
+        check("fixture has an audio track", has_audio(video) is True,
+              "transcription would be skipped as no_audio")
 
         # --- frame sampling -------------------------------------------------
         sampled = list(frames_mod.iter_frames(video, interval=0.5))
@@ -232,7 +263,7 @@ def run() -> int:
         check("transcript carries description", "vending" in rendered)
         check("transcript shows collection", "japan" in rendered)
 
-    total = 27
+    total = 28
     print(f"\n{total - len(failures)}/{total} passed")
     return 1 if failures else 0
 

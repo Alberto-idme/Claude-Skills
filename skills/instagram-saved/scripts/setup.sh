@@ -2,8 +2,10 @@
 # One-command setup. Creates a virtualenv, installs everything, downloads a
 # browser, and runs the environment check.
 #
-#   ./setup.sh              full install, including reel transcription
-#   ./setup.sh --no-whisper skip Whisper (large download; only needed for reels)
+#   ./setup.sh               everything
+#   ./setup.sh --no-whisper  skip reel transcription (largest download)
+#   ./setup.sh --no-ocr      skip on-screen text extraction
+#   ./setup.sh --minimal     browser + database only
 #
 # Safe to re-run.
 
@@ -11,7 +13,18 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 WHISPER=1
-[ "${1:-}" = "--no-whisper" ] && WHISPER=0
+OCR=1
+for arg in "$@"; do
+    case "$arg" in
+        --no-whisper) WHISPER=0 ;;
+        --no-ocr)     OCR=0 ;;
+        --minimal)    WHISPER=0; OCR=0 ;;
+        -h|--help)
+            sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
+            exit 0 ;;
+        *) echo "Unknown option: $arg" >&2; exit 2 ;;
+    esac
+done
 
 say() { printf '\n\033[1m%s\033[0m\n' "$*"; }
 
@@ -47,15 +60,39 @@ python -m pip install --quiet --upgrade pip
 
 # --- dependencies ----------------------------------------------------------
 
-say "Installing dependencies"
-python -m pip install --quiet playwright
+# Driven from requirements.txt so a new dependency is never silently missed —
+# this drifted once already and shipped an install with no OCR engine.
+EXCLUDE=""
+[ "$WHISPER" = "0" ] && EXCLUDE="$EXCLUDE faster-whisper"
+[ "$OCR" = "0" ] && EXCLUDE="$EXCLUDE rapidocr-onnxruntime"
 
-if [ "$WHISPER" = "1" ]; then
-    say "Installing faster-whisper (needed only for reel transcripts)"
-    python -m pip install --quiet faster-whisper || {
-        echo "faster-whisper failed to install — continuing without it." >&2
-        echo "Everything except 'ig-saved transcribe' will still work." >&2
-    }
+PACKAGES=$(
+    grep -vE '^\s*(#|$)' requirements.txt |
+    while read -r line; do
+        name=$(printf '%s' "$line" | sed 's/[<>=!].*//' | tr -d '[:space:]')
+        skip=0
+        for bad in $EXCLUDE; do [ "$name" = "$bad" ] && skip=1; done
+        [ "$skip" = "0" ] && printf '%s\n' "$line"
+    done
+)
+
+say "Installing dependencies"
+printf '%s\n' "$PACKAGES" | sed 's/^/    /'
+
+# Install one at a time: a single unavailable wheel should not take the whole
+# environment down, and the doctor check below reports whatever is missing.
+FAILED=""
+while read -r package; do
+    [ -z "$package" ] && continue
+    python -m pip install --quiet "$package" || FAILED="$FAILED $package"
+done <<EOF
+$PACKAGES
+EOF
+
+if [ -n "$FAILED" ]; then
+    echo "" >&2
+    echo "These did not install:$FAILED" >&2
+    echo "The stages that need them will be reported by 'doctor' below." >&2
 fi
 
 # --- browser ---------------------------------------------------------------
