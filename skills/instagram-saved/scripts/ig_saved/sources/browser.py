@@ -77,14 +77,30 @@ class BrowserSession:
 
         self.cfg.browser_profile.mkdir(parents=True, exist_ok=True)
         self._pw = sync_playwright().start()
-        self._ctx = self._pw.chromium.launch_persistent_context(
-            user_data_dir=str(self.cfg.browser_profile),
-            headless=self.headless,
-            viewport={"width": 1280, "height": 900},
-            args=["--disable-blink-features=AutomationControlled"],
-        )
+
+        launch: dict = {
+            "user_data_dir": str(self.cfg.browser_profile),
+            "headless": self.headless,
+            "viewport": {"width": 1280, "height": 900},
+            "args": ["--disable-blink-features=AutomationControlled"],
+        }
+        if self.cfg.chrome_path:
+            launch["executable_path"] = self.cfg.chrome_path
+
+        try:
+            self._ctx = self._pw.chromium.launch_persistent_context(**launch)
+        except Exception as exc:
+            if "Executable doesn't exist" in str(exc):
+                raise SystemExit(
+                    "Playwright has no browser to launch. Either:\n"
+                    "    playwright install chromium\n"
+                    "or point it at a Chrome you already have:\n"
+                    "    export IG_SAVED_CHROME=/path/to/chrome"
+                ) from exc
+            raise
+
         self.page = self._ctx.pages[0] if self._ctx.pages else self._ctx.new_page()
-        self.page.goto("https://www.instagram.com/", wait_until="domcontentloaded")
+        self.page.goto(self.cfg.base_url + "/", wait_until="domcontentloaded")
         return self
 
     def __exit__(self, *exc) -> None:
@@ -98,7 +114,7 @@ class BrowserSession:
     def logged_in(self) -> bool:
         return any(
             c["name"] == "sessionid" and c.get("value")
-            for c in self._ctx.cookies("https://www.instagram.com")
+            for c in self._ctx.cookies(self.cfg.base_url)
         )
 
     def ensure_login(self, timeout: int = 300) -> None:

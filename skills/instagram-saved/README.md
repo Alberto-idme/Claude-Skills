@@ -36,17 +36,51 @@ always-current one without rewriting anything.
 
 ```bash
 cd scripts
-pip install -r requirements.txt
-playwright install chromium
+./setup.sh
 ```
 
-Python 3.10+. Everything except the browser source and transcription runs on the
-standard library.
+That creates a virtualenv, installs the dependencies, downloads Chromium, and
+runs the environment check. Re-running it is safe. Pass `--no-whisper` to skip
+the transcription dependency, which is the largest download and is only needed
+for reels.
 
-Optional convenience:
+Then, in each new shell:
 
 ```bash
-alias ig-saved='python3 -m ig_saved.cli'
+cd scripts && source .venv/bin/activate
+alias ig-saved='python -m ig_saved.cli'
+```
+
+Python 3.10+ is required. Everything except the browser source and transcription
+runs on the standard library.
+
+### If something is wrong
+
+```bash
+ig-saved doctor
+```
+
+Checks Python, Playwright, the browser binary, whether you have a stored
+session, the Whisper backend, the Apify token and the database — and prints the
+exact command to fix whatever is missing:
+
+```
+  [ok] python         3.11.15
+  [ok] playwright     installed
+  [XX] browser        none found
+  [--] session        not signed in yet
+  [ok] transcription  faster-whisper (model: small)
+
+To fix:
+    playwright install chromium
+```
+
+`[ok]` is fine, `[--]` is optional-and-absent, `[XX]` blocks you.
+
+Already have Chrome and would rather not download another browser:
+
+```bash
+export IG_SAVED_CHROME='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 ```
 
 Data lives in `~/.ig-saved` (override with `--home` or `$IG_SAVED_HOME`):
@@ -56,6 +90,28 @@ Data lives in `~/.ig-saved` (override with `--home` or `$IG_SAVED_HOME`):
   saved.db          SQLite: posts, media, transcripts, FTS index
   media/<code>/     downloaded images and videos
   chrome-profile/   the persistent browser profile holding your session
+```
+
+## First run
+
+```bash
+ig-saved doctor                        # confirm the environment is ready
+ig-saved login                         # a window opens; sign in by hand, once
+ig-saved collections                   # your collections and their ids
+```
+
+Start small to confirm the endpoints behave on your account before a full run:
+
+```bash
+ig-saved index --source browser --max-pages 1
+ig-saved stats
+```
+
+If that shows posts, do the whole thing:
+
+```bash
+ig-saved sync --source browser
+ig-saved search 'ramen'
 ```
 
 ## Stage 1 — building the index
@@ -208,9 +264,21 @@ other people's — fine to archive and search privately, not to republish.
 ## Tests
 
 ```bash
-cd scripts && python3 test_ig_saved.py     # or: pytest -q
+cd scripts
+python3 test_ig_saved.py       # 40 unit tests; no network, no session
+python3 test_browser_e2e.py    # 20 e2e checks against a mock Instagram
 ```
 
-36 tests covering URL parsing, shortcode↔id decoding, export-format drift, both
-normalisers, the merge semantics that stop hydration from blanking indexed
-fields, FTS behaviour, and CLI wiring. No network and no session required.
+`test_ig_saved.py` covers URL parsing, shortcode↔id decoding, export-format
+drift, both normalisers, the merge semantics that stop hydration from blanking
+indexed fields, transcription plumbing, FTS behaviour and CLI wiring.
+
+`test_browser_e2e.py` stands up a local server speaking the same JSON shapes as
+Instagram's private endpoints and drives the real `BrowserSession` against it —
+in-page fetch, cookie detection, pagination cursors, carousel flattening,
+collection feeds, shortcode hydration, media download and idempotency. It needs
+Playwright and a browser, and skips itself if either is missing.
+
+The one thing neither suite exercises is Whisper's actual model: transcription
+is tested with a stubbed backend, so the DB and FTS paths are covered but the
+first real `ig-saved transcribe` will download a model (~500 MB for `small`).

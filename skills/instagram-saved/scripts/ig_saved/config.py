@@ -33,6 +33,18 @@ class Config:
         default_factory=lambda: os.environ.get("IG_SAVED_WHISPER_MODEL", "small")
     )
 
+    chrome_path: str | None = field(
+        default_factory=lambda: os.environ.get("IG_SAVED_CHROME")
+    )
+    """Use an existing Chrome/Chromium instead of Playwright's own download."""
+
+    base_url: str = field(
+        default_factory=lambda: os.environ.get(
+            "IG_SAVED_BASE_URL", "https://www.instagram.com"
+        )
+    )
+    """Test hook — points the session at a mock server. Leave alone in normal use."""
+
     # Pacing. Instagram's private endpoints are unpublished and unmetered; going
     # fast from one account is the single most reliable way to earn a checkpoint.
     min_delay: float = 1.5

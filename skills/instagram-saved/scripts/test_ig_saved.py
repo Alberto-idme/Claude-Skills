@@ -505,6 +505,134 @@ def test_stats_shape():
 
 
 # ---------------------------------------------------------------------------
+# transcription plumbing
+#
+# The model itself is third-party; what needs testing is everything around it —
+# backend selection, which media get picked up, and the write into FTS.
+# ---------------------------------------------------------------------------
+
+
+def _stub_backend(segments, language="en"):
+    from ig_saved import transcribe as t
+
+    calls = []
+
+    def fake(path):
+        calls.append(path)
+        return segments, language
+
+    t._BACKEND = ("stub-whisper", fake)
+    return t, calls
+
+
+def test_transcribe_writes_rows_and_indexes_them():
+    from ig_saved.config import Config as Cfg
+
+    t, calls = _stub_backend(
+        [{"start": 0.0, "end": 2.0, "text": "the best tonkotsu in Fukuoka"},
+         {"start": 2.0, "end": 4.0, "text": "open until midnight"}]
+    )
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg = Cfg(root=Path(tmp))
+            cfg.ensure_dirs()
+            conn = db.connect(cfg.db_path)
+            db.upsert_posts(
+                conn,
+                [Post(shortcode="V1", url="https://www.instagram.com/p/V1/",
+                      caption="no keyword in the caption",
+                      media=[MediaRef(0, "video", "https://cdn/v.mp4")])],
+            )
+            video = Path(tmp) / "v.mp4"
+            video.write_bytes(b"not really a video")
+            media_id = db.pending_downloads(conn)[0]["id"]
+            db.mark_downloaded(conn, media_id, str(video))
+
+            counts = t.transcribe_all(conn, cfg)
+            assert counts["transcribed"] == 1, counts
+            assert len(calls) == 1
+
+            row = conn.execute("SELECT * FROM transcripts").fetchone()
+            assert "tonkotsu" in row["text"]
+            assert "midnight" in row["text"]
+            assert json.loads(row["segments_json"])[0]["start"] == 0.0
+            assert row["language"] == "en"
+
+            db.reindex(conn)
+            # Found by spoken words that appear nowhere in the caption.
+            assert [r["shortcode"] for r in db.search(conn, "tonkotsu")] == ["V1"]
+    finally:
+        t._BACKEND = None
+
+
+def test_transcribe_skips_missing_files_without_failing():
+    from ig_saved.config import Config as Cfg
+
+    t, calls = _stub_backend([{"start": 0, "end": 1, "text": "x"}])
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg = Cfg(root=Path(tmp))
+            cfg.ensure_dirs()
+            conn = db.connect(cfg.db_path)
+            db.upsert_posts(
+                conn,
+                [Post(shortcode="V1", url="u",
+                      media=[MediaRef(0, "video", "https://cdn/v.mp4")])],
+            )
+            media_id = db.pending_downloads(conn)[0]["id"]
+            db.mark_downloaded(conn, media_id, "/nonexistent/gone.mp4")
+
+            counts = t.transcribe_all(conn, cfg)
+            assert counts == {"transcribed": 0, "skipped": 1, "failed": 0}
+            assert calls == []
+    finally:
+        t._BACKEND = None
+
+
+def test_transcribe_survives_a_bad_video():
+    from ig_saved.config import Config as Cfg
+    from ig_saved import transcribe as t
+
+    def explode(path):
+        raise RuntimeError("could not decode audio")
+
+    t._BACKEND = ("stub-whisper", explode)
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg = Cfg(root=Path(tmp))
+            cfg.ensure_dirs()
+            conn = db.connect(cfg.db_path)
+            db.upsert_posts(
+                conn,
+                [Post(shortcode="V1", url="u",
+                      media=[MediaRef(0, "video", "https://cdn/v.mp4")]),
+                 Post(shortcode="V2", url="u",
+                      media=[MediaRef(0, "video", "https://cdn/w.mp4")])],
+            )
+            for row in db.pending_downloads(conn):
+                path = Path(tmp) / f"{row['shortcode']}.mp4"
+                path.write_bytes(b"x")
+                db.mark_downloaded(conn, row["id"], str(path))
+
+            counts = t.transcribe_all(conn, cfg)
+            # One bad reel must not abort the rest of the archive.
+            assert counts["failed"] == 2 and counts["transcribed"] == 0
+    finally:
+        t._BACKEND = None
+
+
+def test_doctor_runs_and_reports():
+    from ig_saved import doctor
+    from ig_saved.config import Config as Cfg
+
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = Cfg(root=Path(tmp))
+        cfg.ensure_dirs()
+        code = doctor.run(cfg)
+        assert code in (0, 1)  # depends on the host, but must not raise
+
+
+# ---------------------------------------------------------------------------
 # Apify input building
 # ---------------------------------------------------------------------------
 

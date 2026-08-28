@@ -38,15 +38,25 @@ Stage 1 has two implementations, chosen at runtime. Stage 2 has two as well.
 ## Quick start
 
 ```bash
-cd scripts
-pip install -r requirements.txt && playwright install chromium
+cd scripts && ./setup.sh          # venv, deps, chromium, environment check
+source .venv/bin/activate
 
-python3 -m ig_saved.cli login                     # once; sign in by hand
-python3 -m ig_saved.cli collections               # find collection ids
-python3 -m ig_saved.cli sync --source browser \
+python -m ig_saved.cli doctor       # what's present, what's missing, how to fix
+python -m ig_saved.cli login        # once; a window opens, sign in by hand
+python -m ig_saved.cli collections  # find collection ids
+python -m ig_saved.cli sync --source browser \
     --collection https://www.instagram.com/<you>/saved/<name>/<id>/
-python3 -m ig_saved.cli search "ramen"
+python -m ig_saved.cli search "ramen"
 ```
+
+`login` needs an interactive browser window and the user's own credentials, so
+it cannot run headless or in a sandbox. Never ask for their password — the
+whole point of the persistent profile is that they type it into Chrome
+themselves, once.
+
+When anything fails, run `doctor` first: it distinguishes a missing browser
+from a stale session from an absent Whisper backend, each of which otherwise
+surfaces as a different error at a different stage.
 
 ## Choosing a Stage 1 source
 
@@ -95,6 +105,7 @@ pointed at anything else.
 
 | Command | What it does |
 |---------|--------------|
+| `doctor` | Check the environment; print the fix for anything missing |
 | `login` | Sign in once; the session is reused thereafter |
 | `collections` | List your saved collections with their ids |
 | `index` | Stage 1 — build the list of saved posts |
@@ -118,5 +129,10 @@ pointed at anything else.
 - **`title` means two different things** in the export: the author's handle in
   `saved_posts.json`, the collection name in `saved_collections.json`. Reading
   it wrong stamps every post with a bogus author.
-- Tests cover every offline path: `python3 test_ig_saved.py` (36 tests, no
-  network, no session).
+- **The browser path has a mock.** `test_browser_e2e.py` runs the real
+  `BrowserSession` against a local server speaking Instagram's JSON shapes, so
+  a broken cursor key or evaluate() signature fails there rather than on
+  someone's account. Point the session at it with `IG_SAVED_BASE_URL`.
+- Tests: `python3 test_ig_saved.py` (40, offline) and
+  `python3 test_browser_e2e.py` (20, needs Playwright). Whisper's model is
+  stubbed in tests — the first real `transcribe` downloads one.

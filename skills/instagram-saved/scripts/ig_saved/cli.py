@@ -54,6 +54,14 @@ def _session(cfg: Config, headless: bool = False):
 # ---------------------------------------------------------------------------
 
 
+def cmd_doctor(args) -> int:
+    from . import doctor
+
+    cfg = _config(args)
+    print(f"ig-saved doctor  (data: {cfg.root})\n")
+    return doctor.run(cfg)
+
+
 def cmd_login(args) -> int:
     cfg = _config(args)
     with _session(cfg) as session:
@@ -278,8 +286,9 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Typical first run:\n"
-            "  ig-saved login\n"
-            "  ig-saved collections\n"
+            "  ig-saved doctor            # what's installed, what's missing\n"
+            "  ig-saved login             # sign in by hand, once\n"
+            "  ig-saved collections       # your collections and their ids\n"
             "  ig-saved sync --source browser --collection <saved-collection-url>\n"
             "  ig-saved search 'ramen'\n"
         ),
@@ -303,6 +312,11 @@ def build_parser() -> argparse.ArgumentParser:
     def add_whisper_flags(p):
         p.add_argument("--whisper-model", dest="whisper_model",
                        help="tiny | base | small | medium | large-v3")
+
+    p = sub.add_parser("doctor", help="check the environment and say what's missing")
+    add_apify_flags(p)
+    add_whisper_flags(p)
+    p.set_defaults(func=cmd_doctor)
 
     p = sub.add_parser("login", help="sign in once and store the session")
     add_browser_flags(p)
