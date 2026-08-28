@@ -1,0 +1,9 @@
+# Stage 1 browser source + browser hydration.
+# After installing: playwright install chromium
+playwright>=1.44
+
+# Reel transcription. faster-whisper decodes audio via bundled PyAV, so it
+# needs no system ffmpeg; openai-whisper is a drop-in alternative that does.
+faster-whisper>=1.0
+
+# Everything else (SQLite, HTTP, the export parser, Apify) uses the stdlib.
