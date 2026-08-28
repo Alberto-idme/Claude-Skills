@@ -32,6 +32,7 @@ def _rows(conn: sqlite3.Connection, collection: str | None) -> list[dict]:
         record["highlights"] = json.loads(record.get("highlights") or "[]")
         record["sources"] = json.loads(record.get("sources") or "[]")
         record["region"] = region_of(record.get("location"))
+        record["link"], record["link_kind"] = source_link(record)
         out.append(record)
     return out
 
@@ -58,7 +59,25 @@ def _thumbnail(cfg: Config, conn: sqlite3.Connection, shortcode: str,
 
 CSV_FIELDS = ["category", "title", "location", "region", "summary", "action",
               "practical", "highlights", "confidence", "needs_review",
-              "review_reason", "review_kind", "collections", "author_username", "url", "sources"]
+              "review_reason", "review_kind", "collections", "author_username", "shortcode",
+              "link_kind", "link", "sources"]
+
+
+def source_link(row: dict) -> tuple[str, str]:
+    """Permalink back to the original post, and what to call it.
+
+    Everything is stored as /p/<code>/, which Instagram accepts for any media
+    type, but a reel opened through /reel/ lands in the player rather than the
+    grid — worth getting right when the whole point of the link is to go back
+    and watch the thing.
+    """
+    shortcode = row.get("shortcode") or ""
+    is_reel = (row.get("product_type") == "clips"
+               or row.get("media_type") == "video")
+    url = row.get("url") or ""
+    if is_reel and shortcode:
+        url = f"https://www.instagram.com/reel/{shortcode}/"
+    return url, ("reel" if is_reel else "post")
 
 
 def region_of(location: str | None) -> str:
@@ -97,8 +116,8 @@ def write_markdown(rows: list[dict], path: Path, scope: str) -> None:
     for category in sorted(by_category, key=_category_rank):
         group = by_category[category]
         lines += [f"## {category.replace('_', ' ').title()} ({len(group)})", "",
-                  "| | Place | Where | What | Do | Notes |",
-                  "|---|---|---|---|---|---|"]
+                  "| | Place | Where | What | Do | Notes | Source |",
+                  "|---|---|---|---|---|---|---|"]
         for row in group:
             flag = "⚠️" if row["needs_review"] else ""
             title = f"[{_md(row['title'] or '—')}]({row['url']})"
@@ -108,7 +127,7 @@ def write_markdown(rows: list[dict], path: Path, scope: str) -> None:
             lines.append(
                 f"| {flag} | {title} | {_md(row['location'])} | "
                 f"{_md(row['summary'])} | {row['action'].replace('_', ' ')} | "
-                f"{notes} |"
+                f"{notes} | [{row['link_kind']}]({row['link']}) |"
             )
         lines.append("")
 
@@ -163,6 +182,10 @@ border:1px solid var(--line);border-radius:12px;background:var(--card);margin-bo
 .hl{margin:6px 0 0;padding-left:18px;color:var(--muted);font-size:13.5px}
 .hl li{margin:1px 0}
 .practical{margin-top:6px;font-size:13px;color:var(--muted)}
+.src{margin-top:8px;font-size:12.5px}
+.src a{color:var(--accent);text-decoration:none}
+.src a:hover{text-decoration:underline}
+.src code{font:inherit;color:var(--muted)}
 .reason{margin-top:4px;font-size:12.5px;color:var(--warn)}
 .meta{display:flex;flex-direction:column;align-items:flex-end;gap:6px;
 font-size:12px;color:var(--muted);white-space:nowrap}
@@ -282,6 +305,9 @@ def write_html(rows: list[dict], path: Path, scope: str,
         <p class="summary">{_esc(row['summary'])}</p>
         {f'<ul class="hl">{highlights}</ul>' if highlights else ''}
         {practical}
+        <div class="src"><a href="{_esc(row['link'])}" target="_blank"
+          rel="noopener">↗ open {_esc(row['link_kind'])} on Instagram</a>
+          <code> · {_esc(row['shortcode'])}</code></div>
       </div>
       <div class="meta">{''.join(chips)}</div>
     </article>""")

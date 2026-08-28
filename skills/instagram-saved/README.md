@@ -414,9 +414,11 @@ ig-saved report  --collection japan
 `report` writes three files into `<home>/report/`:
 
 - **`report.html`** — the one to actually work from. Self-contained, opens from
-  disk, filter by text, category, action or collection, and a "needs checking"
-  toggle for the low-confidence ones. Thumbnails come from the media you
-  already downloaded.
+  disk, filter by text, category, action, region or collection, and a toggle
+  for the entries worth another pass. Thumbnails come from the media you
+  already downloaded, and every entry carries an explicit
+  `↗ open reel on Instagram · <shortcode>` link back to the source. Reels point
+  at `/reel/` so they open in the player rather than the grid.
 - **`report.csv`** — for spreadsheet triage and your own tooling.
 - **`report.md`** — grouped tables for pasting into a doc.
 

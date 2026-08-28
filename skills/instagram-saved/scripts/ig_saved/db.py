@@ -570,6 +570,7 @@ def entries(
         conn.execute(
             f"""
             SELECT e.*, p.url, p.author_username, p.saved_at,
+                   p.media_type, p.product_type,
                    (SELECT group_concat(pc.collection, ', ')
                     FROM post_collections pc
                     WHERE pc.shortcode = p.shortcode) AS collections

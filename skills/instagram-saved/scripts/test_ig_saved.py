@@ -1896,6 +1896,76 @@ def test_report_labels_the_floor_differently_from_the_recheck():
         assert "worth another pass" in page
 
 
+def test_source_link_points_reels_at_the_player():
+    """Everything is stored as /p/<code>/, which works, but a reel opened
+    through /reel/ lands in the player rather than the grid."""
+    from ig_saved.report import source_link
+
+    reel = {"shortcode": "DGqbgumyA74",
+            "url": "https://www.instagram.com/p/DGqbgumyA74/",
+            "product_type": "clips", "media_type": "video"}
+    assert source_link(reel) == (
+        "https://www.instagram.com/reel/DGqbgumyA74/", "reel")
+
+    for kind in ("carousel", "image"):
+        post = {"shortcode": "CzAbCdEfGhI",
+                "url": "https://www.instagram.com/p/CzAbCdEfGhI/",
+                "media_type": kind}
+        assert source_link(post) == (
+            "https://www.instagram.com/p/CzAbCdEfGhI/", "post")
+
+    # Nothing known: fall back to whatever was stored, never invent a URL.
+    assert source_link({"url": "https://www.instagram.com/p/X/"}) == (
+        "https://www.instagram.com/p/X/", "post")
+    assert source_link({}) == ("", "post")
+
+
+def test_report_shows_an_explicit_source_link_in_every_format():
+    """The title was already a link, but nothing marked it as one — the person
+    who commissioned the report did not know it was clickable."""
+    from ig_saved import report as report_mod
+
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg, conn = _entry_db(tmp)
+        conn.execute("UPDATE posts SET media_type='video', product_type='clips' "
+                     "WHERE shortcode='J1'")
+        conn.commit()
+        _save(conn, "J1", title="Asakusa Itcho")
+
+        written = report_mod.build(conn, cfg, Path(tmp) / "r")
+
+        page = written["html"].read_text()
+        assert "open reel on Instagram" in page
+        assert "https://www.instagram.com/reel/J1/" in page
+        assert ">J1<" in page or "· J1" in page      # shortcode is visible
+
+        csv_text = written["csv"].read_text()
+        header = csv_text.splitlines()[0]
+        assert "link" in header and "link_kind" in header
+        assert "https://www.instagram.com/reel/J1/" in csv_text
+
+        markdown = written["md"].read_text()
+        assert "| Source |" in markdown
+        assert "[reel](https://www.instagram.com/reel/J1/)" in markdown
+
+
+def test_report_card_keeps_its_three_column_grid():
+    """The link belongs inside the content column; a fourth grid child pushes
+    the meta column onto a new row."""
+    from ig_saved import report as report_mod
+
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg, conn = _entry_db(tmp)
+        _save(conn, "J1")
+        page = report_mod.build(conn, cfg, Path(tmp) / "r",
+                                formats=("html",))["html"].read_text()
+
+        card = page.split('<article class="card', 1)[1].split("</article>", 1)[0]
+        assert card.index('class="src"') < card.index('class="meta"')
+        # src sits inside the content div, which closes after it
+        assert card.count("</div>") >= 2
+
+
 def _run() -> int:
     tests = [(n, f) for n, f in sorted(globals().items())
              if n.startswith("test_") and callable(f)]
