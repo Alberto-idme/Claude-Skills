@@ -70,6 +70,38 @@ def _load_backend(model_name: str):
     )
 
 
+def reclassify(
+    conn: sqlite3.Connection, min_chars: int = 0
+) -> dict:
+    """Re-apply the quality filter to transcripts already in the database.
+
+    Runs no model, so it is instant — for cleaning up rows written before the
+    filter existed, or after changing the threshold. Rows demoted to no_speech
+    keep their text; they just stop being indexed.
+    """
+    if not min_chars:
+        min_chars = DEFAULT_MIN_CHARS
+
+    demoted = promoted = 0
+    for row in conn.execute(
+        "SELECT media_id, text, status FROM transcripts"
+    ).fetchall():
+        good = is_meaningful(row["text"] or "", min_chars)
+        if good and row["status"] == "no_speech":
+            # A raised-then-lowered threshold can rescue rows.
+            conn.execute("UPDATE transcripts SET status = 'ok' WHERE media_id = ?",
+                         (row["media_id"],))
+            promoted += 1
+        elif not good and row["status"] == "ok":
+            conn.execute(
+                "UPDATE transcripts SET status = 'no_speech' WHERE media_id = ?",
+                (row["media_id"],))
+            demoted += 1
+
+    conn.commit()
+    return {"demoted": demoted, "promoted": promoted}
+
+
 def has_audio(path: Path) -> bool | None:
     """True/False if the container can be inspected, None if we cannot tell.
 
@@ -94,6 +126,53 @@ _EMPTY_AUDIO_SIGNS = ("tuple index out of range", "index out of range",
                       "cannot reshape array of size 0", "zero-size array")
 
 
+# Whisper hallucinates stock phrases over music or silence rather than
+# returning nothing. Left as 'ok' these pollute search: every silent reel
+# becomes a hit for "thank you". Matched after casefolding and stripping
+# punctuation. Japanese and Korean entries are the sign-off phrases their
+# training data is saturated with.
+_HALLUCINATIONS = {
+    "you", "bye", "okay", "ok", "so", "oh", "thank you", "thanks",
+    "thank you very much", "thanks for watching", "thank you for watching",
+    "please subscribe", "like and subscribe", "subscribe to my channel",
+    "music", "applause", "laughter", "silence", "outro", "intro",
+    "ご視聴ありがとうございました", "ご視聴ありがとうございます",
+    "チャンネル登録お願いします", "おやすみなさい",
+    "시청해주셔서 감사합니다", "구독과 좋아요 부탁드립니다", "감사합니다",
+}
+
+# Substrings that mark scraped-subtitle boilerplate anywhere in the text.
+_HALLUCINATION_MARKERS = ("amara.org", "subtitles by", "subs by",
+                          "transcribed by", "subtitled by")
+
+# Below this, a transcript carries no searchable signal — the observed
+# failures were 3 and 8 characters.
+DEFAULT_MIN_CHARS = 12
+
+
+def _normalise(text: str) -> str:
+    stripped = "".join(c for c in text.casefold() if c.isalnum() or c.isspace()
+                       or ord(c) > 0x2FFF)
+    return " ".join(stripped.split())
+
+
+def is_meaningful(text: str, min_chars: int = DEFAULT_MIN_CHARS) -> bool:
+    """Whether a transcript carries enough signal to be worth indexing."""
+    normalised = _normalise(text)
+    if not normalised:
+        return False
+    if any(marker in normalised for marker in _HALLUCINATION_MARKERS):
+        return False
+    if normalised in _HALLUCINATIONS:
+        return False
+    # A repeated single phrase ("thank you thank you thank you") is the other
+    # shape hallucination takes, and length alone would let it through.
+    words = normalised.split()
+    if len(set(words)) <= 2 and len(words) > 2:
+        return False
+    return len(normalised) >= min_chars
+
+
 def _classify(exc: Exception) -> str:
     message = str(exc).lower()
     if any(sign in message for sign in _EMPTY_AUDIO_SIGNS):
@@ -108,6 +187,7 @@ def transcribe_all(
     limit: int | None = None,
     retry_failed: bool = False,
     collection: str | None = None,
+    min_chars: int = DEFAULT_MIN_CHARS,
 ) -> dict:
     rows = db.pending_transcripts(
         conn, retry_failed=retry_failed, collection=collection
@@ -165,10 +245,12 @@ def transcribe_all(
             continue
 
         text = " ".join(s["text"] for s in segments).strip()
-        if not text:
-            record(row, language=language, status="no_speech")
+        if not is_meaningful(text, min_chars):
+            # Keep the text so it can be inspected, but do not index it.
+            record(row, text=text, language=language, status="no_speech")
             counts["no_speech"] += 1
-            print(f"  [{n}/{len(rows)}] {row['shortcode']}: no speech found",
+            detail = f"discarded {len(text)} chars" if text else "no speech found"
+            print(f"  [{n}/{len(rows)}] {row['shortcode']}: {detail}",
                   file=sys.stderr)
             continue
 

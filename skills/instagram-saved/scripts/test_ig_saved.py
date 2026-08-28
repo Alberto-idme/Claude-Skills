@@ -819,6 +819,188 @@ def _two_collection_db(tmp):
     return cfg, conn
 
 
+def test_post_in_two_collections_keeps_both():
+    """Regression: indexing 'japan' relabelled posts already marked 'sf'.
+
+    76 Japan posts included 15 already in SF; the single collection column
+    meant SF silently lost them.
+    """
+    from ig_saved.config import Config as Cfg
+
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = Cfg(root=Path(tmp))
+        cfg.ensure_dirs()
+        conn = db.connect(cfg.db_path)
+
+        db.upsert_posts(conn, [Post(shortcode="X1", url="u", collection="sf")])
+        db.upsert_posts(conn, [Post(shortcode="X1", url="u", collection="japan")])
+
+        assert db.stats(conn, "sf")["posts"] == 1      # not stolen
+        assert db.stats(conn, "japan")["posts"] == 1   # and gained
+        assert db.stats(conn)["posts"] == 1            # still one post
+        assert db.stats(conn)["collections"] == 2
+
+
+def test_overlap_counted_once_overall_but_in_each_collection():
+    from ig_saved.config import Config as Cfg
+
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = Cfg(root=Path(tmp))
+        cfg.ensure_dirs()
+        conn = db.connect(cfg.db_path)
+
+        # 2 sf-only, 3 shared, 1 japan-only.
+        for code in ("A", "B", "S1", "S2", "S3"):
+            db.upsert_posts(conn, [Post(shortcode=code, url="u", collection="sf")])
+        for code in ("S1", "S2", "S3", "J"):
+            db.upsert_posts(conn, [Post(shortcode=code, url="u",
+                                        collection="japan")])
+
+        assert db.stats(conn, "sf")["posts"] == 5
+        assert db.stats(conn, "japan")["posts"] == 4
+        assert db.stats(conn)["posts"] == 6  # union, not 9
+
+
+def test_migration_seeds_join_table_from_existing_labels():
+    import sqlite3 as sq
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "old.db"
+        old = sq.connect(path)
+        old.executescript(
+            """
+            CREATE TABLE posts (
+                shortcode TEXT PRIMARY KEY, media_id TEXT, url TEXT NOT NULL,
+                author_username TEXT, author_full_name TEXT, caption TEXT,
+                taken_at INTEGER, saved_at INTEGER, media_type TEXT,
+                product_type TEXT, like_count INTEGER, comment_count INTEGER,
+                collection TEXT, source TEXT, indexed_at INTEGER,
+                hydrated_at INTEGER, raw_json TEXT
+            );
+            INSERT INTO posts (shortcode, url, collection)
+                VALUES ('J1', 'u', 'japan'), ('U1', 'u', NULL);
+            """
+        )
+        old.commit()
+        old.close()
+
+        conn = db.connect(path)
+        rows = list(conn.execute("SELECT * FROM post_collections"))
+        assert len(rows) == 1 and rows[0]["collection"] == "japan"
+        assert db.stats(conn, "japan")["posts"] == 1
+
+
+def test_search_shows_every_collection_a_post_is_in():
+    from ig_saved.config import Config as Cfg
+
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = Cfg(root=Path(tmp))
+        cfg.ensure_dirs()
+        conn = db.connect(cfg.db_path)
+        db.upsert_posts(conn, [Post(shortcode="X1", url="u", collection="sf",
+                                    caption="ramen")])
+        db.upsert_posts(conn, [Post(shortcode="X1", url="u",
+                                    collection="japan")])
+        db.reindex(conn)
+
+        hit = db.search(conn, "ramen")[0]
+        assert set(hit["collection"].split(", ")) == {"sf", "japan"}
+        assert db.search(conn, "ramen", collection="sf")
+        assert db.search(conn, "ramen", collection="japan")
+
+
+# ---------------------------------------------------------------------------
+# transcript quality
+# ---------------------------------------------------------------------------
+
+
+def test_hallucinated_transcripts_are_rejected():
+    from ig_saved.transcribe import is_meaningful
+
+    # Observed in the Japan run: 3 and 8 character results on music-only reels.
+    assert not is_meaningful("")
+    assert not is_meaningful("you")
+    assert not is_meaningful("Thank you.")
+    assert not is_meaningful("Thanks for watching!")
+    assert not is_meaningful("ご視聴ありがとうございました")
+    assert not is_meaningful("시청해주셔서 감사합니다")
+    assert not is_meaningful("Subtitles by the Amara.org community")
+    assert not is_meaningful("thank you thank you thank you thank you")
+
+
+def test_real_transcripts_are_kept():
+    from ig_saved.transcribe import is_meaningful
+
+    assert is_meaningful("the best tonkotsu ramen in Fukuoka")
+    assert is_meaningful("京都で一番美味しいラーメン屋さんです")
+    assert is_meaningful("open until midnight, cash only")
+
+
+def test_short_transcript_is_recorded_as_no_speech():
+    from ig_saved.config import Config as Cfg
+
+    t, _ = _stub_backend([{"start": 0, "end": 1, "text": "you"}])
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg = Cfg(root=Path(tmp))
+            cfg.ensure_dirs()
+            conn = db.connect(cfg.db_path)
+            db.upsert_posts(conn, [Post(shortcode="V1", url="u",
+                                        media=[MediaRef(0, "video", "u")])])
+            row = db.pending_downloads(conn)[0]
+            video = Path(tmp) / "v.mp4"
+            video.write_bytes(b"x")
+            db.mark_downloaded(conn, row["id"], str(video))
+
+            counts = t.transcribe_all(conn, cfg)
+            assert counts["no_speech"] == 1 and counts["transcribed"] == 0
+
+            db.reindex(conn)
+            assert db.search(conn, "you") == []  # never indexed
+            # ...but the text is kept for inspection.
+            assert conn.execute(
+                "SELECT text FROM transcripts").fetchone()["text"] == "you"
+    finally:
+        t._BACKEND = None
+
+
+def test_reclassify_cleans_existing_rows_without_a_model():
+    from ig_saved.config import Config as Cfg
+    from ig_saved import transcribe as t
+
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = Cfg(root=Path(tmp))
+        cfg.ensure_dirs()
+        conn = db.connect(cfg.db_path)
+        db.upsert_posts(
+            conn,
+            [Post(shortcode="V1", url="u", media=[MediaRef(0, "video", "a")]),
+             Post(shortcode="V2", url="u", media=[MediaRef(0, "video", "b")])],
+        )
+        ids = {r["shortcode"]: r["id"] for r in db.pending_downloads(conn)}
+        for code, mid in ids.items():
+            db.mark_downloaded(conn, mid, f"/tmp/{code}")
+
+        # Written before the filter existed: one junk, one real, both 'ok'.
+        db.save_transcript(conn, media_id=ids["V1"], shortcode="V1",
+                           text="Thank you.", segments=[], language="en",
+                           model="m", status="ok")
+        db.save_transcript(conn, media_id=ids["V2"], shortcode="V2",
+                           text="the best tonkotsu ramen in Fukuoka",
+                           segments=[], language="en", model="m", status="ok")
+
+        moved = t.reclassify(conn)
+        assert moved == {"demoted": 1, "promoted": 0}
+
+        db.reindex(conn)
+        assert [r["shortcode"] for r in db.search(conn, "tonkotsu")] == ["V2"]
+        assert db.stats(conn)["transcripts"] == 1
+        assert db.stats(conn)["untranscribable"] == 1
+
+        # Idempotent.
+        assert t.reclassify(conn) == {"demoted": 0, "promoted": 0}
+
+
 def test_collection_name_resolves_from_url():
     from ig_saved.cli import _collection_name
 

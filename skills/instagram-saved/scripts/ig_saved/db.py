@@ -65,6 +65,16 @@ CREATE TABLE IF NOT EXISTS transcripts (
     status        TEXT NOT NULL DEFAULT 'ok'
 );
 
+-- A post can sit in several saved collections at once, so the label cannot
+-- live on the post. `posts.collection` is kept as a first-seen convenience for
+-- display; this table is the truth every filter goes through.
+CREATE TABLE IF NOT EXISTS post_collections (
+    shortcode  TEXT NOT NULL REFERENCES posts(shortcode) ON DELETE CASCADE,
+    collection TEXT NOT NULL,
+    PRIMARY KEY (shortcode, collection)
+);
+
+CREATE INDEX IF NOT EXISTS idx_pc_collection ON post_collections(collection);
 CREATE INDEX IF NOT EXISTS idx_posts_collection ON posts(collection);
 CREATE INDEX IF NOT EXISTS idx_posts_hydrated   ON posts(hydrated_at);
 CREATE INDEX IF NOT EXISTS idx_media_shortcode  ON media(shortcode);
@@ -78,6 +88,19 @@ CREATE VIRTUAL TABLE IF NOT EXISTS search USING fts5(
     tokenize='unicode61 remove_diacritics 2'
 );
 """
+
+
+def _in_collection(alias: str = "p") -> str:
+    """SQL predicate scoping to one collection, via the join table.
+
+    A post can carry several labels, so this must be an EXISTS over
+    post_collections — `posts.collection = ?` would only ever match the first
+    one a post was indexed under.
+    """
+    return (
+        f"EXISTS (SELECT 1 FROM post_collections pc "
+        f"WHERE pc.shortcode = {alias}.shortcode AND pc.collection = :c)"
+    )
 
 
 def connect(path: Path) -> sqlite3.Connection:
@@ -101,6 +124,17 @@ def _migrate(conn: sqlite3.Connection) -> None:
             "ALTER TABLE transcripts ADD COLUMN status TEXT NOT NULL DEFAULT 'ok'"
         )
         conn.commit()
+
+    # Seed the join table from whatever single label each post already carries.
+    # Labels overwritten before this table existed are gone; re-running index
+    # for those collections restores them, and now they accumulate.
+    conn.execute(
+        """
+        INSERT OR IGNORE INTO post_collections (shortcode, collection)
+        SELECT shortcode, collection FROM posts WHERE collection IS NOT NULL
+        """
+    )
+    conn.commit()
 
 
 def upsert_posts(conn: sqlite3.Connection, posts: Iterable[Post]) -> tuple[int, int]:
@@ -140,7 +174,9 @@ def upsert_posts(conn: sqlite3.Connection, posts: Iterable[Post]) -> tuple[int, 
                 product_type     = COALESCE(excluded.product_type, posts.product_type),
                 like_count       = COALESCE(excluded.like_count, posts.like_count),
                 comment_count    = COALESCE(excluded.comment_count, posts.comment_count),
-                collection       = COALESCE(excluded.collection, posts.collection),
+                -- First label wins, so this stays stable for display; every
+                -- label a post picks up is recorded in post_collections.
+                collection       = COALESCE(posts.collection, excluded.collection),
                 hydrated_at      = COALESCE(excluded.hydrated_at, posts.hydrated_at),
                 raw_json         = COALESCE(excluded.raw_json, posts.raw_json)
             """,
@@ -153,6 +189,13 @@ def upsert_posts(conn: sqlite3.Connection, posts: Iterable[Post]) -> tuple[int, 
                 json.dumps(post.raw, ensure_ascii=False) if post.raw else None,
             ),
         )
+
+        if post.collection:
+            conn.execute(
+                "INSERT OR IGNORE INTO post_collections (shortcode, collection) "
+                "VALUES (?,?)",
+                (post.shortcode, post.collection),
+            )
 
         for ref in post.media:
             conn.execute(
@@ -189,7 +232,7 @@ def pending_hydration(conn: sqlite3.Connection, limit: int | None = None) -> lis
 def pending_downloads(
     conn: sqlite3.Connection, *, collection: str | None = None
 ) -> list[sqlite3.Row]:
-    scope = "AND p.collection = :c" if collection else ""
+    scope = f"AND {_in_collection()}" if collection else ""
     return list(
         conn.execute(
             f"""
@@ -219,7 +262,7 @@ def pending_transcripts(
     condition = "t.media_id IS NULL"
     if retry_failed:
         condition = "(t.media_id IS NULL OR t.status = 'error')"
-    scope = "AND p.collection = :c" if collection else ""
+    scope = f"AND {_in_collection()}" if collection else ""
     return list(
         conn.execute(
             f"""
@@ -285,9 +328,15 @@ def reindex(conn: sqlite3.Connection) -> int:
         SELECT p.shortcode,
                COALESCE(p.author_username, ''),
                COALESCE(p.caption, ''),
+               -- Only 'ok' transcripts. Discarded text is kept on the row for
+               -- inspection but must never reach the index, or every silent
+               -- reel becomes a hit for whatever Whisper hallucinated.
                COALESCE((SELECT group_concat(t.text, ' ')
-                         FROM transcripts t WHERE t.shortcode = p.shortcode), ''),
-               COALESCE(p.collection, '')
+                         FROM transcripts t
+                         WHERE t.shortcode = p.shortcode AND t.status = 'ok'), ''),
+               COALESCE((SELECT group_concat(pc.collection, ' ')
+                         FROM post_collections pc
+                         WHERE pc.shortcode = p.shortcode), '')
         FROM posts p
         """
     )
@@ -301,14 +350,17 @@ def search(
     limit: int = 20,
     collection: str | None = None,
 ) -> list[sqlite3.Row]:
-    scope = "AND p.collection = :c" if collection else ""
+    scope = f"AND {_in_collection()}" if collection else ""
     params = {"q": query, "limit": limit}
     if collection:
         params["c"] = collection
     return list(
         conn.execute(
             f"""
-            SELECT s.shortcode, p.url, p.author_username, p.collection,
+            SELECT s.shortcode, p.url, p.author_username,
+                   (SELECT group_concat(pc.collection, ', ')
+                    FROM post_collections pc
+                    WHERE pc.shortcode = p.shortcode) AS collection,
                    snippet(search, 2, '[', ']', '…', 12) AS caption_hit,
                    snippet(search, 3, '[', ']', '…', 12) AS transcript_hit
             FROM search s
@@ -325,8 +377,8 @@ def search(
 def stats(conn: sqlite3.Connection, collection: str | None = None) -> dict:
     """Funnel counts, optionally for one collection only."""
     params = {"c": collection} if collection else {}
-    where = "WHERE p.collection = :c" if collection else ""
-    and_ = "AND p.collection = :c" if collection else ""
+    where = f"WHERE {_in_collection()}" if collection else ""
+    and_ = f"AND {_in_collection()}" if collection else ""
 
     def count(sql: str) -> int:
         return conn.execute(sql, params).fetchone()[0]
@@ -348,6 +400,5 @@ def stats(conn: sqlite3.Connection, collection: str | None = None) -> dict:
         "untranscribable": count(
             f"SELECT count(*) {txt_join} WHERE t.status != 'ok' {and_}"),
         "collections": count(
-            "SELECT count(DISTINCT p.collection) FROM posts p "
-            f"WHERE p.collection IS NOT NULL {and_}"),
+            "SELECT count(DISTINCT collection) FROM post_collections"),
     }

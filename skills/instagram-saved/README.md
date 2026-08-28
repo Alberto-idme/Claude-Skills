@@ -225,6 +225,19 @@ Transcription prefers `faster-whisper`, which decodes audio through bundled
 PyAV and therefore needs **no system ffmpeg**. `openai-whisper` works too but
 requires ffmpeg on PATH.
 
+Whisper does not return nothing on a music-only reel — it hallucinates a stock
+phrase ("Thank you.", "ご視聴ありがとうございました", subtitle-credit boilerplate).
+Left alone, every silent reel becomes a search hit for "thank you", so
+transcripts below `--min-chars` (default 12), matching a known hallucination, or
+consisting of one repeated phrase are recorded as `no_speech` instead of `ok`.
+The text is kept on the row for inspection; it just never reaches the index.
+
+To re-apply that filter to transcripts written earlier — no model, instant:
+
+```bash
+ig-saved transcribe --reclassify
+```
+
 Not every reel yields text, and the difference matters:
 
 | Outcome | Meaning | Retried? |
@@ -260,6 +273,10 @@ ig-saved search 'ramen' --collection japan
 
 `--collection` accepts the URL, the numeric id, or the bare name — indexing
 stamps posts with the URL's slug, and the later stages resolve back to it.
+
+A post can sit in several collections at once, and each is recorded: scoped
+counts overlap on purpose, so `japan` + `sf` can exceed the archive total while
+the unscoped `posts` count stays a true union.
 
 `stats` reads top to bottom as the funnel. A stage well below the one above it
 is where the problem is:

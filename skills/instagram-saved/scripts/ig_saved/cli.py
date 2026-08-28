@@ -232,12 +232,22 @@ def cmd_transcribe(args) -> int:
     cfg = _config(args)
     conn = db.connect(cfg.db_path)
     collection = _collection_name(getattr(args, "collection", None))
+    min_chars = getattr(args, "min_chars", None) or transcribe_mod.DEFAULT_MIN_CHARS
+
+    if getattr(args, "reclassify", False):
+        moved = transcribe_mod.reclassify(conn, min_chars)
+        db.reindex(conn)
+        print(f"Reclassified: {moved['demoted']} demoted to no_speech, "
+              f"{moved['promoted']} restored to ok.")
+        return 0
+
     if collection:
         print(f"Scoped to collection '{collection}'.", file=sys.stderr)
     counts = transcribe_mod.transcribe_all(
         conn, cfg, limit=args.limit,
         retry_failed=getattr(args, "retry_failed", False),
         collection=collection,
+        min_chars=min_chars,
     )
     db.reindex(conn)
     print(
@@ -434,6 +444,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--retry-failed", action="store_true",
                    help="re-attempt videos that errored (not ones with no "
                         "speech or no audio track, which will not change)")
+    p.add_argument("--min-chars", type=int,
+                   help="discard transcripts shorter than this as hallucinated "
+                        f"(default {transcribe_mod.DEFAULT_MIN_CHARS})")
+    p.add_argument("--reclassify", action="store_true",
+                   help="re-apply the quality filter to existing transcripts "
+                        "without running the model")
     add_whisper_flags(p)
     p.set_defaults(func=cmd_transcribe)
 

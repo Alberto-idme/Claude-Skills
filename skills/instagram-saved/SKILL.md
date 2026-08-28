@@ -148,6 +148,13 @@ CPU transcription against minutes for everything else.
   `BrowserSession` against a local server speaking Instagram's JSON shapes, so
   a broken cursor key or evaluate() signature fails there rather than on
   someone's account. Point the session at it with `IG_SAVED_BASE_URL`.
+- **A post belongs to many collections.** The label lives in
+  `post_collections`, never on the post — `posts.collection` is a first-seen
+  display convenience only. Filtering on it silently loses every post that was
+  indexed under a different collection first. Scope with `db._in_collection()`.
+- **Whisper hallucinates over music rather than returning nothing.** Filter
+  with `transcribe.is_meaningful` before recording a transcript as `ok`, and
+  keep non-`ok` text out of the FTS index.
 - **Never leave a failed transcript without a row.** `pending_transcripts`
   queues any downloaded video lacking one, so a reel that can never be
   transcribed (no audio, no speech) would otherwise be re-attempted on every
