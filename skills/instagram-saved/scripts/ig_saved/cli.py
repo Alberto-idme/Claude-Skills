@@ -177,7 +177,8 @@ def cmd_index(args) -> int:
     fresh = list(dict.fromkeys(
         p.shortcode for p in posts if p.shortcode not in known))
 
-    new, updated = db.upsert_posts(conn, posts)
+    # Feed order is save order, and it is the only record of it — keep it.
+    new, updated = db.upsert_posts(conn, posts, ordered=True)
     db.reindex(conn)
     print(f"Indexed {len(posts)} posts: {new} new, {updated} already known.")
     if fresh:

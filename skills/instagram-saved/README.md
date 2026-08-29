@@ -414,11 +414,11 @@ ig-saved report  --collection japan
 `report` writes three files into `<home>/report/`:
 
 - **`report.html`** — the one to actually work from. Self-contained, opens from
-  disk, filter by text, category, action, region or collection, and a toggle
-  for the entries worth another pass. Thumbnails come from the media you
-  already downloaded, and every entry carries an explicit
-  `↗ open reel on Instagram · <shortcode>` link back to the source. Reels point
-  at `/reel/` so they open in the player rather than the grid.
+  disk, sorts and filters (below), and has a toggle for the entries worth
+  another pass. Thumbnails come from the media you already downloaded, and every
+  entry carries an explicit `↗ open reel on Instagram · <shortcode>` link back
+  to the source. Reels point at `/reel/` so they open in the player rather than
+  the grid.
 - **`report.csv`** — for spreadsheet triage and your own tooling.
 - **`report.md`** — grouped tables for pasting into a doc.
 
@@ -426,12 +426,48 @@ Categories are `restaurant`, `cafe`, `bar`, `hotel`, `sight`, `shop`,
 `activity`, `recipe`, `tip`, `guide`, `product`, `other`; actions are `visit`,
 `book_ahead`, `order`, `cook`, `buy`, `read_more`, `none`.
 
-**Filter by region, not by collection.** A saved collection is a folder, not a
+### Sorting
+
+The default is grouped by category, which is the shape you triage in. The sort
+dropdown also offers, when the data supports it:
+
+| Order | Key |
+|---|---|
+| Recently saved / Saved earliest | position in the collection's feed |
+| Newest post / Oldest post | the post's own publication date |
+
+Those are genuinely different questions. A guide published in 2019 that you
+saved last week is the *newest save* and one of the *oldest posts*.
+
+Instagram's private API returns no saved-at timestamp, so save order is
+recorded as **position in the collection feed**, which the API returns
+most-recently-saved first. That means it only exists for collections indexed
+through the browser source, and only after an `index` walk — an archive built
+before this existed has to be re-walked once (it costs nothing but the
+pagination) before "Recently saved" is offered. Publication date needs no
+re-walk. Sorting by date drops the category headings, since they only mean
+something while the cards under them are still grouped; entries with no date
+sort to the bottom either way rather than pretending to be the oldest thing in
+the collection.
+
+### Filtering
+
+Text, category, action, **city**, **neighbourhood**, collection, and a
+`fixable`-only toggle.
+
+Locations arrive free-text and are split on the comma: `Shibuya, Tokyo` gives
+the neighbourhood `Shibuya` and the city `Tokyo`. A bare `Tokyo` has a city and
+no neighbourhood — treating the only component as an area would fill the
+dropdown with entries that mean nothing. Choosing a city narrows the
+neighbourhood list to that city's, and a neighbourhood left over from another
+city clears itself, so the two filters can't be combined into something that
+matches nothing.
+
+**Filter by city, not by collection.** A saved collection is a folder, not a
 promise about geography — a real `japan` collection turned out to hold a place
 in Ojai, California and one in Seoul. Extraction is faithful to the post, so
-the outliers are real; the report groups by the trailing part of each location
-(`Shibuya, Tokyo` and `Otemachi, Tokyo` both become `Tokyo`) so anything
-out-of-place is one dropdown away.
+the outliers are real; grouping by the trailing part of each location puts
+anything out-of-place one dropdown away.
 
 Flagged entries carry a `review_reason` saying what was missing, and a
 `review_kind` saying whether another pass could ever recover it:
@@ -578,8 +614,9 @@ cd scripts
 ```
 
 ```
-test_ig_saved.py         offline unit tests                    98/98 passed
+test_ig_saved.py         offline unit tests                    115/115 passed
 test_browser_e2e.py      browser against mock Instagram        21/21 passed
+test_report_ui.py        report controls in a real browser     18/18 passed
 test_ocr_e2e.py          OCR and vision on real video          28/28 passed
 test_pipeline_smoke.py   whole chain, mock in -> report out    ok
 
@@ -595,6 +632,13 @@ Instagram's private endpoints and drives the real `BrowserSession` against it �
 in-page fetch, cookie detection, pagination cursors, carousel flattening,
 collection feeds, shortcode hydration, media download and idempotency. It needs
 Playwright and a browser, and skips itself if either is missing.
+
+`test_report_ui.py` loads the generated `report.html` in Chromium and works the
+controls, asserting on computed style rather than markup. A filter that sets
+`hidden` on a card is not enough on its own: `.card{display:grid}` is an author
+rule and beats the user agent's `[hidden]{display:none}`, so filtered-out cards
+stayed on screen while the tally counted them as gone. Only a real browser
+catches that.
 
 The one thing neither suite exercises is Whisper's actual model: transcription
 is tested with a stubbed backend, so the DB and FTS paths are covered but the

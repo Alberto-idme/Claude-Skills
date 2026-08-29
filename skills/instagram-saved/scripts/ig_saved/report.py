@@ -32,6 +32,8 @@ def _rows(conn: sqlite3.Connection, collection: str | None) -> list[dict]:
         record["highlights"] = json.loads(record.get("highlights") or "[]")
         record["sources"] = json.loads(record.get("sources") or "[]")
         record["region"] = region_of(record.get("location"))
+        record["area"] = area_of(record.get("location"))
+        record["date_label"] = date_label(record)
         record["link"], record["link_kind"] = source_link(record)
         out.append(record)
     return out
@@ -57,10 +59,11 @@ def _thumbnail(cfg: Config, conn: sqlite3.Connection, shortcode: str,
 # CSV / Markdown
 # ---------------------------------------------------------------------------
 
-CSV_FIELDS = ["category", "title", "location", "region", "summary", "action",
-              "practical", "highlights", "confidence", "needs_review",
-              "review_reason", "review_kind", "collections", "author_username", "shortcode",
-              "link_kind", "link", "sources"]
+CSV_FIELDS = ["category", "title", "location", "area", "region", "summary",
+              "action", "practical", "highlights", "confidence", "needs_review",
+              "review_reason", "review_kind", "collections", "author_username",
+              "shortcode", "saved_rank", "date_label", "link_kind", "link",
+              "sources"]
 
 
 def source_link(row: dict) -> tuple[str, str]:
@@ -80,6 +83,10 @@ def source_link(row: dict) -> tuple[str, str]:
     return url, ("reel" if is_reel else "post")
 
 
+def _location_parts(location: str | None) -> list[str]:
+    return [p.strip() for p in (location or "").split(",") if p.strip()]
+
+
 def region_of(location: str | None) -> str:
     """The coarse place a location belongs to, for filtering.
 
@@ -88,8 +95,36 @@ def region_of(location: str | None) -> str:
     the first two together and makes an out-of-place entry obvious — a saved
     collection is a folder, not a guarantee about geography.
     """
-    parts = [p.strip() for p in (location or "").split(",") if p.strip()]
+    parts = _location_parts(location)
     return parts[-1] if parts else ""
+
+
+def area_of(location: str | None) -> str:
+    """The neighbourhood inside that region, when one was stated.
+
+    "Shibuya, Tokyo" is a neighbourhood in a city; a bare "Tokyo" is only the
+    city. Returning the leading component regardless would make every city its
+    own neighbourhood and fill the filter with entries that mean nothing, so a
+    single-part location has no area at all.
+    """
+    parts = _location_parts(location)
+    return parts[0] if len(parts) > 1 else ""
+
+
+def date_label(row: dict) -> str:
+    """When the post was published, as something readable.
+
+    Save time is the more useful order but Instagram's private API never
+    returns it, so the visible date is the post's own — shown so that a
+    date-sorted list can be checked against something.
+    """
+    taken = row.get("taken_at")
+    if not taken:
+        return ""
+    try:
+        return date.fromtimestamp(int(taken)).strftime("%b %Y")
+    except (ValueError, OSError, OverflowError):
+        return ""
 
 
 def write_csv(rows: list[dict], path: Path) -> None:
@@ -195,18 +230,83 @@ color:var(--accent);font-weight:600}
 .chip.warn{background:color-mix(in srgb,var(--warn) 20%,transparent);color:var(--warn)}
 .empty{color:var(--muted);padding:40px 0;text-align:center}
 .count{color:var(--muted);font-weight:400}
+.when{color:var(--muted)}
+/* `.card` sets display:grid, and an author rule beats the user agent's
+   [hidden]{display:none} — without this every filtered-out card stays on
+   screen. Same for the group headings, which are h2. */
+[hidden]{display:none!important}
 @media(max-width:640px){.card{grid-template-columns:48px 1fr}
 .meta{grid-column:2;flex-direction:row;flex-wrap:wrap;align-items:center}
 .thumb,.no-thumb{width:48px;height:48px}}
 """
 
 _JS = """
-const cards=[...document.querySelectorAll('.card')];
+const list=document.getElementById('list');
+const cards=[...list.querySelectorAll('.card')];
+const heads=[...list.querySelectorAll('.ghdr')];
 const q=document.getElementById('q'),cat=document.getElementById('cat'),
 act=document.getElementById('act'),coll=document.getElementById('coll'),
-reg=document.getElementById('reg'),
+reg=document.getElementById('reg'),area=document.getElementById('area'),
+sort=document.getElementById('sort'),
 rev=document.getElementById('rev'),tally=document.getElementById('tally');
+
+// An empty data-* attribute means "no value", which is not the same as 0 —
+// rank 0 is the most recently saved post in the collection.
+function num(card,key){
+  const v=card.dataset[key];
+  return v===undefined||v===''?null:Number(v);
+}
+
+// Category grouping and date order are different shapes, so sorting rebuilds
+// the list rather than toggling a class: headings only make sense while the
+// cards under them are still grouped.
+function order(){
+  const mode=sort.value;
+  if(mode==='cat'){
+    const seen=new Set();
+    for(const c of cards){
+      const name=c.dataset.cat;
+      if(!seen.has(name)){
+        seen.add(name);
+        const h=heads.find(h=>h.dataset.cat===name);
+        if(h)list.appendChild(h);
+      }
+      list.appendChild(c);
+    }
+    return;
+  }
+  for(const h of heads)h.hidden=true;
+  const [key,dir]=mode.split(':');
+  const sorted=[...cards].sort((a,b)=>{
+    const x=num(a,key),y=num(b,key);
+    // Undated entries sort to the bottom either way, rather than pretending
+    // to be the oldest or the newest thing in the collection.
+    if(x===null&&y===null)return Number(a.dataset.order)-Number(b.dataset.order);
+    if(x===null)return 1;
+    if(y===null)return -1;
+    return dir==='asc'?x-y:y-x;
+  });
+  for(const c of sorted)list.appendChild(c);
+}
+
+// Neighbourhoods only exist inside a city, so picking a city narrows them.
+// Offering all of them at once mostly offers combinations that match nothing.
+function narrowAreas(){
+  let valid=false;
+  for(const o of area.options){
+    if(!o.value){o.hidden=false;o.disabled=false;continue;}
+    const inRegion=!reg.value
+      ||(o.dataset.region||'').split('|').includes(reg.value);
+    o.hidden=!inRegion;
+    o.disabled=!inRegion;
+    if(inRegion&&o.value===area.value)valid=true;
+  }
+  if(area.value&&!valid)area.value='';
+}
+
 function apply(){
+  narrowAreas();
+  order();
   const t=q.value.toLowerCase().trim();
   let shown=0;
   for(const c of cards){
@@ -215,19 +315,22 @@ function apply(){
       &&(!act.value||c.dataset.act===act.value)
       &&(!coll.value||(c.dataset.coll||'').split(', ').includes(coll.value))
       &&(!reg.value||c.dataset.region===reg.value)
+      &&(!area.value||c.dataset.area===area.value)
       &&(!rev.checked||c.dataset.kind==='fixable');
     c.hidden=!ok; if(ok)shown++;
   }
-  for(const s of document.querySelectorAll('section')){
-    const any=[...s.querySelectorAll('.card')].some(c=>!c.hidden);
-    s.hidden=!any;
-    const n=s.querySelector('.count');
-    if(n)n.textContent='('+[...s.querySelectorAll('.card')].filter(c=>!c.hidden).length+')';
+  if(sort.value==='cat'){
+    for(const h of heads){
+      const n=cards.filter(c=>c.dataset.cat===h.dataset.cat&&!c.hidden).length;
+      h.hidden=!n;
+      const label=h.querySelector('.count');
+      if(label)label.textContent='('+n+')';
+    }
   }
   tally.textContent=shown+' of '+cards.length+' shown';
   document.getElementById('none').hidden=shown>0;
 }
-[q,cat,act,coll,reg,rev].forEach(el=>el.addEventListener('input',apply));
+[q,cat,act,coll,reg,area,sort,rev].forEach(el=>el.addEventListener('input',apply));
 apply();
 """
 
@@ -251,15 +354,50 @@ def write_html(rows: list[dict], path: Path, scope: str,
     review_count = sum(1 for r in rows if r["needs_review"])
     counts = Counter(r["category"] or "other" for r in rows)
 
+    # An area name can repeat across cities (every country has a "Centro"), so
+    # each option carries every region it belongs to rather than assuming one.
+    area_regions: dict[str, set[str]] = {}
+    for row in rows:
+        if row.get("area"):
+            area_regions.setdefault(row["area"], set()).add(row["region"])
+
+    has_rank = any(r.get("saved_rank") is not None for r in rows)
+    has_taken = any(r.get("taken_at") for r in rows)
+
     def options(values, label):
         opts = "".join(f'<option value="{_esc(v)}">{_esc(v)}</option>'
                        for v in values)
         return f'<option value="">{label}</option>{opts}'
 
-    sections = []
+    def area_options() -> str:
+        opts = "".join(
+            f'<option value="{_esc(name)}" '
+            f'data-region="{_esc("|".join(sorted(area_regions[name])))}">'
+            f'{_esc(name)}</option>'
+            for name in sorted(area_regions)
+        )
+        return f'<option value="">Any area</option>{opts}'
+
+    def sort_options() -> str:
+        # Only offer an order the data can actually produce.
+        opts = ['<option value="cat">Group by category</option>']
+        if has_rank:
+            opts += ['<option value="saved:asc">Recently saved</option>',
+                     '<option value="saved:desc">Saved earliest</option>']
+        if has_taken:
+            opts += ['<option value="taken:desc">Newest post</option>',
+                     '<option value="taken:asc">Oldest post</option>']
+        return "".join(opts)
+
+    ordinal = 0
+    blocks = []
     for category in sorted(by_category, key=_category_rank):
         group = by_category[category]
-        cards = []
+        blocks.append(
+            f'<h2 class="ghdr" data-cat="{_esc(category)}">'
+            f'{_esc(category.replace("_", " "))} '
+            f'<span class="count">({len(group)})</span></h2>'
+        )
         for row in group:
             haystack = " ".join(filter(None, [
                 row["title"], row["location"], row["summary"], row["practical"],
@@ -288,11 +426,25 @@ def write_html(rows: list[dict], path: Path, scope: str,
                 chips.append(f'<span class="chip">{_esc(row["collections"])}</span>')
             chips.append(f'<span class="chip">{_esc(row["confidence"])}</span>')
 
-            cards.append(f"""
+            rank = row.get("saved_rank")
+            taken = row.get("taken_at")
+            when = row.get("date_label") or ""
+            where = " · ".join(filter(None, [
+                _esc(row["location"]),
+                "@" + _esc(row["author_username"]) if row["author_username"] else "",
+            ]))
+            if when:
+                where += f'<span class="when"> · {_esc(when)}</span>'
+
+            blocks.append(f"""
     <article class="card{' review' if row['needs_review'] else ''}"
       data-cat="{_esc(category)}" data-act="{_esc(row['action'])}"
       data-coll="{_esc(row.get('collections'))}"
       data-region="{_esc(row['region'])}"
+      data-area="{_esc(row['area'])}"
+      data-order="{ordinal}"
+      data-saved="{rank if rank is not None else ''}"
+      data-taken="{taken or ''}"
       data-review="{1 if row['needs_review'] else 0}"
       data-kind="{_esc(row.get('review_kind'))}"
       data-text="{_esc(haystack)}">
@@ -300,8 +452,7 @@ def write_html(rows: list[dict], path: Path, scope: str,
       <div>
         <p class="title"><a href="{_esc(row['url'])}" target="_blank" rel="noopener">
           {_esc(row['title'] or row['summary'][:60] or row['shortcode'])}</a></p>
-        <div class="where">{_esc(row['location'])}{
-          ' · @' + _esc(row['author_username']) if row['author_username'] else ''}</div>
+        <div class="where">{where}</div>
         <p class="summary">{_esc(row['summary'])}</p>
         {f'<ul class="hl">{highlights}</ul>' if highlights else ''}
         {practical}
@@ -311,12 +462,7 @@ def write_html(rows: list[dict], path: Path, scope: str,
       </div>
       <div class="meta">{''.join(chips)}</div>
     </article>""")
-
-        sections.append(
-            f'<section><h2>{_esc(category.replace("_", " "))} '
-            f'<span class="count">({len(group)})</span></h2>'
-            + "".join(cards) + "</section>"
-        )
+            ordinal += 1
 
     summary = " · ".join(f"{counts[c]} {c}" for c in
                          sorted(counts, key=_category_rank))
@@ -334,16 +480,17 @@ def write_html(rows: list[dict], path: Path, scope: str,
 </header>
 <div class="controls">
   <input type="search" id="q" placeholder="Filter by name, place, note…">
+  <select id="sort">{sort_options()}</select>
   <select id="cat">{options(sorted(by_category, key=_category_rank), 'All categories')}</select>
   <select id="act">{options(actions, 'Any action')}</select>
-  <select id="reg">{options(regions, 'Anywhere')}</select>
+  <select id="reg">{options(regions, 'Any city')}</select>
+  <select id="area">{area_options()}</select>
   <select id="coll">{options(sorted(collections), 'All collections')}</select>
   <label class="toggle"><input type="checkbox" id="rev"> worth another pass</label>
   <span class="sub" id="tally"></span>
 </div>
-<main>{''.join(sections)}
+<main id="list">{''.join(blocks)}</main>
 <p class="empty" id="none" hidden>Nothing matches those filters.</p>
-</main>
 <script>{_JS}</script></body></html>
 """, encoding="utf-8")
 

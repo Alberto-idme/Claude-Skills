@@ -17,6 +17,7 @@ QUICK=0
 SUITES=("test_ig_saved.py:offline unit tests")
 if [ "$QUICK" = "0" ]; then
     SUITES+=("test_browser_e2e.py:browser against mock Instagram"
+             "test_report_ui.py:report controls in a real browser"
              "test_ocr_e2e.py:OCR and vision on real video"
              "test_pipeline_smoke.py:whole chain, mock in -> report out")
 fi

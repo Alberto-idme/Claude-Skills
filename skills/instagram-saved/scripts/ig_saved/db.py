@@ -68,9 +68,15 @@ CREATE TABLE IF NOT EXISTS transcripts (
 -- A post can sit in several saved collections at once, so the label cannot
 -- live on the post. `posts.collection` is kept as a first-seen convenience for
 -- display; this table is the truth every filter goes through.
+-- `rank` is the post's position in that collection's feed, which Instagram
+-- returns most-recently-saved first. There is no saved-at timestamp in the
+-- private API response, so position is the only record of save order — and
+-- save order, not publication date, is what "newest first" means for an
+-- archive of things you bookmarked.
 CREATE TABLE IF NOT EXISTS post_collections (
     shortcode  TEXT NOT NULL REFERENCES posts(shortcode) ON DELETE CASCADE,
     collection TEXT NOT NULL,
+    rank       INTEGER,
     PRIMARY KEY (shortcode, collection)
 );
 
@@ -223,6 +229,11 @@ def _migrate(conn: sqlite3.Connection) -> None:
             conn.execute(f"ALTER TABLE entries ADD COLUMN {column} TEXT")
             conn.commit()
 
+    pc_columns = {r["name"] for r in conn.execute("PRAGMA table_info(post_collections)")}
+    if pc_columns and "rank" not in pc_columns:
+        conn.execute("ALTER TABLE post_collections ADD COLUMN rank INTEGER")
+        conn.commit()
+
     columns = {r["name"] for r in conn.execute("PRAGMA table_info(transcripts)")}
     if columns and "status" not in columns:
         conn.execute(
@@ -265,16 +276,24 @@ def known_shortcodes(conn: sqlite3.Connection, codes: Iterable[str]) -> set[str]
     return found
 
 
-def upsert_posts(conn: sqlite3.Connection, posts: Iterable[Post]) -> tuple[int, int]:
+def upsert_posts(
+    conn: sqlite3.Connection, posts: Iterable[Post], *, ordered: bool = False,
+) -> tuple[int, int]:
     """Insert or enrich posts. Returns ``(new, updated)``.
 
     Indexing and hydration write the same rows at different times, so a later
     pass must never blank a column an earlier pass filled: COALESCE keeps the
     first non-null value for everything except counts, which are volatile and
     should track the freshest fetch.
+
+    ``ordered`` says these posts arrived in feed order, so their position is
+    worth keeping as the collection's save order. Only feed walks may set it —
+    hydration passes a handful of posts in arbitrary order, and recording those
+    positions would scramble the ranks of everything it touched.
     """
     now = int(time.time())
     new = updated = 0
+    seats: dict[str, int] = {}
 
     for post in posts:
         exists = conn.execute(
@@ -319,11 +338,26 @@ def upsert_posts(conn: sqlite3.Connection, posts: Iterable[Post]) -> tuple[int, 
         )
 
         if post.collection:
-            conn.execute(
-                "INSERT OR IGNORE INTO post_collections (shortcode, collection) "
-                "VALUES (?,?)",
-                (post.shortcode, post.collection),
-            )
+            if ordered:
+                rank = seats.get(post.collection, 0)
+                seats[post.collection] = rank + 1
+                # Ranks shift as posts are saved and unsaved, so a re-walk
+                # replaces them rather than keeping the first value seen.
+                conn.execute(
+                    """
+                    INSERT INTO post_collections (shortcode, collection, rank)
+                    VALUES (?,?,?)
+                    ON CONFLICT(shortcode, collection) DO UPDATE SET
+                        rank = excluded.rank
+                    """,
+                    (post.shortcode, post.collection, rank),
+                )
+            else:
+                conn.execute(
+                    "INSERT OR IGNORE INTO post_collections "
+                    "(shortcode, collection) VALUES (?,?)",
+                    (post.shortcode, post.collection),
+                )
 
         for ref in post.media:
             conn.execute(
@@ -589,11 +623,17 @@ def entries(
     if needs_review is not None:
         where.append(f"e.needs_review = {1 if needs_review else 0}")
 
+    # Save order is per-collection, so a scoped report ranks within its own
+    # collection; an unscoped one takes the best rank the post holds anywhere.
+    rank_scope = "AND pc.collection = :c" if collection else ""
+
     return list(
         conn.execute(
             f"""
-            SELECT e.*, p.url, p.author_username, p.saved_at,
+            SELECT e.*, p.url, p.author_username, p.saved_at, p.taken_at,
                    p.media_type, p.product_type,
+                   (SELECT MIN(pc.rank) FROM post_collections pc
+                     WHERE pc.shortcode = p.shortcode {rank_scope}) AS saved_rank,
                    (SELECT group_concat(pc.collection, ', ')
                     FROM post_collections pc
                     WHERE pc.shortcode = p.shortcode) AS collections

@@ -1647,7 +1647,7 @@ def test_report_offers_a_region_filter_and_shows_why_flagged():
         page = written["html"].read_text()
         assert 'data-region="Tokyo"' in page
         assert 'data-region="California"' in page   # the outlier is filterable
-        assert "Anywhere" in page                   # region dropdown rendered
+        assert "Any city" in page                   # region dropdown rendered
         assert "named, but not in Japan" in page    # reason is visible
 
         csv_text = written["csv"].read_text()
@@ -1964,6 +1964,136 @@ def test_report_card_keeps_its_three_column_grid():
         assert card.index('class="src"') < card.index('class="meta"')
         # src sits inside the content div, which closes after it
         assert card.count("</div>") >= 2
+
+
+# ---------------------------------------------------------------------------
+# ordering and the neighbourhood filter
+# ---------------------------------------------------------------------------
+
+
+def test_area_is_the_neighbourhood_not_the_city():
+    from ig_saved.report import area_of, region_of
+
+    assert area_of("Shibuya, Tokyo") == "Shibuya"
+    assert region_of("Shibuya, Tokyo") == "Tokyo"
+    # A bare city has no neighbourhood — calling it one would put every city
+    # into the area filter and make the filter meaningless.
+    assert area_of("Tokyo") == ""
+    assert region_of("Tokyo") == "Tokyo"
+    assert area_of("") == "" and area_of(None) == ""
+    assert area_of("Gion, Kyoto, Japan") == "Gion"
+
+
+def test_index_records_save_order_and_hydration_does_not():
+    """Feed order is the only record of when something was saved: the private
+    API returns no saved-at timestamp. A hydrate pass carries a handful of
+    posts in arbitrary order, so it must not touch the ranks."""
+    with tempfile.TemporaryDirectory() as tmp:
+        conn = _tmp_db(tmp)
+        feed = [Post(shortcode=c, url="u", collection="japan")
+                for c in ("NEWEST", "MIDDLE", "OLDEST")]
+        db.upsert_posts(conn, feed, ordered=True)
+
+        ranks = dict(conn.execute(
+            "SELECT shortcode, rank FROM post_collections WHERE collection='japan'"))
+        assert ranks == {"NEWEST": 0, "MIDDLE": 1, "OLDEST": 2}
+
+        # A hydrate-shaped call: same posts, wrong order, no `ordered`.
+        db.upsert_posts(conn, [Post(shortcode="OLDEST", url="u", collection="japan"),
+                               Post(shortcode="NEWEST", url="u", collection="japan")])
+        after = dict(conn.execute(
+            "SELECT shortcode, rank FROM post_collections WHERE collection='japan'"))
+        assert after == ranks, "hydration scrambled save order"
+
+
+def test_save_order_is_per_collection():
+    with tempfile.TemporaryDirectory() as tmp:
+        conn = _tmp_db(tmp)
+        db.upsert_posts(conn, [Post(shortcode="A", url="u", collection="japan"),
+                               Post(shortcode="B", url="u", collection="japan")],
+                        ordered=True)
+        # B was saved to sf first, so it leads there and trails in japan.
+        db.upsert_posts(conn, [Post(shortcode="B", url="u", collection="sf"),
+                               Post(shortcode="A", url="u", collection="sf")],
+                        ordered=True)
+        ranks = {(r[0], r[1]): r[2] for r in conn.execute(
+            "SELECT collection, shortcode, rank FROM post_collections")}
+        assert ranks[("japan", "A")] == 0 and ranks[("japan", "B")] == 1
+        assert ranks[("sf", "B")] == 0 and ranks[("sf", "A")] == 1
+
+
+def test_a_rewalk_moves_ranks_instead_of_keeping_the_first():
+    """Saving a new post pushes everything else down; keeping the first rank
+    seen would freeze the order at whatever it was on the first run."""
+    with tempfile.TemporaryDirectory() as tmp:
+        conn = _tmp_db(tmp)
+        db.upsert_posts(conn, [Post(shortcode="OLD", url="u", collection="japan")],
+                        ordered=True)
+        db.upsert_posts(conn, [Post(shortcode="NEW", url="u", collection="japan"),
+                               Post(shortcode="OLD", url="u", collection="japan")],
+                        ordered=True)
+        ranks = dict(conn.execute(
+            "SELECT shortcode, rank FROM post_collections WHERE collection='japan'"))
+        assert ranks == {"NEW": 0, "OLD": 1}
+
+
+def test_entries_carry_the_dates_the_report_sorts_on():
+    """`saved_at` is null on the browser path and `taken_at` was not selected
+    at all, so the report had no date to order by."""
+    with tempfile.TemporaryDirectory() as tmp:
+        _cfg, conn = _entry_db(tmp)
+        db.upsert_posts(conn, [Post(shortcode="J1", url="u", collection="japan",
+                                    taken_at=1_700_000_000)], ordered=True)
+        _save(conn, "J1")
+        row = dict(db.entries(conn, collection="japan")[0])
+        assert row["taken_at"] == 1_700_000_000
+        assert row["saved_rank"] == 0
+
+
+def test_report_can_sort_by_date_and_filter_by_neighbourhood():
+    from ig_saved import report as report_mod
+
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg, conn = _entry_db(tmp)
+        db.upsert_posts(conn, [
+            Post(shortcode="J1", url="u", collection="japan",
+                 taken_at=1_600_000_000),
+            Post(shortcode="S1", url="u", collection="japan",
+                 taken_at=1_700_000_000),
+        ], ordered=True)
+        _save(conn, "J1", title="Ichiran", location="Shibuya, Tokyo")
+        _save(conn, "S1", title="Sushi Saito", location="Roppongi, Tokyo",
+              category="restaurant")
+
+        page = report_mod.build(conn, cfg, Path(tmp) / "r",
+                                collection="japan", formats=("html",))["html"].read_text()
+
+        assert 'id="sort"' in page
+        assert 'value="saved:asc">Recently saved' in page
+        assert 'value="taken:desc">Newest post' in page
+        assert 'data-area="Shibuya"' in page and 'data-area="Roppongi"' in page
+        # Areas are offered scoped to the city they sit in.
+        assert '<option value="Shibuya" data-region="Tokyo">' in page
+        assert "Any area" in page
+        # Both sort keys reach the markup.
+        assert 'data-taken="1600000000"' in page
+        assert 'data-saved="0"' in page and 'data-saved="1"' in page
+        # Cards are one flat list so a date sort can cross category groups.
+        assert "<section>" not in page
+        assert page.count('class="ghdr"') >= 1
+        # An author display rule beats the UA's [hidden] on .card{display:grid}.
+        assert "[hidden]{display:none!important}" in page
+
+
+def test_report_hides_sort_options_the_data_cannot_produce():
+    from ig_saved import report as report_mod
+
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg, conn = _entry_db(tmp)
+        _save(conn, "N1")  # no taken_at, no collection rank
+        page = report_mod.build(conn, cfg, Path(tmp) / "r",
+                                formats=("html",))["html"].read_text()
+        assert "Newest post" not in page, "offered a date sort with no dates"
 
 
 # ---------------------------------------------------------------------------
