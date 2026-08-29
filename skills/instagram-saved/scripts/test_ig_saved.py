@@ -1966,6 +1966,131 @@ def test_report_card_keeps_its_three_column_grid():
         assert card.count("</div>") >= 2
 
 
+# ---------------------------------------------------------------------------
+# incremental re-runs
+#
+# Two new posts were added to a collection, the chain was re-run, and they
+# never appeared in the report — with every counter along the way looking
+# healthy. These pin the two things that let that happen quietly.
+# ---------------------------------------------------------------------------
+
+
+def test_known_shortcodes_names_what_is_new():
+    """`upsert_posts` can only say how many were new, not which."""
+    with tempfile.TemporaryDirectory() as tmp:
+        conn = _tmp_db(tmp)
+        db.upsert_posts(conn, [Post(shortcode="OLD", url="u")])
+
+        known = db.known_shortcodes(conn, ["OLD", "NEW1", "NEW2"])
+        assert known == {"OLD"}
+        assert [c for c in ["OLD", "NEW1", "NEW2"] if c not in known] == \
+            ["NEW1", "NEW2"]
+
+
+def test_known_shortcodes_survives_more_than_999_codes():
+    """SQLite caps host parameters, so this has to chunk."""
+    with tempfile.TemporaryDirectory() as tmp:
+        conn = _tmp_db(tmp)
+        codes = [f"C{i}" for i in range(1200)]
+        db.upsert_posts(conn, [Post(shortcode=c, url="u") for c in codes])
+        assert db.known_shortcodes(conn, codes + ["MISSING"]) == set(codes)
+
+
+def test_stats_counts_what_actually_reached_the_report():
+    """The funnel stopped at `described`, one rung short of the report, so a
+    post that never got an entry was invisible in every counter."""
+    with tempfile.TemporaryDirectory() as tmp:
+        _cfg, conn = _entry_db(tmp)
+        _save(conn, "J1")
+
+        assert db.stats(conn, "japan")["posts"] == 1
+        assert db.stats(conn, "japan")["entries"] == 1
+
+        db.upsert_posts(conn, [Post(shortcode="J2", url="u", collection="japan",
+                                    caption="new save")])
+        # The gap is the whole signal: 2 posts, still 1 entry.
+        assert db.stats(conn, "japan")["posts"] == 2
+        assert db.stats(conn, "japan")["entries"] == 1
+
+
+def test_unreported_names_the_stage_that_is_blocking():
+    with tempfile.TemporaryDirectory() as tmp:
+        conn = _tmp_db(tmp)
+        db.upsert_posts(conn, [
+            Post(shortcode="NOMEDIA", url="u", collection="japan"),
+            Post(shortcode="UNDOWNLOADED", url="u", collection="japan",
+                 caption="c", media=[MediaRef(0, "video", "x")]),
+            Post(shortcode="SILENT", url="u", collection="japan",
+                 media=[MediaRef(0, "video", "x")]),
+            Post(shortcode="READY", url="u", collection="japan",
+                 caption="best tonkotsu", media=[MediaRef(0, "video", "x")]),
+        ])
+        for row in db.pending_downloads(conn):
+            if row["shortcode"] in ("SILENT", "READY"):
+                db.mark_downloaded(conn, row["id"], "/tmp/v.mp4")
+
+        reasons = {m["shortcode"]: m["reason"]
+                   for m in db.unreported(conn, collection="japan")}
+        assert reasons == {
+            "NOMEDIA": "no_media",
+            "UNDOWNLOADED": "not_downloaded",
+            "SILENT": "no_evidence",   # downloaded, but nothing readable
+            "READY": "ready",          # has a caption, just never extracted
+        }
+        # Every reason names a command to run, not just a complaint.
+        assert all(m["detail"] for m in db.unreported(conn, collection="japan"))
+
+
+def test_unreported_drops_posts_once_they_are_extracted():
+    with tempfile.TemporaryDirectory() as tmp:
+        _cfg, conn = _entry_db(tmp)
+        assert "J1" in {m["shortcode"] for m in db.unreported(conn)}
+        _save(conn, "J1")
+        assert "J1" not in {m["shortcode"] for m in db.unreported(conn)}
+
+
+def test_unreported_is_scoped_to_one_collection():
+    with tempfile.TemporaryDirectory() as tmp:
+        conn = _tmp_db(tmp)
+        db.upsert_posts(conn, [
+            Post(shortcode="J1", url="u", collection="japan", caption="c"),
+            Post(shortcode="S1", url="u", collection="sf", caption="c"),
+        ])
+        assert {m["shortcode"] for m in db.unreported(conn, collection="japan")} \
+            == {"J1"}
+        assert {m["shortcode"] for m in db.unreported(conn)} == {"J1", "S1"}
+
+
+def test_sync_full_runs_all_the_way_to_the_report():
+    """`sync` stopped after transcribe unless you knew to pass --ocr and
+    --extract, so a re-run downloaded the new posts and never reported them."""
+    from ig_saved import cli
+
+    ran: list[str] = []
+    names = ("index", "media", "transcribe", "ocr", "describe", "extract",
+             "report", "stats")
+    originals = {n: getattr(cli, f"cmd_{n}") for n in names}
+    try:
+        for name in names:
+            setattr(cli, f"cmd_{name}",
+                    (lambda n: lambda a: (ran.append(n), 0)[1])(name))
+
+        parser = cli.build_parser()
+        args = parser.parse_args(["sync", "--collection", "japan", "--full"])
+        cli.cmd_sync(args)
+        assert ran == ["index", "media", "transcribe", "ocr", "extract",
+                       "report", "stats"], ran
+
+        ran.clear()
+        args = parser.parse_args(["sync", "--collection", "japan"])
+        cli.cmd_sync(args)
+        # Default stays cheap — but it must not pretend to have reported.
+        assert "extract" not in ran and "report" not in ran, ran
+    finally:
+        for name, fn in originals.items():
+            setattr(cli, f"cmd_{name}", fn)
+
+
 def _run() -> int:
     tests = [(n, f) for n, f in sorted(globals().items())
              if n.startswith("test_") and callable(f)]

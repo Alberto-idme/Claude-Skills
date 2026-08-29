@@ -496,6 +496,64 @@ ig-saved sync --source export --path export.zip --via apify
 Runs index → hydrate → media → transcribe, skipping hydration when the source
 already provides it. Every stage is resumable; interrupting is always safe.
 
+Note where that stops: **at transcribe**. It downloads and transcribes, but it
+does not read on-screen text, distil entries, or rebuild the report, so new
+posts land in the archive without reaching the report. Add `--full` to carry
+them the whole way:
+
+```bash
+ig-saved sync --source browser --collection "$JAPAN" --full
+```
+
+`--full` implies `--ocr --extract` and rebuilds the report. It leaves out
+`--describe`, which is the expensive stage — add it explicitly if you want it.
+
+## Picking up new saves
+
+Adding posts to a collection and re-running needs no special mode. Every stage
+queries for its own unfinished work, so re-running only touches what is new:
+
+```bash
+ig-saved sync --source browser --collection "$JAPAN" --full
+```
+
+`index` reports which posts it had not seen before, by shortcode:
+
+```
+Indexed 78 posts: 2 new, 76 already known.
+New this run: DNEW111aaa, DNEW222bbb
+```
+
+and the run closes by confirming they arrived:
+
+```
+2 new post(s) this run; 2 now in the report.
+  All new posts made it through.
+```
+
+`extract` costs money, so it is guarded twice over: it only queries posts with
+no entry, and it stores a hash of each post's evidence, so even a `--redo` pass
+skips anything whose inputs are unchanged.
+
+### When something is missing from the report
+
+The report is a join against `entries`, so a post that never got one is absent
+with nothing raised — the counts are simply lower. `stats` makes that visible:
+
+```console
+$ ig-saved stats --collection japan
+           posts: 78
+      downloaded: 76  (97%)
+       in report: 76  (97%)
+
+2 post(s) not in the report:
+  DNEW111aaa     @tokyofood           media not downloaded — run `media`
+  DNEW222bbb     @kyoto_eats          media not downloaded — run `media`
+```
+
+`posts` above `in report` is the whole failure mode. Each stuck post names the
+stage to run next rather than just reporting that it is missing.
+
 ## Account safety
 
 The browser paths use undocumented endpoints and are against Instagram's Terms

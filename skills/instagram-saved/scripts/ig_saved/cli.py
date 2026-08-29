@@ -170,9 +170,20 @@ def cmd_index(args) -> int:
                 print("Indexing all saved posts…", file=sys.stderr)
                 posts = list(session.all_saved(max_pages=args.max_pages))
 
+    # Work out what is new *before* upserting — afterwards the rows are
+    # indistinguishable from ones that were already there, and "N new" alone
+    # doesn't tell you which posts to go looking for downstream.
+    known = db.known_shortcodes(conn, [p.shortcode for p in posts])
+    fresh = list(dict.fromkeys(
+        p.shortcode for p in posts if p.shortcode not in known))
+
     new, updated = db.upsert_posts(conn, posts)
     db.reindex(conn)
-    print(f"Indexed {len(posts)} posts: {new} new, {updated} updated.")
+    print(f"Indexed {len(posts)} posts: {new} new, {updated} already known.")
+    if fresh:
+        print(f"New this run: {', '.join(fresh[:20])}"
+              + (f" (+{len(fresh) - 20} more)" if len(fresh) > 20 else ""))
+    args.new_shortcodes = fresh
     return 0
 
 
@@ -474,8 +485,20 @@ def cmd_stats(args) -> int:
         print(f"{'no speech/audio':>16}: {s['untranscribable']}")
     print(f"{'screen text':>16}: {s['screen_text']}{pct(s['screen_text'], s['media'])}")
     print(f"{'described':>16}: {s['described']}{pct(s['described'], s['videos'])}")
+    print(f"{'in report':>16}: {s['entries']}{pct(s['entries'], s['posts'])}")
     if not collection:
         print(f"{'collections':>16}: {s['collections']}")
+
+    # `posts` above `in report` is the whole failure mode: the report is a join
+    # against entries, so anything short of it is missing with nothing raised.
+    missing = db.unreported(conn, collection=collection)
+    if missing:
+        print(f"\n{len(missing)} post(s) not in the report:")
+        for item in missing[:20]:
+            author = f"@{item['author_username']}" if item["author_username"] else "?"
+            print(f"  {item['shortcode']:<14} {author:<20} {item['detail']}")
+        if len(missing) > 20:
+            print(f"  … and {len(missing) - 20} more")
 
     print(f"\n{'db':>16}: {cfg.db_path}")
     print(f"{'media':>16}: {cfg.media_dir}")
@@ -510,7 +533,13 @@ def cmd_dump(args) -> int:
 
 
 def cmd_sync(args) -> int:
-    """index -> hydrate -> media -> transcribe, in one pass."""
+    """Pick up whatever is new and carry it as far as the flags allow.
+
+    Every stage is already incremental, so this is safe to re-run: each one
+    queries for its own unfinished work and skips the rest.
+    """
+    full = getattr(args, "full", False)
+
     steps = [("index", cmd_index)]
     if args.source == "export":
         steps.append(("hydrate", cmd_hydrate))
@@ -519,11 +548,11 @@ def cmd_sync(args) -> int:
     # large archive it is usually better run separately, in chunks.
     if not getattr(args, "skip_transcribe", False):
         steps.append(("transcribe", cmd_transcribe))
-    if getattr(args, "ocr", False):
+    if full or getattr(args, "ocr", False):
         steps.append(("ocr", cmd_ocr))
     if getattr(args, "describe", False):
         steps.append(("describe", cmd_describe))
-    if getattr(args, "extract", False):
+    if full or getattr(args, "extract", False):
         steps += [("extract", cmd_extract), ("report", cmd_report)]
 
     for name, fn in steps:
@@ -532,7 +561,26 @@ def cmd_sync(args) -> int:
         if code != 0:
             print(f"Stopped at '{name}'.", file=sys.stderr)
             return code
-    return cmd_stats(args)
+
+    code = cmd_stats(args)
+
+    # Close the loop on what index found. Without this the run ends on a set of
+    # counters that look fine whether or not the new posts actually landed.
+    fresh = getattr(args, "new_shortcodes", None)
+    if fresh is not None:
+        conn = db.connect(_config(args).db_path)
+        stuck = {m["shortcode"]: m["detail"]
+                 for m in db.unreported(conn, collection=_collection_name(
+                     getattr(args, "collection", None)))}
+        landed = [c for c in fresh if c not in stuck]
+        print(f"\n{len(fresh)} new post(s) this run; {len(landed)} now in the report.")
+        for code_ in fresh:
+            if code_ in stuck:
+                print(f"  {code_} still out: {stuck[code_]}")
+        if fresh and not any(c in stuck for c in fresh):
+            print("  All new posts made it through.")
+
+    return code
 
 
 # ---------------------------------------------------------------------------
@@ -704,7 +752,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--out", default="-")
     p.set_defaults(func=cmd_dump)
 
-    p = sub.add_parser("sync", help="index, hydrate, download and transcribe")
+    p = sub.add_parser(
+        "sync",
+        help="pick up new posts and process them (--full goes to the report)")
     p.add_argument("--source", choices=["export", "browser"], default="browser")
     p.add_argument("--path")
     p.add_argument("--collection")
@@ -729,6 +779,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--batch", action="store_true")
     p.add_argument("--extract", action="store_true",
                    help="also distil entries and build the report")
+    p.add_argument("--full", action="store_true",
+                   help="run every stage through to the report (implies "
+                        "--ocr --extract); leaves out --describe, which is "
+                        "the expensive one")
     p.add_argument("--redo", action="store_true")
     p.add_argument("--only-flagged", action="store_true")
     p.add_argument("--force", action="store_true")

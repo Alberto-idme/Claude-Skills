@@ -242,6 +242,29 @@ def _migrate(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def known_shortcodes(conn: sqlite3.Connection, codes: Iterable[str]) -> set[str]:
+    """Which of ``codes`` the archive already holds.
+
+    Call this *before* upserting to learn which posts a run is about to add.
+    ``upsert_posts`` can only report how many were new, and by the time it has
+    returned the rows are indistinguishable from the ones that were already
+    there — so a sync has no way to name what it just picked up.
+    """
+    codes = list(codes)
+    found: set[str] = set()
+    # SQLite caps a statement at 999 host parameters by default.
+    for i in range(0, len(codes), 500):
+        chunk = codes[i:i + 500]
+        placeholders = ",".join("?" * len(chunk))
+        found.update(
+            r["shortcode"] for r in conn.execute(
+                f"SELECT shortcode FROM posts WHERE shortcode IN ({placeholders})",
+                chunk,
+            )
+        )
+    return found
+
+
 def upsert_posts(conn: sqlite3.Connection, posts: Iterable[Post]) -> tuple[int, int]:
     """Insert or enrich posts. Returns ``(new, updated)``.
 
@@ -863,6 +886,80 @@ def stats(conn: sqlite3.Connection, collection: str | None = None) -> dict:
         "described": count(
             "SELECT count(*) FROM descriptions d "
             f"JOIN posts p ON p.shortcode = d.shortcode WHERE d.status = 'ok' {and_}"),
+        # The last rung: only posts with an entry reach the report, so a gap
+        # between this and `posts` is exactly what is missing from it.
+        "entries": count(
+            "SELECT count(*) FROM entries e "
+            f"JOIN posts p ON p.shortcode = e.shortcode {where}"),
         "collections": count(
             "SELECT count(DISTINCT collection) FROM post_collections"),
     }
+
+
+# Why a post has no entry yet, in the order the funnel hits them. The reason
+# names the stage to run next, because "missing from the report" on its own
+# gives you nothing to do about it.
+UNREPORTED_REASONS = {
+    "no_media": "no media indexed — re-run `index`",
+    "not_downloaded": "media not downloaded — run `media`",
+    "no_evidence": "nothing readable yet — run `transcribe` and `ocr`",
+    "ready": "ready — run `extract`",
+}
+
+
+def unreported(
+    conn: sqlite3.Connection, *, collection: str | None = None
+) -> list[dict]:
+    """Posts that will not appear in the report, and what is holding each one.
+
+    The report is a join against ``entries``, so a post missing from it fails
+    silently: nothing errors, the count is just lower than the post count. This
+    turns that silence into a list.
+    """
+    scope = f"WHERE {_in_collection()}" if collection else ""
+    rows = conn.execute(
+        f"""
+        SELECT p.shortcode, p.url, p.author_username, p.caption IS NOT NULL AS has_caption,
+               (SELECT count(*) FROM media m
+                 WHERE m.shortcode = p.shortcode)                       AS media_count,
+               (SELECT count(*) FROM media m
+                 WHERE m.shortcode = p.shortcode
+                   AND m.local_path IS NOT NULL)                        AS downloaded,
+               EXISTS (SELECT 1 FROM transcripts t
+                        WHERE t.shortcode = p.shortcode
+                          AND t.status = 'ok')                          AS has_voice,
+               EXISTS (SELECT 1 FROM ocr o
+                        WHERE o.shortcode = p.shortcode
+                          AND o.status = 'ok')                          AS has_screen_text,
+               EXISTS (SELECT 1 FROM descriptions d
+                        WHERE d.shortcode = p.shortcode
+                          AND d.status = 'ok')                          AS has_description
+        FROM posts p
+        {scope}
+        {"AND" if collection else "WHERE"} NOT EXISTS (
+            SELECT 1 FROM entries e WHERE e.shortcode = p.shortcode
+        )
+        ORDER BY p.indexed_at DESC, p.shortcode
+        """,
+        {"c": collection} if collection else {},
+    ).fetchall()
+
+    out = []
+    for row in rows:
+        if not row["media_count"]:
+            reason = "no_media"
+        elif not row["downloaded"]:
+            reason = "not_downloaded"
+        elif not (row["has_caption"] or row["has_voice"]
+                  or row["has_screen_text"] or row["has_description"]):
+            reason = "no_evidence"
+        else:
+            reason = "ready"
+        out.append({
+            "shortcode": row["shortcode"],
+            "url": row["url"],
+            "author_username": row["author_username"],
+            "reason": reason,
+            "detail": UNREPORTED_REASONS[reason],
+        })
+    return out
