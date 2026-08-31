@@ -418,6 +418,34 @@ def cmd_extract(args) -> int:
     return 0
 
 
+def cmd_places(args) -> int:
+    from . import places as places_mod
+
+    cfg = _config(args)
+    conn = db.connect(cfg.db_path)
+    collection = _collection_name(getattr(args, "collection", None))
+    if collection:
+        print(f"Scoped to collection '{collection}'.", file=sys.stderr)
+    places_mod.extract_all(conn, cfg, limit=args.limit, collection=collection,
+                           redo=args.redo, dry_run=args.dry_run)
+    return 0
+
+
+def cmd_enrich(args) -> int:
+    from . import places as places_mod
+
+    cfg = _config(args)
+    conn = db.connect(cfg.db_path)
+    collection = _collection_name(getattr(args, "collection", None))
+    if collection:
+        print(f"Scoped to collection '{collection}'.", file=sys.stderr)
+    places_mod.enrich_all(conn, cfg, limit=args.limit, collection=collection,
+                          redo=args.redo,
+                          retry_failed=getattr(args, "retry_failed", False),
+                          dry_run=args.dry_run)
+    return 0
+
+
 def cmd_report(args) -> int:
     from . import report as report_mod
 
@@ -487,6 +515,9 @@ def cmd_stats(args) -> int:
     print(f"{'screen text':>16}: {s['screen_text']}{pct(s['screen_text'], s['media'])}")
     print(f"{'described':>16}: {s['described']}{pct(s['described'], s['videos'])}")
     print(f"{'in report':>16}: {s['entries']}{pct(s['entries'], s['posts'])}")
+    if s["places"]:
+        print(f"{'places named':>16}: {s['places']}")
+        print(f"{'with address':>16}: {s['located']}{pct(s['located'], s['places'])}")
     if not collection:
         print(f"{'collections':>16}: {s['collections']}")
 
@@ -731,6 +762,27 @@ def build_parser() -> argparse.ArgumentParser:
                    help="re-extract even when the evidence has not changed "
                         "since the last run")
     p.set_defaults(func=cmd_extract)
+
+    p = sub.add_parser(
+        "places", help="list every place each post names, one row per place")
+    p.add_argument("--collection", help="only this collection (URL, id or name)")
+    p.add_argument("--limit", type=int)
+    p.add_argument("--redo", action="store_true",
+                   help="re-read posts already scanned (keeps existing addresses)")
+    p.add_argument("--dry-run", action="store_true", help="price it first")
+    p.set_defaults(func=cmd_places)
+
+    p = sub.add_parser(
+        "enrich", help="find each place's address and website on the web")
+    p.add_argument("--collection", help="only this collection (URL, id or name)")
+    p.add_argument("--limit", type=int)
+    p.add_argument("--redo", action="store_true",
+                   help="look up everything again, including places already found")
+    p.add_argument("--retry-failed", action="store_true",
+                   help="also retry lookups that errored (not ones simply not found)")
+    p.add_argument("--dry-run", action="store_true",
+                   help="price it first — searches are billed per use")
+    p.set_defaults(func=cmd_enrich)
 
     p = sub.add_parser("report", help="build the categorised, actionable output")
     p.add_argument("--collection", help="only this collection (URL, id or name)")

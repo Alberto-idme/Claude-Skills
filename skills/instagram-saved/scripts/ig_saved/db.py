@@ -131,6 +131,37 @@ CREATE TABLE IF NOT EXISTS entries (
     created_at   INTEGER
 );
 
+-- One row per *place named in a post*, not per post. A single listicle reel
+-- names eight restaurants, and `entries` has room for one title — which is why
+-- those posts came back flagged with "one line each, no addresses". Address
+-- and website are filled later, by a separate lookup stage, so a failed lookup
+-- never costs the extracted name.
+CREATE TABLE IF NOT EXISTS places (
+    id          INTEGER PRIMARY KEY,
+    shortcode   TEXT NOT NULL REFERENCES posts(shortcode) ON DELETE CASCADE,
+    name        TEXT NOT NULL,
+    kind        TEXT,
+    locality    TEXT,   -- where the post said it is, verbatim
+    address     TEXT,
+    website     TEXT,
+    maps_url    TEXT,
+    phone       TEXT,
+    source_url  TEXT,   -- the page the address was read off
+    -- 1 only when source_url was among the URLs web search actually returned.
+    -- An address whose citation the model invented is worse than none.
+    verified    INTEGER NOT NULL DEFAULT 0,
+    status      TEXT,   -- NULL = not looked up yet
+    note        TEXT,
+    searches    INTEGER NOT NULL DEFAULT 0,
+    model       TEXT,
+    created_at  INTEGER,
+    enriched_at INTEGER,
+    UNIQUE (shortcode, name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_places_shortcode ON places(shortcode);
+CREATE INDEX IF NOT EXISTS idx_places_status    ON places(status);
+
 CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -574,6 +605,118 @@ def pending_entries(
     )
 
 
+def pending_place_extraction(
+    conn: sqlite3.Connection, *, collection: str | None = None,
+    redo: bool = False,
+) -> list[sqlite3.Row]:
+    """Posts whose named places have not been pulled out yet."""
+    scope = f"AND {_in_collection()}" if collection else ""
+    having = "" if redo else (
+        "AND NOT EXISTS (SELECT 1 FROM places pl WHERE pl.shortcode = p.shortcode)")
+    return list(
+        conn.execute(
+            f"""
+            SELECT p.shortcode
+            FROM posts p
+            WHERE (
+                p.caption IS NOT NULL
+                OR EXISTS (SELECT 1 FROM transcripts t
+                            WHERE t.shortcode = p.shortcode AND t.status = 'ok')
+                OR EXISTS (SELECT 1 FROM ocr o
+                            WHERE o.shortcode = p.shortcode AND o.status = 'ok')
+            ) {having} {scope}
+            ORDER BY p.shortcode
+            """,
+            {"c": collection} if collection else {},
+        )
+    )
+
+
+def save_places(
+    conn: sqlite3.Connection, shortcode: str, names: list[dict], model: str,
+) -> int:
+    """Record the places a post names. Returns how many rows are new.
+
+    A re-run must not wipe an address already looked up, so this only inserts;
+    a name that is already there keeps everything the lookup stage gave it.
+    """
+    added = 0
+    now = int(time.time())
+    for item in names:
+        name = (item.get("name") or "").strip()
+        if not name:
+            continue
+        cur = conn.execute(
+            """
+            INSERT INTO places (shortcode, name, kind, locality, model, created_at)
+            VALUES (?,?,?,?,?,?)
+            ON CONFLICT(shortcode, name) DO NOTHING
+            """,
+            (shortcode, name, item.get("kind"), item.get("locality"), model, now),
+        )
+        added += cur.rowcount
+    conn.commit()
+    return added
+
+
+def pending_enrichment(
+    conn: sqlite3.Connection, *, collection: str | None = None,
+    redo: bool = False, retry_failed: bool = False,
+) -> list[sqlite3.Row]:
+    """Places with no address yet.
+
+    A place looked up and genuinely not findable keeps its `not_found` status so
+    it is not re-searched every run — searches are billed per use. `retry_failed`
+    reopens the ones that errored, `redo` reopens everything.
+    """
+    scope = f"AND {_in_collection()}" if collection else ""
+    if redo:
+        having = ""
+    elif retry_failed:
+        having = "AND (pl.status IS NULL OR pl.status = 'error')"
+    else:
+        having = "AND pl.status IS NULL"
+    return list(
+        conn.execute(
+            f"""
+            SELECT pl.id, pl.shortcode, pl.name, pl.kind, pl.locality,
+                   p.caption, e.location AS entry_location
+            FROM places pl
+            JOIN posts p ON p.shortcode = pl.shortcode
+            LEFT JOIN entries e ON e.shortcode = pl.shortcode
+            WHERE 1 {having} {scope}
+            ORDER BY pl.id
+            """,
+            {"c": collection} if collection else {},
+        )
+    )
+
+
+def save_enrichment(
+    conn: sqlite3.Connection, place_id: int, *, address: str = "",
+    website: str = "", maps_url: str = "", phone: str = "",
+    source_url: str = "", verified: bool = False, status: str = "ok",
+    note: str = "", searches: int = 0, model: str = "",
+) -> None:
+    conn.execute(
+        """
+        UPDATE places SET address = ?, website = ?, maps_url = ?, phone = ?,
+                          source_url = ?, verified = ?, status = ?, note = ?,
+                          searches = ?, model = ?, enriched_at = ?
+        WHERE id = ?
+        """,
+        (address or None, website or None, maps_url or None, phone or None,
+         source_url or None, int(bool(verified)), status, note or None,
+         searches, model, int(time.time()), place_id),
+    )
+    conn.commit()
+
+
+def places_for(conn: sqlite3.Connection, shortcode: str) -> list[dict]:
+    return [dict(r) for r in conn.execute(
+        "SELECT * FROM places WHERE shortcode = ? ORDER BY id", (shortcode,))]
+
+
 def save_entry(
     conn: sqlite3.Connection, *, shortcode: str, title: str, category: str,
     location: str, summary: str, highlights: list, action: str,
@@ -931,6 +1074,13 @@ def stats(conn: sqlite3.Connection, collection: str | None = None) -> dict:
         "entries": count(
             "SELECT count(*) FROM entries e "
             f"JOIN posts p ON p.shortcode = e.shortcode {where}"),
+        "places": count(
+            "SELECT count(*) FROM places pl "
+            f"JOIN posts p ON p.shortcode = pl.shortcode {where}"),
+        "located": count(
+            "SELECT count(*) FROM places pl "
+            "JOIN posts p ON p.shortcode = pl.shortcode "
+            f"WHERE pl.address IS NOT NULL {and_}"),
         "collections": count(
             "SELECT count(DISTINCT collection) FROM post_collections"),
     }

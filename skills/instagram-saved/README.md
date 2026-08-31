@@ -498,6 +498,68 @@ never parses prose. The prompt forbids inventing a name, price or opening time
 — an unsupported field comes back empty and the entry is flagged
 `needs_review` rather than filled with a guess.
 
+## Addresses and websites
+
+Extraction gives each post one entry with one title. That is the wrong grain for
+a post that names eight restaurants — which is exactly why those came back
+flagged `source_limit` with "one line each, no addresses". Two stages fix it:
+
+```bash
+ig-saved places --collection japan --dry-run   # price it
+ig-saved places --collection japan             # one row per named place
+ig-saved enrich --collection japan --dry-run   # searches are billed per use
+ig-saved enrich --collection japan             # address + website for each
+ig-saved report --collection japan
+```
+
+`places` re-reads the evidence already on disk and lists every place, business,
+venue or attraction the post names — one row each, no web access. `enrich`
+takes those names to the web via Claude's server-side search tool and fills in
+address, website, phone and a Google Maps link.
+
+They are separate because they have different failure modes and different
+bills. A lookup that fails should never cost you the extracted name, and only
+`enrich` is charged per search.
+
+### Cost
+
+| Stage | Rate | Japan (78 posts, ~117 places) |
+|---|---|---|
+| `places` | tokens only | ~$1.10 |
+| `enrich` | **$10 per 1,000 searches** + tokens | ~$3.50-$5.90 |
+
+`max_uses` caps each lookup at 3 searches. Both stages have `--dry-run`, and
+both are incremental: a place already looked up is never searched again.
+
+### Every address carries a checkable citation
+
+The rule that extraction must never invent a name, price or address gets teeth
+here, because a fabricated street address is both very plausible and very
+expensive to act on.
+
+The model reports the URL of the page it read the address off. That URL is then
+checked **in code** against the URLs web search actually returned in that same
+response — exact match, or the same host. A citation matching neither was
+invented, and the row is stored with `verified = 0` and called out in the
+report:
+
+> ⚠ citation not verified — check the source before relying on this
+
+Every place row also carries a `source` link, so an address is one click from
+the page it came from. Maps URLs are built locally from the documented format
+rather than asked for, since a recalled Maps link is exactly the kind of thing
+that comes back plausible and wrong.
+
+A place the search genuinely could not find keeps its row with the reason
+("no such bar in the results") rather than disappearing — the difference
+between "named somewhere I could not pin down" and "named nowhere" is worth
+keeping. Those are not re-searched on later runs; `--retry-failed` reopens only
+the ones that errored.
+
+`report` writes a fourth file, **`places.csv`** — one row per place, which is
+the grain you actually plan a trip in. `report.csv` stays one row per post;
+flattening the two together would lose whichever grain you needed.
+
 ## Searching
 
 ```bash
@@ -614,7 +676,7 @@ cd scripts
 ```
 
 ```
-test_ig_saved.py         offline unit tests                    115/115 passed
+test_ig_saved.py         offline unit tests                    128/128 passed
 test_browser_e2e.py      browser against mock Instagram        21/21 passed
 test_report_ui.py        report controls in a real browser     18/18 passed
 test_ocr_e2e.py          OCR and vision on real video          28/28 passed

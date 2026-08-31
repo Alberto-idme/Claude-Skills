@@ -31,6 +31,7 @@ def _rows(conn: sqlite3.Connection, collection: str | None) -> list[dict]:
         record = dict(row)
         record["highlights"] = json.loads(record.get("highlights") or "[]")
         record["sources"] = json.loads(record.get("sources") or "[]")
+        record["places"] = db.places_for(conn, record["shortcode"])
         record["region"] = region_of(record.get("location"))
         record["area"] = area_of(record.get("location"))
         record["date_label"] = date_label(record)
@@ -140,6 +141,32 @@ def write_csv(rows: list[dict], path: Path) -> None:
             writer.writerow(flat)
 
 
+PLACE_FIELDS = ["name", "kind", "locality", "address", "website", "maps_url",
+                "phone", "verified", "status", "note", "shortcode", "post_url"]
+
+
+def write_places_csv(rows: list[dict], path: Path) -> int:
+    """One row per place, which is the grain you actually work a trip in.
+
+    Separate from report.csv because the two have different shapes: a post with
+    eight restaurants is one report row and eight place rows, and flattening
+    them into one sheet loses whichever grain you needed.
+    """
+    written = 0
+    with open(path, "w", newline="", encoding="utf-8") as fh:
+        writer = csv.DictWriter(fh, fieldnames=PLACE_FIELDS, extrasaction="ignore")
+        writer.writeheader()
+        for row in rows:
+            for place in row.get("places") or []:
+                flat = dict(place)
+                flat["shortcode"] = row["shortcode"]
+                flat["post_url"] = row.get("link") or row.get("url") or ""
+                flat["verified"] = "yes" if place.get("verified") else ""
+                writer.writerow(flat)
+                written += 1
+    return written
+
+
 def write_markdown(rows: list[dict], path: Path, scope: str) -> None:
     lines = [f"# Saved posts — {scope}", "",
              f"{len(rows)} entries · generated {date.today().isoformat()}", ""]
@@ -221,6 +248,15 @@ border:1px solid var(--line);border-radius:12px;background:var(--card);margin-bo
 .src a{color:var(--accent);text-decoration:none}
 .src a:hover{text-decoration:underline}
 .src code{font:inherit;color:var(--muted)}
+.places{margin:8px 0 0;padding:8px 10px;border-left:2px solid var(--line);
+font-size:13px;display:grid;gap:6px}
+.place strong{font-weight:600}
+.place .addr{color:var(--muted)}
+.place .links{font-size:12.5px}
+.place .links a{color:var(--accent);text-decoration:none;margin-right:10px}
+.place .links a:hover{text-decoration:underline}
+.place .unver{color:var(--warn);font-size:12px}
+.place .none{color:var(--muted);font-style:italic}
 .reason{margin-top:4px;font-size:12.5px;color:var(--warn)}
 .meta{display:flex;flex-direction:column;align-items:flex-end;gap:6px;
 font-size:12px;color:var(--muted);white-space:nowrap}
@@ -339,6 +375,59 @@ def _esc(value) -> str:
     return html.escape(str(value or ""))
 
 
+def _places_block(places: list[dict]) -> str:
+    """The named places under an entry, with whatever the lookup found.
+
+    A place with no address is still shown. It is the difference between "this
+    post named somewhere I could not pin down" and "this post named nowhere",
+    and hiding the first would quietly turn a failed lookup into a missing place.
+    """
+    if not places:
+        return ""
+
+    items = []
+    for place in places:
+        bits = [f'<strong>{_esc(place.get("name"))}</strong>']
+        if place.get("locality"):
+            bits.append(f'<span class="addr"> · {_esc(place["locality"])}</span>')
+
+        lines = ["".join(bits)]
+        if place.get("address"):
+            lines.append(f'<div class="addr">{_esc(place["address"])}</div>')
+        elif place.get("status") == "not_found":
+            note = place.get("note") or "no address found"
+            lines.append(f'<div class="none">{_esc(note)}</div>')
+        elif place.get("status") == "error":
+            lines.append('<div class="none">lookup failed — rerun `enrich '
+                         '--retry-failed`</div>')
+        else:
+            lines.append('<div class="none">not looked up yet</div>')
+
+        links = []
+        if place.get("website"):
+            links.append(f'<a href="{_esc(place["website"])}" target="_blank" '
+                         f'rel="noopener">website</a>')
+        if place.get("maps_url"):
+            links.append(f'<a href="{_esc(place["maps_url"])}" target="_blank" '
+                         f'rel="noopener">map</a>')
+        if place.get("source_url"):
+            links.append(f'<a href="{_esc(place["source_url"])}" target="_blank" '
+                         f'rel="noopener">source</a>')
+        if place.get("phone"):
+            links.append(f'<span class="addr">{_esc(place["phone"])}</span>')
+        if links:
+            lines.append(f'<div class="links">{"".join(links)}</div>')
+
+        # An address is only as good as the page it came from.
+        if place.get("address") and not place.get("verified"):
+            lines.append('<div class="unver">citation not verified — check '
+                         'the source before relying on this</div>')
+
+        items.append(f'<div class="place">{"".join(lines)}</div>')
+
+    return f'<div class="places">{"".join(items)}</div>'
+
+
 def write_html(rows: list[dict], path: Path, scope: str,
                thumbs: dict[str, str | None]) -> None:
     by_category: dict[str, list[dict]] = {}
@@ -426,6 +515,7 @@ def write_html(rows: list[dict], path: Path, scope: str,
                 chips.append(f'<span class="chip">{_esc(row["collections"])}</span>')
             chips.append(f'<span class="chip">{_esc(row["confidence"])}</span>')
 
+            places_html = _places_block(row.get("places") or [])
             rank = row.get("saved_rank")
             taken = row.get("taken_at")
             when = row.get("date_label") or ""
@@ -456,6 +546,7 @@ def write_html(rows: list[dict], path: Path, scope: str,
         <p class="summary">{_esc(row['summary'])}</p>
         {f'<ul class="hl">{highlights}</ul>' if highlights else ''}
         {practical}
+        {places_html}
         <div class="src"><a href="{_esc(row['link'])}" target="_blank"
           rel="noopener">↗ open {_esc(row['link_kind'])} on Instagram</a>
           <code> · {_esc(row['shortcode'])}</code></div>
@@ -517,6 +608,10 @@ def build(
         target = out_dir / "report.csv"
         write_csv(rows, target)
         written["csv"] = target
+        if any(r.get("places") for r in rows):
+            target = out_dir / "places.csv"
+            write_places_csv(rows, target)
+            written["places"] = target
     if "md" in formats:
         target = out_dir / "report.md"
         write_markdown(rows, target, scope)

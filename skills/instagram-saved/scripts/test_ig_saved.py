@@ -1967,6 +1967,245 @@ def test_report_card_keeps_its_three_column_grid():
 
 
 # ---------------------------------------------------------------------------
+# places: one row per named place, and the citation check
+# ---------------------------------------------------------------------------
+
+
+def _places_db(tmp):
+    from ig_saved.config import Config as Cfg
+
+    cfg = Cfg(root=Path(tmp))
+    cfg.ensure_dirs()
+    conn = db.connect(cfg.db_path)
+    db.upsert_posts(conn, [Post(shortcode="L1", url="u", collection="japan",
+                                caption="8 ramen shops in Tokyo")], ordered=True)
+    return cfg, conn
+
+
+def test_a_listicle_becomes_one_row_per_place():
+    """The reason those posts were flagged: `entries` holds one title, and a
+    post naming eight restaurants had nowhere to put the other seven."""
+    with tempfile.TemporaryDirectory() as tmp:
+        _cfg, conn = _places_db(tmp)
+        names = [{"name": f"Shop {i}", "kind": "restaurant", "locality": "Tokyo"}
+                 for i in range(8)]
+        assert db.save_places(conn, "L1", names, "claude-opus-5") == 8
+        assert len(db.places_for(conn, "L1")) == 8
+
+
+def test_re_extracting_places_keeps_addresses_already_found():
+    """A second pass must not throw away a lookup that cost money."""
+    with tempfile.TemporaryDirectory() as tmp:
+        _cfg, conn = _places_db(tmp)
+        db.save_places(conn, "L1", [{"name": "Ichiran", "kind": "restaurant",
+                                     "locality": "Shibuya"}], "m")
+        place = db.places_for(conn, "L1")[0]
+        db.save_enrichment(conn, place["id"], address="1-22-7 Jinnan, Shibuya",
+                           website="https://ichiran.com", verified=True)
+
+        added = db.save_places(conn, "L1", [{"name": "Ichiran"}], "m")
+        assert added == 0
+        kept = db.places_for(conn, "L1")[0]
+        assert kept["address"] == "1-22-7 Jinnan, Shibuya"
+        assert kept["website"] == "https://ichiran.com"
+
+
+def test_pending_enrichment_does_not_re_search_settled_rows():
+    """Searches are billed per use, so a place already looked up — found or
+    genuinely not findable — must not come back round every run."""
+    with tempfile.TemporaryDirectory() as tmp:
+        _cfg, conn = _places_db(tmp)
+        db.save_places(conn, "L1", [{"name": "Found"}, {"name": "Missing"},
+                                    {"name": "Broke"}, {"name": "Fresh"}], "m")
+        by_name = {p["name"]: p["id"] for p in db.places_for(conn, "L1")}
+        db.save_enrichment(conn, by_name["Found"], address="somewhere", status="ok")
+        db.save_enrichment(conn, by_name["Missing"], status="not_found")
+        db.save_enrichment(conn, by_name["Broke"], status="error")
+
+        pending = {r["name"] for r in db.pending_enrichment(conn)}
+        assert pending == {"Fresh"}
+
+        # --retry-failed reopens the error but not the honest "not found".
+        retry = {r["name"] for r in db.pending_enrichment(conn, retry_failed=True)}
+        assert retry == {"Fresh", "Broke"}
+
+        assert len(db.pending_enrichment(conn, redo=True)) == 4
+
+
+def test_enrichment_is_scoped_to_the_collection():
+    with tempfile.TemporaryDirectory() as tmp:
+        _cfg, conn = _places_db(tmp)
+        db.upsert_posts(conn, [Post(shortcode="S9", url="u", collection="sf",
+                                    caption="c")], ordered=True)
+        db.save_places(conn, "L1", [{"name": "Tokyo place"}], "m")
+        db.save_places(conn, "S9", [{"name": "SF place"}], "m")
+        scoped = {r["name"] for r in db.pending_enrichment(conn, collection="japan")}
+        assert scoped == {"Tokyo place"}
+
+
+def test_a_cited_page_must_actually_have_been_searched():
+    """The whole anti-hallucination check. An address is only as good as the
+    page it came from, and a model can produce a plausible URL it never read."""
+    from ig_saved.places import _verify
+
+    searched = {"https://tabelog.com/tokyo/A1303/1303841/13001111/",
+                "https://www.timeout.com/tokyo/restaurants/ichiran"}
+
+    assert _verify("https://tabelog.com/tokyo/A1303/1303841/13001111/", searched)
+    # Same site, different page — the model cited the canonical page of a site
+    # search did return. Honest, so it counts.
+    assert _verify("https://tabelog.com/tokyo/A1303/", searched)
+    # A site that never came back from the search did not inform anything.
+    assert not _verify("https://ichiran.co.jp/shop/shibuya.html", searched)
+    assert not _verify("", searched)
+    assert not _verify("https://tabelog.com/x", set())
+
+
+def test_maps_link_is_built_not_recalled():
+    """Asking a model for a canonical Maps URL invites a plausible wrong one;
+    the format is documented, so build it."""
+    from ig_saved.places import maps_link
+
+    url = maps_link("一蘭 渋谷店", "1-22-7 Jinnan, Shibuya, Tokyo")
+    assert url.startswith("https://www.google.com/maps/search/?api=1&query=")
+    assert "%E4%B8%80%E8%98%AD" in url          # CJK percent-encoded
+    assert " " not in url
+    assert maps_link("", "") == ""
+
+
+def test_search_result_error_is_not_mistaken_for_zero_results():
+    """Server-tool errors arrive as HTTP 200 with `content` as an error object
+    rather than a list — indexing it yields nothing, which would make a failed
+    search look like a search that found no pages."""
+    from ig_saved.places import _search_error, _searched_urls
+
+    class Block:
+        type = "web_search_tool_result"
+
+        def __init__(self, content):
+            self.content = content
+
+    class Err:
+        error_code = "max_uses_exceeded"
+
+    class Result:
+        def __init__(self, url):
+            self.url = url
+
+    class Message:
+        def __init__(self, content):
+            self.content = content
+
+    ok = Message([Block([Result("https://a.example/1")])])
+    assert _searched_urls(ok) == {"https://a.example/1"}
+    assert _search_error(ok) == ""
+
+    bad = Message([Block(Err())])
+    assert _searched_urls(bad) == set()
+    assert _search_error(bad) == "max_uses_exceeded"
+
+    # A real search that matched nothing returns an empty list, not an error.
+    empty = Message([Block([])])
+    assert _searched_urls(empty) == set() and _search_error(empty) == ""
+
+
+def test_place_schemas_meet_the_structured_output_constraints():
+    """Structured outputs require additionalProperties:false and every property
+    listed in required — a schema that misses either is a 400 at request time,
+    which is an expensive way to find out."""
+    from ig_saved.places import LOOKUP_SCHEMA, NAMES_SCHEMA
+
+    def audit(schema, path="root"):
+        if schema.get("type") == "object":
+            assert schema.get("additionalProperties") is False, path
+            assert set(schema.get("properties", {})) == set(schema.get("required", [])), path
+            for key, value in schema.get("properties", {}).items():
+                audit(value, f"{path}.{key}")
+        if schema.get("type") == "array":
+            audit(schema.get("items", {}), f"{path}[]")
+
+    audit(NAMES_SCHEMA)
+    audit(LOOKUP_SCHEMA)
+
+
+def test_search_tool_is_pinned_to_a_real_version():
+    from ig_saved.places import SEARCH_TOOL
+
+    assert SEARCH_TOOL["type"] == "web_search_20260318"
+    assert SEARCH_TOOL["name"] == "web_search"
+    # max_uses caps what a single lookup can bill at $0.01 a search.
+    assert SEARCH_TOOL["max_uses"] <= 3
+    # allowed_domains and blocked_domains together are a 400.
+    assert not ({"allowed_domains", "blocked_domains"} <= set(SEARCH_TOOL))
+
+
+def test_places_use_the_same_pinned_model_as_extraction():
+    """No silent escalation, same as extract.py and describe.py."""
+    from ig_saved import places as places_mod
+
+    assert places_mod.MODEL == "claude-opus-5"
+    source = Path(places_mod.__file__).read_text()
+    assert "claude-sonnet" not in source and "claude-haiku" not in source
+
+
+def test_report_shows_places_and_marks_unverified_addresses():
+    from ig_saved import report as report_mod
+
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg, conn = _entry_db(tmp)
+        _save(conn, "J1", title="Tokyo ramen list", location="Tokyo")
+        db.save_places(conn, "J1", [
+            {"name": "Ichiran", "kind": "restaurant", "locality": "Shibuya"},
+            {"name": "Fuglen", "kind": "cafe", "locality": "Tomigaya"},
+            {"name": "Ghost Bar", "kind": "bar", "locality": ""},
+        ], "claude-opus-5")
+        ids = {p["name"]: p["id"] for p in db.places_for(conn, "J1")}
+        db.save_enrichment(conn, ids["Ichiran"], address="1-22-7 Jinnan, Shibuya",
+                           website="https://ichiran.com",
+                           maps_url="https://maps.example/1",
+                           source_url="https://tabelog.com/x", verified=True)
+        db.save_enrichment(conn, ids["Fuglen"], address="1-16-11 Tomigaya",
+                           source_url="https://invented.example/x", verified=False)
+        db.save_enrichment(conn, ids["Ghost Bar"], status="not_found",
+                           note="no such bar in the results")
+
+        written = report_mod.build(conn, cfg, Path(tmp) / "r")
+        page = written["html"].read_text()
+
+        assert "1-22-7 Jinnan, Shibuya" in page
+        assert 'href="https://ichiran.com"' in page
+        # An unverified citation is called out, a verified one is not.
+        assert page.count("citation not verified") == 1
+        # A place with no address is still listed, not silently dropped.
+        assert "Ghost Bar" in page and "no such bar in the results" in page
+
+        places_csv = written["places"].read_text()
+        assert places_csv.splitlines()[0].startswith("name,kind,locality,address")
+        assert "Ichiran" in places_csv and "Ghost Bar" in places_csv
+        assert len(places_csv.strip().splitlines()) == 4  # header + 3
+
+
+def test_places_csv_is_skipped_when_nothing_named_a_place():
+    from ig_saved import report as report_mod
+
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg, conn = _entry_db(tmp)
+        _save(conn, "J1")
+        written = report_mod.build(conn, cfg, Path(tmp) / "r")
+        assert "places" not in written
+
+
+def test_stats_counts_places_and_how_many_were_located():
+    with tempfile.TemporaryDirectory() as tmp:
+        _cfg, conn = _places_db(tmp)
+        db.save_places(conn, "L1", [{"name": "A"}, {"name": "B"}], "m")
+        db.save_enrichment(conn, db.places_for(conn, "L1")[0]["id"],
+                           address="somewhere")
+        s = db.stats(conn, "japan")
+        assert s["places"] == 2 and s["located"] == 1
+
+
+# ---------------------------------------------------------------------------
 # ordering and the neighbourhood filter
 # ---------------------------------------------------------------------------
 
