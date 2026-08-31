@@ -442,7 +442,8 @@ def cmd_enrich(args) -> int:
     places_mod.enrich_all(conn, cfg, limit=args.limit, collection=collection,
                           redo=args.redo,
                           retry_failed=getattr(args, "retry_failed", False),
-                          dry_run=args.dry_run)
+                          dry_run=args.dry_run,
+                          max_searches=getattr(args, "max_searches", None))
     return 0
 
 
@@ -564,6 +565,20 @@ def cmd_dump(args) -> int:
     return 0
 
 
+def _sync_enrich(args) -> int:
+    """Run enrichment inside a sync, without inheriting `--redo`.
+
+    `--redo` in a sync run means "extract these posts again" — it is shared by
+    every stage in the chain. Letting it reach enrichment would re-search every
+    place already looked up, and searches are billed per use, so a flag whose
+    point is to redo a free stage would quietly redo a paid one. `--re-enrich`
+    is the explicit way to ask for that.
+    """
+    scoped = argparse.Namespace(**vars(args))
+    scoped.redo = getattr(args, "re_enrich", False)
+    return cmd_enrich(scoped)
+
+
 def cmd_sync(args) -> int:
     """Pick up whatever is new and carry it as far as the flags allow.
 
@@ -585,7 +600,15 @@ def cmd_sync(args) -> int:
     if getattr(args, "describe", False):
         steps.append(("describe", cmd_describe))
     if full or getattr(args, "extract", False):
-        steps += [("extract", cmd_extract), ("report", cmd_report)]
+        steps.append(("extract", cmd_extract))
+    # Places run after extraction so each lookup can borrow the entry's
+    # location: "Fuglen" alone finds the Oslo original, not the Tokyo branch.
+    if full or getattr(args, "places", False):
+        steps.append(("places", cmd_places))
+    if full or getattr(args, "enrich", False):
+        steps.append(("enrich", _sync_enrich))
+    if full or getattr(args, "extract", False):
+        steps.append(("report", cmd_report))
 
     for name, fn in steps:
         print(f"\n=== {name} ===", file=sys.stderr)
@@ -611,6 +634,21 @@ def cmd_sync(args) -> int:
                 print(f"  {code_} still out: {stuck[code_]}")
         if fresh and not any(c in stuck for c in fresh):
             print("  All new posts made it through.")
+
+        # What the new posts actually yielded, which is the point of the run.
+        for code_ in fresh:
+            found = db.places_for(conn, code_)
+            if not found:
+                continue
+            located = sum(1 for p in found if p["address"])
+            print(f"  {code_}: {len(found)} place(s) named, {located} with an "
+                  f"address")
+            for place in found:
+                if place["address"]:
+                    mark = "" if place["verified"] else "  (unverified)"
+                    print(f"      {place['name']} — {place['address']}{mark}")
+                else:
+                    print(f"      {place['name']} — {place['note'] or 'not looked up'}")
 
     return code
 
@@ -780,6 +818,9 @@ def build_parser() -> argparse.ArgumentParser:
                    help="look up everything again, including places already found")
     p.add_argument("--retry-failed", action="store_true",
                    help="also retry lookups that errored (not ones simply not found)")
+    p.add_argument("--max-searches", type=int,
+                   help="stop after this many web searches; the rest wait for "
+                        "the next run")
     p.add_argument("--dry-run", action="store_true",
                    help="price it first — searches are billed per use")
     p.set_defaults(func=cmd_enrich)
@@ -832,10 +873,20 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--batch", action="store_true")
     p.add_argument("--extract", action="store_true",
                    help="also distil entries and build the report")
+    p.add_argument("--places", action="store_true",
+                   help="also list the places each post names")
+    p.add_argument("--enrich", action="store_true",
+                   help="also look up each place's address and website "
+                        "(billed per web search)")
+    p.add_argument("--re-enrich", action="store_true",
+                   help="look up places already found again; --redo does not "
+                        "reach enrichment, because searches cost money")
+    p.add_argument("--max-searches", type=int,
+                   help="stop enrichment after this many web searches")
     p.add_argument("--full", action="store_true",
-                   help="run every stage through to the report (implies "
-                        "--ocr --extract); leaves out --describe, which is "
-                        "the expensive one")
+                   help="run every stage through to the report (implies --ocr "
+                        "--extract --places --enrich, so it does spend on web "
+                        "searches); leaves out --describe, the priciest one")
     p.add_argument("--redo", action="store_true")
     p.add_argument("--only-flagged", action="store_true")
     p.add_argument("--force", action="store_true")

@@ -296,6 +296,7 @@ def enrich_all(
     conn: sqlite3.Connection, cfg: Config, *, limit: int | None = None,
     collection: str | None = None, redo: bool = False,
     retry_failed: bool = False, dry_run: bool = False,
+    max_searches: int | None = None,
 ) -> dict:
     rows = db.pending_enrichment(conn, collection=collection, redo=redo,
                                  retry_failed=retry_failed)
@@ -319,7 +320,19 @@ def enrich_all(
     client = _client(cfg)
     found = unverified = failed = searches = 0
 
+    stopped_early = False
     for n, row in enumerate(rows, 1):
+        # Checked before the request, not after: the cap is there to bound what
+        # an unattended run can spend, and a request already sent is already
+        # billed. Rows past the cap keep status NULL, so the next run picks up
+        # exactly where this one stopped.
+        if max_searches is not None and searches >= max_searches:
+            print(f"Stopping at --max-searches {max_searches} "
+                  f"({len(rows) - n + 1} places left for next time).",
+                  file=sys.stderr)
+            stopped_early = True
+            break
+
         label = f"[{n}/{len(rows)}] {row['name']}"
         try:
             message = client.messages.create(
@@ -387,8 +400,10 @@ def enrich_all(
         print(f"{label}: {address}{mark}", file=sys.stderr)
 
     cost = 0.01 * searches
-    print(f"Looked up {len(rows)} places: {found} with an address "
+    done = len(rows) if not stopped_early else found + failed
+    print(f"Looked up {done} places: {found} with an address "
           f"({unverified} whose citation could not be verified), {failed} failed.")
     print(f"{searches} searches, about ${cost:.2f} plus tokens.")
-    return {"looked_up": len(rows), "found": found, "unverified": unverified,
-            "failed": failed, "searches": searches}
+    return {"looked_up": done, "found": found, "unverified": unverified,
+            "failed": failed, "searches": searches,
+            "stopped_early": stopped_early}

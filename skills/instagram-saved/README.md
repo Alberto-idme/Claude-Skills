@@ -603,8 +603,19 @@ them the whole way:
 ig-saved sync --source browser --collection "$JAPAN" --full
 ```
 
-`--full` implies `--ocr --extract` and rebuilds the report. It leaves out
-`--describe`, which is the expensive stage — add it explicitly if you want it.
+`--full` runs the whole chain — OCR, extraction, the places pass, the address
+lookup, then the report last so it carries what the run just found. It leaves
+out `--describe`, the priciest stage; add it explicitly if you want it.
+
+`--full` does spend: extraction is billed in tokens and enrichment is billed
+per web search. Two rails keep that bounded:
+
+- `--max-searches N` hard-stops enrichment once it has spent N searches.
+  Rows past the cap stay pending, so the next run resumes exactly there.
+- `--redo` does **not** reach enrichment. It means "extract these again", and
+  it is shared by every stage in the chain — letting a free redo cascade into
+  re-searching every place already found is the kind of thing you notice on
+  the bill. `--re-enrich` is the explicit way to ask for that.
 
 ## Picking up new saves
 
@@ -676,7 +687,7 @@ cd scripts
 ```
 
 ```
-test_ig_saved.py         offline unit tests                    128/128 passed
+test_ig_saved.py         offline unit tests                    131/131 passed
 test_browser_e2e.py      browser against mock Instagram        21/21 passed
 test_report_ui.py        report controls in a real browser     18/18 passed
 test_ocr_e2e.py          OCR and vision on real video          28/28 passed

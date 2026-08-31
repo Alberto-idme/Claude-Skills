@@ -2430,14 +2430,14 @@ def test_unreported_is_scoped_to_one_collection():
         assert {m["shortcode"] for m in db.unreported(conn)} == {"J1", "S1"}
 
 
-def test_sync_full_runs_all_the_way_to_the_report():
-    """`sync` stopped after transcribe unless you knew to pass --ocr and
-    --extract, so a re-run downloaded the new posts and never reported them."""
+def test_sync_full_includes_places_and_enrichment_before_the_report():
+    """"Process them fully" has to mean fully — the report is built last so it
+    picks up the addresses this run just found."""
     from ig_saved import cli
 
     ran: list[str] = []
     names = ("index", "media", "transcribe", "ocr", "describe", "extract",
-             "report", "stats")
+             "places", "enrich", "report", "stats")
     originals = {n: getattr(cli, f"cmd_{n}") for n in names}
     try:
         for name in names:
@@ -2445,16 +2445,115 @@ def test_sync_full_runs_all_the_way_to_the_report():
                     (lambda n: lambda a: (ran.append(n), 0)[1])(name))
 
         parser = cli.build_parser()
-        args = parser.parse_args(["sync", "--collection", "japan", "--full"])
-        cli.cmd_sync(args)
+        cli.cmd_sync(parser.parse_args(
+            ["sync", "--collection", "japan", "--full"]))
         assert ran == ["index", "media", "transcribe", "ocr", "extract",
-                       "report", "stats"], ran
+                       "places", "enrich", "report", "stats"], ran
+        assert ran.index("enrich") < ran.index("report")
+        assert ran.index("extract") < ran.index("places")
+    finally:
+        for name, fn in originals.items():
+            setattr(cli, f"cmd_{name}", fn)
 
-        ran.clear()
-        args = parser.parse_args(["sync", "--collection", "japan"])
-        cli.cmd_sync(args)
-        # Default stays cheap — but it must not pretend to have reported.
-        assert "extract" not in ran and "report" not in ran, ran
+
+def test_sync_redo_does_not_reach_the_billed_lookup_stage():
+    """`--redo` in a sync means "extract again". If it cascaded into enrich it
+    would re-search every place already found, at $0.01 a search."""
+    from ig_saved import cli
+
+    seen: dict[str, bool] = {}
+    original = cli.cmd_enrich
+    try:
+        cli.cmd_enrich = lambda a: (seen.update(redo=a.redo), 0)[1]
+
+        parser = cli.build_parser()
+        cli._sync_enrich(parser.parse_args(
+            ["sync", "--collection", "japan", "--full", "--redo"]))
+        assert seen["redo"] is False, "a free --redo triggered paid re-searches"
+
+        cli._sync_enrich(parser.parse_args(
+            ["sync", "--collection", "japan", "--full", "--re-enrich"]))
+        assert seen["redo"] is True, "--re-enrich is the way to ask for it"
+    finally:
+        cli.cmd_enrich = original
+
+
+def test_enrichment_stops_at_the_search_budget_and_resumes_next_run():
+    """A stage billed per use, running unattended inside sync, needs a hard
+    stop that leaves the remainder pending rather than half-written."""
+    from ig_saved import places as places_mod
+
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg, conn = _places_db(tmp)
+        db.save_places(conn, "L1", [{"name": f"P{i}"} for i in range(6)], "m")
+
+        calls = {"n": 0}
+
+        class FakeMessage:
+            def __init__(self):
+                self.content = [_TextBlock(json.dumps({
+                    "found": True, "address": "1 Some St", "website": "",
+                    "phone": "", "source_url": "https://a.example/x", "note": "",
+                }))]
+                self.usage = _Usage(2)  # two searches per lookup
+
+        class FakeMessages:
+            def create(self, **kw):
+                calls["n"] += 1
+                return FakeMessage()
+
+        class FakeClient:
+            messages = FakeMessages()
+
+        real_client = places_mod._client
+        places_mod._client = lambda cfg: FakeClient()
+        try:
+            result = places_mod.enrich_all(conn, cfg, max_searches=5)
+        finally:
+            places_mod._client = real_client
+
+        # Stops once spend reaches the cap, checked before sending.
+        assert result["searches"] == 6 and calls["n"] == 3, result
+        assert result["stopped_early"] is True
+        # The untouched rows stay pending, so the next run resumes cleanly.
+        assert len(db.pending_enrichment(conn)) == 3
+
+
+class _TextBlock:
+    type = "text"
+
+    def __init__(self, text):
+        self.text = text
+
+
+class _Usage:
+    def __init__(self, searches):
+        self.server_tool_use = type("S", (), {"web_search_requests": searches})()
+
+
+def test_sync_without_full_stays_free():
+    """`sync` stopped after transcribe unless you knew to pass --ocr and
+    --extract, so a re-run downloaded the new posts and never reported them.
+    The default is still allowed to stop early — it just must not reach any
+    stage that spends money, and must not pretend to have reported."""
+    from ig_saved import cli
+
+    ran: list[str] = []
+    # Every stage has to be patched, including the paid ones: an unpatched
+    # stage here would run for real against the default ~/.ig-saved.
+    names = ("index", "media", "transcribe", "ocr", "describe", "extract",
+             "places", "enrich", "report", "stats")
+    originals = {n: getattr(cli, f"cmd_{n}") for n in names}
+    try:
+        for name in names:
+            setattr(cli, f"cmd_{name}",
+                    (lambda n: lambda a: (ran.append(n), 0)[1])(name))
+
+        parser = cli.build_parser()
+        cli.cmd_sync(parser.parse_args(["sync", "--collection", "japan"]))
+        assert ran == ["index", "media", "transcribe", "stats"], ran
+        for paid in ("extract", "places", "enrich", "describe", "report"):
+            assert paid not in ran, f"{paid} ran without being asked for"
     finally:
         for name, fn in originals.items():
             setattr(cli, f"cmd_{name}", fn)
