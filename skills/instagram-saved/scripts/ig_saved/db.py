@@ -210,6 +210,32 @@ def _in_collection(alias: str = "p") -> str:
     )
 
 
+def _only(conn: sqlite3.Connection, alias: str,
+          shortcodes: Iterable[str] | None) -> str:
+    """Restrict a pending query to specific posts.
+
+    Used by `sync --only-new` to carry just this run's arrivals through the
+    whole chain, leaving an unprocessed backlog where it is. That matters most
+    for the billed stages: every pending query is ordered oldest-first, so a
+    spend cap alone would hand the entire budget to the backlog and never reach
+    the posts you actually just saved.
+
+    Materialised as a temp table rather than an ``IN (...)`` list because
+    SQLite caps host parameters, and a first scoped run can carry more
+    shortcodes than that cap allows. ``None`` means no restriction; an empty
+    list means nothing matches — which is the right reading of "only the new
+    posts" on a run that found none.
+    """
+    if shortcodes is None:
+        return ""
+    conn.execute("DROP TABLE IF EXISTS temp.scope")
+    conn.execute("CREATE TEMP TABLE scope (shortcode TEXT PRIMARY KEY)")
+    conn.executemany("INSERT OR IGNORE INTO temp.scope (shortcode) VALUES (?)",
+                     [(code,) for code in shortcodes])
+    return (f"AND EXISTS (SELECT 1 FROM temp.scope sc "
+            f"WHERE sc.shortcode = {alias}.shortcode)")
+
+
 def connect(path: Path) -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
@@ -423,16 +449,18 @@ def pending_hydration(conn: sqlite3.Connection, limit: int | None = None) -> lis
 
 
 def pending_downloads(
-    conn: sqlite3.Connection, *, collection: str | None = None
+    conn: sqlite3.Connection, *, collection: str | None = None,
+    shortcodes: Iterable[str] | None = None
 ) -> list[sqlite3.Row]:
     scope = f"AND {_in_collection()}" if collection else ""
+    only = _only(conn, 'm', shortcodes)
     return list(
         conn.execute(
             f"""
             SELECT m.id, m.shortcode, m.idx, m.kind, m.remote_url
             FROM media m
             JOIN posts p ON p.shortcode = m.shortcode
-            WHERE m.local_path IS NULL AND m.remote_url IS NOT NULL {scope}
+            WHERE m.local_path IS NULL AND m.remote_url IS NOT NULL {scope} {only}
             ORDER BY m.shortcode, m.idx
             """,
             {"c": collection} if collection else {},
@@ -445,6 +473,7 @@ def pending_transcripts(
     *,
     retry_failed: bool = False,
     collection: str | None = None,
+    shortcodes: Iterable[str] | None = None,
 ) -> list[sqlite3.Row]:
     """Downloaded videos with no transcript row yet.
 
@@ -456,6 +485,7 @@ def pending_transcripts(
     if retry_failed:
         condition = "(t.media_id IS NULL OR t.status = 'error')"
     scope = f"AND {_in_collection()}" if collection else ""
+    only = _only(conn, 'm', shortcodes)
     return list(
         conn.execute(
             f"""
@@ -465,7 +495,7 @@ def pending_transcripts(
             LEFT JOIN transcripts t ON t.media_id = m.id
             WHERE m.kind = 'video'
               AND m.local_path IS NOT NULL
-              AND {condition} {scope}
+              AND {condition} {scope} {only}
             ORDER BY m.shortcode
             """,
             {"c": collection} if collection else {},
@@ -477,6 +507,7 @@ def pending_ocr(
     conn: sqlite3.Connection,
     *,
     collection: str | None = None,
+    shortcodes: Iterable[str] | None = None,
     include_images: bool = True,
     redo: bool = False,
     only_flagged: bool = False,
@@ -489,6 +520,7 @@ def pending_ocr(
     which is the case worth paying denser sampling for.
     """
     scope = f"AND {_in_collection()}" if collection else ""
+    only = _only(conn, 'm', shortcodes)
     kinds = "" if include_images else "AND m.kind = 'video'"
     unread = "" if (redo or only_flagged) else "AND o.media_id IS NULL"
     flagged = ("AND EXISTS (SELECT 1 FROM entries e "
@@ -502,7 +534,7 @@ def pending_ocr(
             JOIN posts p ON p.shortcode = m.shortcode
             LEFT JOIN ocr o ON o.media_id = m.id
             WHERE m.local_path IS NOT NULL {unread}
-              {kinds} {flagged} {scope}
+              {kinds} {flagged} {scope} {only}
             ORDER BY m.shortcode, m.idx
             """,
             {"c": collection} if collection else {},
@@ -511,9 +543,11 @@ def pending_ocr(
 
 
 def pending_descriptions(
-    conn: sqlite3.Connection, *, collection: str | None = None
+    conn: sqlite3.Connection, *, collection: str | None = None,
+    shortcodes: Iterable[str] | None = None
 ) -> list[sqlite3.Row]:
     scope = f"AND {_in_collection()}" if collection else ""
+    only = _only(conn, 'm', shortcodes)
     return list(
         conn.execute(
             f"""
@@ -522,7 +556,7 @@ def pending_descriptions(
             JOIN posts p ON p.shortcode = m.shortcode
             LEFT JOIN descriptions d ON d.media_id = m.id
             WHERE m.kind = 'video' AND m.local_path IS NOT NULL
-              AND d.media_id IS NULL {scope}
+              AND d.media_id IS NULL {scope} {only}
             ORDER BY m.shortcode, m.idx
             """,
             {"c": collection} if collection else {},
@@ -574,10 +608,12 @@ def save_description(
 
 def pending_entries(
     conn: sqlite3.Connection, *, collection: str | None = None,
+    shortcodes: Iterable[str] | None = None,
     redo: bool = False, only_flagged: bool = False,
 ) -> list[sqlite3.Row]:
     """Posts with something to read but no triage record yet."""
     scope = f"AND {_in_collection()}" if collection else ""
+    only = _only(conn, 'p', shortcodes)
     if only_flagged:
         # Re-run just what was flagged, rather than re-billing the archive.
         having = "AND e.needs_review = 1"
@@ -597,7 +633,7 @@ def pending_entries(
                             WHERE o.shortcode = p.shortcode AND o.status = 'ok')
                 OR EXISTS (SELECT 1 FROM descriptions d
                             WHERE d.shortcode = p.shortcode AND d.status = 'ok')
-            ) {having} {scope}
+            ) {having} {scope} {only}
             ORDER BY p.saved_at DESC
             """,
             {"c": collection} if collection else {},
@@ -607,10 +643,12 @@ def pending_entries(
 
 def pending_place_extraction(
     conn: sqlite3.Connection, *, collection: str | None = None,
+    shortcodes: Iterable[str] | None = None,
     redo: bool = False,
 ) -> list[sqlite3.Row]:
     """Posts whose named places have not been pulled out yet."""
     scope = f"AND {_in_collection()}" if collection else ""
+    only = _only(conn, 'p', shortcodes)
     having = "" if redo else (
         "AND NOT EXISTS (SELECT 1 FROM places pl WHERE pl.shortcode = p.shortcode)")
     return list(
@@ -624,7 +662,7 @@ def pending_place_extraction(
                             WHERE t.shortcode = p.shortcode AND t.status = 'ok')
                 OR EXISTS (SELECT 1 FROM ocr o
                             WHERE o.shortcode = p.shortcode AND o.status = 'ok')
-            ) {having} {scope}
+            ) {having} {scope} {only}
             ORDER BY p.shortcode
             """,
             {"c": collection} if collection else {},
@@ -661,6 +699,7 @@ def save_places(
 
 def pending_enrichment(
     conn: sqlite3.Connection, *, collection: str | None = None,
+    shortcodes: Iterable[str] | None = None,
     redo: bool = False, retry_failed: bool = False,
 ) -> list[sqlite3.Row]:
     """Places with no address yet.
@@ -670,6 +709,7 @@ def pending_enrichment(
     reopens the ones that errored, `redo` reopens everything.
     """
     scope = f"AND {_in_collection()}" if collection else ""
+    only = _only(conn, 'pl', shortcodes)
     if redo:
         having = ""
     elif retry_failed:
@@ -680,12 +720,20 @@ def pending_enrichment(
         conn.execute(
             f"""
             SELECT pl.id, pl.shortcode, pl.name, pl.kind, pl.locality,
-                   p.caption, e.location AS entry_location
+                   p.caption, e.location AS entry_location,
+                   (SELECT MIN(pc.rank) FROM post_collections pc
+                     WHERE pc.shortcode = pl.shortcode) AS rank
             FROM places pl
             JOIN posts p ON p.shortcode = pl.shortcode
             LEFT JOIN entries e ON e.shortcode = pl.shortcode
-            WHERE 1 {having} {scope}
-            ORDER BY pl.id
+            WHERE 1 {having} {scope} {only}
+            -- Most recently saved first. This is the only pending query whose
+            -- order decides what a budget buys: with --max-searches, plain
+            -- row order would spend the whole cap on the oldest backlog and
+            -- never reach the posts just saved. Rank is per collection and
+            -- lowest-is-newest; unranked rows (never walked by `index`) go
+            -- last rather than pretending to be the newest thing there.
+            ORDER BY rank IS NULL, rank, pl.id
             """,
             {"c": collection} if collection else {},
         )

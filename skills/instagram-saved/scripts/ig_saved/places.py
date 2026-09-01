@@ -225,8 +225,10 @@ def _verify(source_url: str, searched: set[str]) -> bool:
 def extract_all(
     conn: sqlite3.Connection, cfg: Config, *, limit: int | None = None,
     collection: str | None = None, redo: bool = False, dry_run: bool = False,
+    shortcodes: list[str] | None = None,
 ) -> dict:
-    rows = db.pending_place_extraction(conn, collection=collection, redo=redo)
+    rows = db.pending_place_extraction(conn, collection=collection, redo=redo,
+                                       shortcodes=shortcodes)
     if limit:
         rows = rows[:limit]
     if not rows:
@@ -296,10 +298,10 @@ def enrich_all(
     conn: sqlite3.Connection, cfg: Config, *, limit: int | None = None,
     collection: str | None = None, redo: bool = False,
     retry_failed: bool = False, dry_run: bool = False,
-    max_searches: int | None = None,
+    max_searches: int | None = None, shortcodes: list[str] | None = None,
 ) -> dict:
     rows = db.pending_enrichment(conn, collection=collection, redo=redo,
-                                 retry_failed=retry_failed)
+                                 retry_failed=retry_failed, shortcodes=shortcodes)
     if limit:
         rows = rows[:limit]
     if not rows:

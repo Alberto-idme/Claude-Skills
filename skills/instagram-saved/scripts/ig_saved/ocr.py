@@ -222,13 +222,14 @@ def run_all(
     *,
     limit: int | None = None,
     collection: str | None = None,
+    shortcodes: list[str] | None = None,
     interval: float = 1.0,
     images: bool = True,
     redo: bool = False,
     only_flagged: bool = False,
 ) -> dict:
     rows = db.pending_ocr(conn, collection=collection, include_images=images,
-                          redo=redo, only_flagged=only_flagged)
+                          redo=redo, only_flagged=only_flagged, shortcodes=shortcodes)
     if limit:
         rows = rows[:limit]
     if not rows:

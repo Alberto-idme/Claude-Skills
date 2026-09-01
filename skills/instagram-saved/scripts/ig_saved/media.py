@@ -57,8 +57,10 @@ def download_all(
     workers: int = 4,
     limit: int | None = None,
     collection: str | None = None,
+    shortcodes: list[str] | None = None,
 ) -> dict:
-    rows = db.pending_downloads(conn, collection=collection)
+    rows = db.pending_downloads(conn, collection=collection,
+                                shortcodes=shortcodes)
     if limit:
         rows = rows[:limit]
     if not rows:

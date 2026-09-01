@@ -235,7 +235,9 @@ def cmd_media(args) -> int:
     if collection:
         print(f"Scoped to collection '{collection}'.", file=sys.stderr)
     counts = media_mod.download_all(
-        conn, cfg, workers=args.workers, limit=args.limit, collection=collection
+        conn, cfg, workers=args.workers, limit=args.limit,
+        collection=collection,
+        shortcodes=getattr(args, "only_shortcodes", None),
     )
     print(
         f"Downloaded {counts['downloaded']} files "
@@ -264,6 +266,7 @@ def cmd_transcribe(args) -> int:
         conn, cfg, limit=args.limit,
         retry_failed=getattr(args, "retry_failed", False),
         collection=collection,
+        shortcodes=getattr(args, "only_shortcodes", None),
         min_chars=min_chars,
     )
     db.reindex(conn)
@@ -294,6 +297,7 @@ def cmd_ocr(args) -> int:
         print(f"Scoped to collection '{collection}'.", file=sys.stderr)
     counts = ocr_mod.run_all(
         conn, cfg, limit=args.limit, collection=collection,
+        shortcodes=getattr(args, "only_shortcodes", None),
         interval=args.interval, images=not args.videos_only,
         redo=getattr(args, "redo", False),
         only_flagged=getattr(args, "only_flagged", False),
@@ -316,6 +320,7 @@ def cmd_describe(args) -> int:
         print(f"Scoped to collection '{collection}'.", file=sys.stderr)
     counts = describe_mod.run_all(
         conn, cfg, limit=args.limit, collection=collection,
+        shortcodes=getattr(args, "only_shortcodes", None),
         frames_per_video=args.frames, batch=args.batch, dry_run=args.dry_run,
     )
     if args.dry_run:
@@ -405,6 +410,7 @@ def cmd_extract(args) -> int:
         print(f"Scoped to collection '{collection}'.", file=sys.stderr)
     counts = extract_mod.run_all(
         conn, cfg, limit=args.limit, collection=collection,
+        shortcodes=getattr(args, "only_shortcodes", None),
         batch=args.batch, dry_run=args.dry_run, redo=args.redo,
         only_flagged=getattr(args, "only_flagged", False),
         force=getattr(args, "force", False),
@@ -427,7 +433,8 @@ def cmd_places(args) -> int:
     if collection:
         print(f"Scoped to collection '{collection}'.", file=sys.stderr)
     places_mod.extract_all(conn, cfg, limit=args.limit, collection=collection,
-                           redo=args.redo, dry_run=args.dry_run)
+                           redo=args.redo, dry_run=args.dry_run,
+                           shortcodes=getattr(args, "only_shortcodes", None))
     return 0
 
 
@@ -443,7 +450,8 @@ def cmd_enrich(args) -> int:
                           redo=args.redo,
                           retry_failed=getattr(args, "retry_failed", False),
                           dry_run=args.dry_run,
-                          max_searches=getattr(args, "max_searches", None))
+                          max_searches=getattr(args, "max_searches", None),
+                          shortcodes=getattr(args, "only_shortcodes", None))
     return 0
 
 
@@ -616,6 +624,18 @@ def cmd_sync(args) -> int:
         if code != 0:
             print(f"Stopped at '{name}'.", file=sys.stderr)
             return code
+
+        # `index` is what discovers the new posts, so the scope can only be set
+        # once it has run — every stage after this point sees just those.
+        if name == "index" and getattr(args, "only_new", False):
+            fresh = getattr(args, "new_shortcodes", []) or []
+            args.only_shortcodes = fresh
+            if not fresh:
+                print("--only-new: nothing new this run, so nothing to process.",
+                      file=sys.stderr)
+            else:
+                print(f"--only-new: restricting the rest of the run to "
+                      f"{len(fresh)} post(s).", file=sys.stderr)
 
     code = cmd_stats(args)
 
@@ -883,6 +903,9 @@ def build_parser() -> argparse.ArgumentParser:
                         "reach enrichment, because searches cost money")
     p.add_argument("--max-searches", type=int,
                    help="stop enrichment after this many web searches")
+    p.add_argument("--only-new", action="store_true",
+                   help="process only the posts this run discovered, leaving "
+                        "any earlier backlog untouched")
     p.add_argument("--full", action="store_true",
                    help="run every stage through to the report (implies --ocr "
                         "--extract --places --enrich, so it does spend on web "

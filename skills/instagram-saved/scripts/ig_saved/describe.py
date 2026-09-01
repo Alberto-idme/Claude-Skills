@@ -82,11 +82,12 @@ def run_all(
     *,
     limit: int | None = None,
     collection: str | None = None,
+    shortcodes: list[str] | None = None,
     frames_per_video: int = 4,
     batch: bool = False,
     dry_run: bool = False,
 ) -> dict:
-    rows = db.pending_descriptions(conn, collection=collection)
+    rows = db.pending_descriptions(conn, collection=collection, shortcodes=shortcodes)
     if limit:
         rows = rows[:limit]
     if not rows:

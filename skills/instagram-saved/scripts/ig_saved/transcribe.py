@@ -187,10 +187,12 @@ def transcribe_all(
     limit: int | None = None,
     retry_failed: bool = False,
     collection: str | None = None,
+    shortcodes: list[str] | None = None,
     min_chars: int = DEFAULT_MIN_CHARS,
 ) -> dict:
     rows = db.pending_transcripts(
-        conn, retry_failed=retry_failed, collection=collection
+        conn, retry_failed=retry_failed, collection=collection,
+        shortcodes=shortcodes,
     )
     if limit:
         rows = rows[:limit]

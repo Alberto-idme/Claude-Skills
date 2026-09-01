@@ -607,11 +607,33 @@ ig-saved sync --source browser --collection "$JAPAN" --full
 lookup, then the report last so it carries what the run just found. It leaves
 out `--describe`, the priciest stage; add it explicitly if you want it.
 
+### Just the new posts
+
+`--full` runs every stage over everything still pending in the collection,
+which on the first full run means the whole backlog. To carry only this run's
+arrivals through the entire chain and leave the backlog where it is:
+
+```bash
+ig-saved sync --source browser --collection "$JAPAN" --full --only-new
+```
+
+`index` is what discovers the new posts, so the scope is set once it has run
+and every stage after it sees only those. On a collection of 78 already-indexed
+posts with 2 new saves, that is 2 posts through media, transcription, OCR,
+extraction, places and the lookup — instead of 156 backlogged places going to
+the web.
+
+An empty scope means *no* posts, not all of them: a run that finds nothing new
+does nothing, rather than quietly starting a full backlog pass.
+
 `--full` does spend: extraction is billed in tokens and enrichment is billed
 per web search. Two rails keep that bounded:
 
 - `--max-searches N` hard-stops enrichment once it has spent N searches.
   Rows past the cap stay pending, so the next run resumes exactly there.
+  Enrichment works most-recently-saved first, so a cap buys the newest saves
+  rather than the oldest backlog — a cap on a plain row order would spend the
+  whole budget before reaching anything you saved this week.
 - `--redo` does **not** reach enrichment. It means "extract these again", and
   it is shared by every stage in the chain — letting a free redo cascade into
   re-searching every place already found is the kind of thing you notice on
@@ -687,7 +709,7 @@ cd scripts
 ```
 
 ```
-test_ig_saved.py         offline unit tests                    131/131 passed
+test_ig_saved.py         offline unit tests                    135/135 passed
 test_browser_e2e.py      browser against mock Instagram        21/21 passed
 test_report_ui.py        report controls in a real browser     18/18 passed
 test_ocr_e2e.py          OCR and vision on real video          28/28 passed

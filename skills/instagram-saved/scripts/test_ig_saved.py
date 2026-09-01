@@ -2478,6 +2478,103 @@ def test_sync_redo_does_not_reach_the_billed_lookup_stage():
         cli.cmd_enrich = original
 
 
+def test_only_new_restricts_every_stage_to_this_run_s_arrivals():
+    """"Full scope, new posts only" — the backlog stays where it is."""
+    with tempfile.TemporaryDirectory() as tmp:
+        conn = _tmp_db(tmp)
+        db.upsert_posts(conn, [
+            Post(shortcode="OLD1", url="u", collection="japan", caption="c",
+                 media=[MediaRef(0, "video", "x")]),
+            Post(shortcode="NEW1", url="u", collection="japan", caption="c",
+                 media=[MediaRef(0, "video", "x")]),
+        ], ordered=True)
+        fresh = ["NEW1"]
+        assert {r["shortcode"] for r in db.pending_downloads(
+            conn, collection="japan", shortcodes=fresh)} == {"NEW1"}
+        assert {r["shortcode"] for r in db.pending_entries(
+            conn, collection="japan", shortcodes=fresh)} == {"NEW1"}
+        # Checked before any places exist: the stage skips posts already scanned.
+        assert {r["shortcode"] for r in db.pending_place_extraction(
+            conn, collection="japan", shortcodes=fresh)} == {"NEW1"}
+
+        db.save_places(conn, "OLD1", [{"name": "Old place"}], "m")
+        db.save_places(conn, "NEW1", [{"name": "New place"}], "m")
+        assert {r["name"] for r in db.pending_enrichment(
+            conn, collection="japan", shortcodes=fresh)} == {"New place"}
+
+        # Unscoped still sees everything, so the backlog is deferred, not lost.
+        assert len(db.pending_enrichment(conn, collection="japan")) == 2
+
+
+def test_only_new_with_nothing_new_processes_nothing():
+    """An empty scope must mean "no posts", not "all posts" — the difference
+    between a no-op run and an unintended full backlog pass."""
+    with tempfile.TemporaryDirectory() as tmp:
+        conn = _tmp_db(tmp)
+        db.upsert_posts(conn, [Post(shortcode="OLD1", url="u",
+                                    collection="japan", caption="c")],
+                        ordered=True)
+        db.save_places(conn, "OLD1", [{"name": "Old place"}], "m")
+
+        assert db.pending_entries(conn, shortcodes=[]) == []
+        assert db.pending_enrichment(conn, shortcodes=[]) == []
+        # None is the "no restriction" signal, and stays that way.
+        assert len(db.pending_enrichment(conn, shortcodes=None)) == 1
+
+
+def test_sync_only_new_scopes_the_stages_after_index():
+    from ig_saved import cli
+
+    seen: list = []
+    names = ("index", "media", "transcribe", "ocr", "describe", "extract",
+             "places", "enrich", "report", "stats")
+    originals = {n: getattr(cli, f"cmd_{n}") for n in names}
+    with tempfile.TemporaryDirectory() as tmp:
+        try:
+            def stub(name):
+                def run(a):
+                    if name == "index":
+                        a.new_shortcodes = ["NEW1", "NEW2"]
+                    else:
+                        seen.append((name, getattr(a, "only_shortcodes", None)))
+                    return 0
+                return run
+
+            for name in names:
+                setattr(cli, f"cmd_{name}", stub(name))
+            args = cli.build_parser().parse_args(
+                ["--home", tmp, "sync", "--collection", "japan",
+                 "--full", "--only-new"])
+            cli.cmd_sync(args)
+
+            assert seen, "no stages ran"
+            for name, scope in seen:
+                assert scope == ["NEW1", "NEW2"], f"{name} saw {scope}"
+        finally:
+            for name, fn in originals.items():
+                setattr(cli, f"cmd_{name}", fn)
+
+
+def test_enrichment_prefers_the_most_recently_saved():
+    """The only pending query whose order decides what a budget buys: with
+    --max-searches, row order would spend the cap on the oldest backlog."""
+    with tempfile.TemporaryDirectory() as tmp:
+        conn = _tmp_db(tmp)
+        # Feed order is save order: newest first.
+        db.upsert_posts(conn, [
+            Post(shortcode="NEWEST", url="u", collection="japan", caption="c"),
+            Post(shortcode="MIDDLE", url="u", collection="japan", caption="c"),
+            Post(shortcode="OLDEST", url="u", collection="japan", caption="c"),
+        ], ordered=True)
+        # Insert the place rows in the opposite order, so row id disagrees.
+        for code in ("OLDEST", "MIDDLE", "NEWEST"):
+            db.save_places(conn, code, [{"name": f"{code} place"}], "m")
+
+        order = [r["shortcode"] for r in db.pending_enrichment(
+            conn, collection="japan")]
+        assert order == ["NEWEST", "MIDDLE", "OLDEST"], order
+
+
 def test_enrichment_stops_at_the_search_budget_and_resumes_next_run():
     """A stage billed per use, running unattended inside sync, needs a hard
     stop that leaves the remainder pending rather than half-written."""

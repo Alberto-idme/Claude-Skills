@@ -183,6 +183,7 @@ def run_all(
     *,
     limit: int | None = None,
     collection: str | None = None,
+    shortcodes: list[str] | None = None,
     batch: bool = False,
     dry_run: bool = False,
     redo: bool = False,
@@ -190,7 +191,7 @@ def run_all(
     force: bool = False,
 ) -> dict:
     rows = db.pending_entries(conn, collection=collection, redo=redo,
-                              only_flagged=only_flagged)
+                              only_flagged=only_flagged, shortcodes=shortcodes)
     if limit:
         rows = rows[:limit]
     if not rows:
