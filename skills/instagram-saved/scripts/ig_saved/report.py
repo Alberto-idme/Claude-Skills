@@ -11,8 +11,10 @@ overwritten in place on every re-run.
 from __future__ import annotations
 
 import csv
+import hashlib
 import html
 import json
+import re
 import sqlite3
 from collections import Counter
 from datetime import date
@@ -586,13 +588,52 @@ def write_html(rows: list[dict], path: Path, scope: str,
 """, encoding="utf-8")
 
 
+def _slug(name: str) -> str:
+    """Directory-safe form of a collection name.
+
+    Saved-collection names carry spaces and emoji ("NYC", "Better me"),
+    neither of which belongs in a path. Falls back to a hash when a name
+    slugs away to nothing.
+    """
+    slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+    return slug or hashlib.sha1(name.encode("utf-8")).hexdigest()[:8]
+
+
+def _label(name: str) -> str:
+    """Collection name as it appears in a filename.
+
+    Keeps the author's capitalisation — `_slug` is for directories, this is
+    for the human-readable stem — but drops anything a filesystem or a
+    download header would rather not carry.
+    """
+    label = re.sub(r"[^A-Za-z0-9]+", "-", name).strip("-")
+    return label or _slug(name)
+
+
+def _stem(collection: str | None, on: date | None = None) -> str:
+    """`<Collection>-Report-MM-YY`, or plain `report` when unscoped.
+
+    Dated so a month's run sits beside the last one rather than overwriting
+    it — these are snapshots of a collection that keeps growing.
+    """
+    if not collection:
+        return "report"
+    return f"{_label(collection)}-Report-{(on or date.today()):%m-%y}"
+
+
 def build(
     conn: sqlite3.Connection, cfg: Config, out_dir: Path,
     *, collection: str | None = None, formats: tuple[str, ...] = ("html", "csv", "md"),
 ) -> dict:
     rows = _rows(conn, collection)
+    # One report per collection, each in its own directory, so a run for one
+    # collection never overwrites another's — and thumbnails stay alongside
+    # the report that references them. Unscoped runs keep the top level.
+    if collection:
+        out_dir = out_dir / _slug(collection)
     out_dir.mkdir(parents=True, exist_ok=True)
     scope = collection or "all collections"
+    stem = _stem(collection)
     written = {}
 
     if not rows:
@@ -601,11 +642,11 @@ def build(
     if "html" in formats:
         thumbs = {r["shortcode"]: _thumbnail(cfg, conn, r["shortcode"], out_dir)
                   for r in rows}
-        target = out_dir / "report.html"
+        target = out_dir / f"{stem}.html"
         write_html(rows, target, scope, thumbs)
         written["html"] = target
     if "csv" in formats:
-        target = out_dir / "report.csv"
+        target = out_dir / f"{stem}.csv"
         write_csv(rows, target)
         written["csv"] = target
         if any(r.get("places") for r in rows):
@@ -613,7 +654,7 @@ def build(
             write_places_csv(rows, target)
             written["places"] = target
     if "md" in formats:
-        target = out_dir / "report.md"
+        target = out_dir / f"{stem}.md"
         write_markdown(rows, target, scope)
         written["md"] = target
 
