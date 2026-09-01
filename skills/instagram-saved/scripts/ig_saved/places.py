@@ -22,6 +22,7 @@ and an address carrying one is worth less than no address at all.
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 import sys
 import urllib.parse
@@ -157,6 +158,12 @@ def _text_of(message) -> str:
     return next((b.text for b in message.content if b.type == "text"), "")
 
 
+# Search results printed into a code-execution stdout, rather than returned as
+# typed blocks. Stops at a quote, whitespace, backslash or closing bracket so a
+# JSON-encoded result does not swallow the rest of the line.
+_URL_IN_STDOUT = re.compile(r'https?://[^\s"\'\\)\]}<>,]{6,300}')
+
+
 def _searched_urls(message) -> set[str]:
     """Every URL web search actually returned in this response.
 
@@ -167,15 +174,28 @@ def _searched_urls(message) -> set[str]:
     """
     urls: set[str] = set()
     for block in message.content:
-        if getattr(block, "type", "") != "web_search_tool_result":
-            continue
+        kind = getattr(block, "type", "")
         content = getattr(block, "content", None)
-        if not isinstance(content, list):
-            continue  # an error object, not results
-        for result in content:
-            url = getattr(result, "url", None)
-            if url:
-                urls.add(url)
+
+        if kind == "web_search_tool_result":
+            if not isinstance(content, list):
+                continue  # an error object, not results
+            for result in content:
+                url = getattr(result, "url", None)
+                if url:
+                    urls.add(url)
+            continue
+
+        # Under `output_config` the model reaches search from code rather than
+        # the plain tool, and the results come back printed into stdout instead
+        # of as typed result objects — no `url` attribute to read, so the text
+        # is all there is. Without this branch nothing is ever verifiable.
+        if kind == "code_execution_tool_result":
+            stdout = getattr(content, "stdout", None)
+            if stdout is None and isinstance(content, dict):
+                stdout = content.get("stdout")
+            if isinstance(stdout, str) and stdout:
+                urls.update(_URL_IN_STDOUT.findall(stdout))
     return urls
 
 
