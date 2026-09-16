@@ -196,6 +196,98 @@ def write_markdown(rows: list[dict], path: Path, scope: str) -> None:
     path.write_text("\n".join(lines), encoding="utf-8")
 
 
+def write_places_markdown(rows: list[dict], path: Path, scope: str) -> int:
+    """Every named place as a document you can plan a trip from.
+
+    Grouped city → neighbourhood rather than by category, because that is how
+    you actually move through a place: everything in Shibuya on one afternoon,
+    not every restaurant in the country at once.
+
+    Places whose lookup found nothing get their own section at the end with the
+    reason, instead of being dropped. A place the search could not pin down is
+    still a place the post recommended, and silently omitting it would turn a
+    failed lookup into a missing recommendation.
+    """
+    places: list[dict] = []
+    for row in rows:
+        for place in row.get("places") or []:
+            item = dict(place)
+            item["post_url"] = row.get("link") or row.get("url") or ""
+            item["post_title"] = row.get("title") or ""
+            item["region"] = region_of(place.get("locality")) or row.get("region", "")
+            item["area"] = area_of(place.get("locality")) or (
+                place.get("locality") or "")
+            places.append(item)
+
+    located = [p for p in places if p.get("address")]
+    missing = [p for p in places if not p.get("address")]
+    unverified = sum(1 for p in located if not p.get("verified"))
+
+    lines = [f"# Places — {scope}", ""]
+    summary = [f"**{len(places)}** places named across {len(rows)} saved posts",
+               f"**{len(located)}** with an address"]
+    if unverified:
+        summary.append(f"**{unverified}** whose citation could not be verified")
+    if missing:
+        summary.append(f"**{len(missing)}** not found")
+    lines += [" · ".join(summary), "",
+              f"_Generated {date.today().isoformat()}._", ""]
+
+    # city -> area -> places
+    tree: dict[str, dict[str, list[dict]]] = {}
+    for place in located:
+        city = place["region"] or "Unknown"
+        tree.setdefault(city, {}).setdefault(place["area"] or "", []).append(place)
+
+    for city in sorted(tree):
+        count = sum(len(v) for v in tree[city].values())
+        lines += [f"## {city} ({count})", ""]
+        for area in sorted(tree[city]):
+            if area and area != city:
+                lines += [f"### {area}", ""]
+            lines += ["| Place | Type | Address | Links | From |",
+                      "|---|---|---|---|---|"]
+            for place in sorted(tree[city][area], key=lambda p: p["name"]):
+                name = _md(place["name"])
+                if not place.get("verified"):
+                    name += " ⚠️"
+                links = " · ".join(filter(None, [
+                    f"[site]({place['website']})" if place.get("website") else "",
+                    f"[map]({place['maps_url']})" if place.get("maps_url") else "",
+                    f"[source]({place['source_url']})" if place.get("source_url") else "",
+                ]))
+                lines.append(
+                    f"| {name} | {_md(place.get('kind'))} | "
+                    f"{_md(place['address'])} | {links or '—'} | "
+                    f"[post]({place['post_url']}) |"
+                )
+            lines.append("")
+
+    if unverified:
+        lines += ["> ⚠️ marks an address whose source page was not among the "
+                  "results the search actually returned. Check the source "
+                  "before relying on it.", ""]
+
+    if missing:
+        lines += [f"## Not found ({len(missing)})", "",
+                  "Named in a post, but the lookup could not pin them down.", "",
+                  "| Place | The post said | Why not found | From |",
+                  "|---|---|---|---|"]
+        for place in sorted(missing, key=lambda p: p["name"]):
+            reason = place.get("note") or {
+                "error": "lookup failed — rerun `enrich --retry-failed`",
+                None: "not looked up yet",
+            }.get(place.get("status"), "no address found")
+            lines.append(
+                f"| {_md(place['name'])} | {_md(place.get('locality')) or '—'} | "
+                f"{_md(reason)} | [post]({place['post_url']}) |"
+            )
+        lines.append("")
+
+    path.write_text("\n".join(lines), encoding="utf-8")
+    return len(places)
+
+
 def _md(text: str | None) -> str:
     return (text or "").replace("|", "\\|").replace("\n", " ").strip()
 
@@ -616,6 +708,10 @@ def build(
         target = out_dir / "report.md"
         write_markdown(rows, target, scope)
         written["md"] = target
+        if any(r.get("places") for r in rows):
+            target = out_dir / "places.md"
+            write_places_markdown(rows, target, scope)
+            written["places_md"] = target
 
     written["count"] = len(rows)
     return written

@@ -2185,6 +2185,69 @@ def test_report_shows_places_and_marks_unverified_addresses():
         assert len(places_csv.strip().splitlines()) == 4  # header + 3
 
 
+def test_places_markdown_groups_by_city_and_keeps_the_not_found():
+    from ig_saved import report as report_mod
+
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg, conn = _entry_db(tmp)
+        _save(conn, "J1", title="Tokyo list", location="Tokyo")
+        _save(conn, "S1", title="Kyoto list", location="Kyoto")
+        db.save_places(conn, "J1", [
+            {"name": "Ichiran", "kind": "restaurant", "locality": "Shibuya, Tokyo"},
+            {"name": "Menya", "kind": "restaurant", "locality": "Shinjuku, Tokyo"},
+            {"name": "Nameless stand", "kind": "restaurant", "locality": "Tokyo"},
+        ], "m")
+        db.save_places(conn, "S1", [
+            {"name": "Nishiki Market", "kind": "market", "locality": "Nakagyo, Kyoto"},
+        ], "m")
+        ids = {p["name"]: p["id"]
+               for code in ("J1", "S1") for p in db.places_for(conn, code)}
+        db.save_enrichment(conn, ids["Ichiran"], address="1-22-7 Jinnan",
+                           website="https://ichiran.com", verified=True)
+        db.save_enrichment(conn, ids["Menya"], address="7-2-6 Nishishinjuku",
+                           verified=False)
+        db.save_enrichment(conn, ids["Nishiki Market"], address="609 Nishidaimonjicho",
+                           verified=True)
+        db.save_enrichment(conn, ids["Nameless stand"], status="not_found",
+                           note="the post never names it")
+
+        written = report_mod.build(conn, cfg, Path(tmp) / "r", formats=("md",))
+        doc = written["places_md"].read_text()
+
+        # Grouped city -> neighbourhood, which is how you move through a place.
+        assert "## Kyoto (1)" in doc and "## Tokyo (2)" in doc
+        assert "### Shibuya" in doc and "### Nakagyo" in doc
+        assert doc.index("## Kyoto") < doc.index("## Tokyo")  # alphabetical
+
+        # An unverified citation is marked; a verified one is not.
+        assert "Menya ⚠️" in doc
+        assert "Ichiran ⚠️" not in doc
+        assert "citation" in doc  # the legend only appears when something is flagged
+
+        # A place the lookup could not pin down is kept, with the reason.
+        assert "## Not found (1)" in doc
+        assert "Nameless stand" in doc and "the post never names it" in doc
+
+        # Every row links back to the post it came from.
+        assert doc.count("[post](") == 4
+
+
+def test_places_markdown_omits_the_legend_when_nothing_is_flagged():
+    from ig_saved import report as report_mod
+
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg, conn = _entry_db(tmp)
+        _save(conn, "J1", location="Tokyo")
+        db.save_places(conn, "J1", [{"name": "Ichiran", "kind": "restaurant",
+                                     "locality": "Shibuya, Tokyo"}], "m")
+        db.save_enrichment(conn, db.places_for(conn, "J1")[0]["id"],
+                           address="1-22-7 Jinnan", verified=True)
+        doc = report_mod.build(conn, cfg, Path(tmp) / "r",
+                               formats=("md",))["places_md"].read_text()
+        assert "⚠️" not in doc
+        assert "Not found" not in doc
+
+
 def test_places_csv_is_skipped_when_nothing_named_a_place():
     from ig_saved import report as report_mod
 

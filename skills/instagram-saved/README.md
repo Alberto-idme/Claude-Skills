@@ -556,9 +556,18 @@ between "named somewhere I could not pin down" and "named nowhere" is worth
 keeping. Those are not re-searched on later runs; `--retry-failed` reopens only
 the ones that errored.
 
-`report` writes a fourth file, **`places.csv`** — one row per place, which is
-the grain you actually plan a trip in. `report.csv` stays one row per post;
-flattening the two together would lose whichever grain you needed.
+`report` writes two more files at one row per place, which is the grain you
+actually plan a trip in — `report.csv` and `report.md` stay one row per post,
+since flattening the two together would lose whichever grain you needed:
+
+- **`places.csv`** — for spreadsheet work and filtering.
+- **`places.md`** — the document to read, grouped city → neighbourhood, because
+  that is how you move through a place: everything in Shibuya on one afternoon,
+  not every restaurant in the country at once. Each row carries the address,
+  site, map and source links, and the post it came from. Unverified citations
+  are marked ⚠️, and places the lookup could not pin down get their own
+  **Not found** section with the reason rather than being dropped — a place the
+  search missed is still a place the post recommended.
 
 ## Searching
 
@@ -709,7 +718,7 @@ cd scripts
 ```
 
 ```
-test_ig_saved.py         offline unit tests                    135/135 passed
+test_ig_saved.py         offline unit tests                    137/137 passed
 test_browser_e2e.py      browser against mock Instagram        21/21 passed
 test_report_ui.py        report controls in a real browser     18/18 passed
 test_ocr_e2e.py          OCR and vision on real video          28/28 passed
