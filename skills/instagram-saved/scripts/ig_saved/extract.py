@@ -16,7 +16,7 @@ import sqlite3
 import sys
 from typing import Iterable
 
-from . import db
+from . import db, parallel
 from .config import Config
 
 MODEL = "claude-opus-5"
@@ -189,6 +189,7 @@ def run_all(
     redo: bool = False,
     only_flagged: bool = False,
     force: bool = False,
+    workers: int | None = None,
 ) -> dict:
     rows = db.pending_entries(conn, collection=collection, redo=redo,
                               only_flagged=only_flagged, shortcodes=shortcodes)
@@ -238,7 +239,7 @@ def run_all(
     client = _client(cfg)
     print(f"  {MODEL}: {len(prepared)} posts", file=sys.stderr)
     counts = (_run_batch(conn, client, prepared) if batch
-              else _run_serial(conn, client, prepared))
+              else _run_serial(conn, client, prepared, workers))
     counts["unchanged"] = unchanged
     return counts
 
@@ -251,15 +252,29 @@ def _record(conn, shortcode: str, parsed: dict, present: dict,
     )
 
 
-def _run_serial(conn, client, prepared: Iterable[tuple]) -> dict:
+def _run_serial(conn, client, prepared: Iterable[tuple],
+                workers: int | None = None) -> dict:
+    """One request per post, several in flight.
+
+    Named `_run_serial` for the Batch API it contrasts with: this path returns
+    answers immediately, where `--batch` trades latency for half the price.
+    The requests themselves are independent, so they overlap; the writes do
+    not, and happen here on the calling thread.
+    """
     prepared = list(prepared)
     counts = {"extracted": 0, "skipped": 0, "failed": 0}
 
-    for n, (shortcode, evidence, present, digest) in enumerate(prepared, 1):
-        try:
-            message = client.messages.create(**_params(evidence))
-        except Exception as exc:  # noqa: BLE001 - keep going through the archive
-            print(f"  [{n}/{len(prepared)}] {shortcode}: {exc}", file=sys.stderr)
+    def call(item):
+        _shortcode, evidence, _present, _digest = item
+        return client.messages.create(**_params(evidence))
+
+    done = 0
+    for item, message, error in parallel.imap(
+            call, prepared, workers=workers or parallel.DEFAULT_WORKERS):
+        shortcode, _evidence, present, digest = item
+        done += 1
+        if error is not None:
+            print(f"  {shortcode}: {error}", file=sys.stderr)
             counts["failed"] += 1
             continue
 
@@ -270,8 +285,9 @@ def _run_serial(conn, client, prepared: Iterable[tuple]) -> dict:
 
         _record(conn, shortcode, parsed, present, digest)
         counts["extracted"] += 1
-        print(f"  [{n}/{len(prepared)}] {shortcode}: {parsed['category']} — "
+        print(f"  {shortcode}: {parsed['category']} — "
               f"{parsed['title'] or parsed['summary'][:40]}", file=sys.stderr)
+        parallel.progress(done, len(prepared), "posts")
 
     return counts
 

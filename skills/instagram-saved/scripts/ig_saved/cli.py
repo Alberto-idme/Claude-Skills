@@ -434,7 +434,8 @@ def cmd_places(args) -> int:
         print(f"Scoped to collection '{collection}'.", file=sys.stderr)
     places_mod.extract_all(conn, cfg, limit=args.limit, collection=collection,
                            redo=args.redo, dry_run=args.dry_run,
-                           shortcodes=getattr(args, "only_shortcodes", None))
+                           shortcodes=getattr(args, "only_shortcodes", None),
+                           workers=getattr(args, "workers", None))
     return 0
 
 
@@ -451,7 +452,21 @@ def cmd_enrich(args) -> int:
                           retry_failed=getattr(args, "retry_failed", False),
                           dry_run=args.dry_run,
                           max_searches=getattr(args, "max_searches", None),
-                          shortcodes=getattr(args, "only_shortcodes", None))
+                          shortcodes=getattr(args, "only_shortcodes", None),
+                          workers=getattr(args, "workers", None))
+    return 0
+
+
+def cmd_digest(args) -> int:
+    from . import digest as digest_mod
+
+    cfg = _config(args)
+    conn = db.connect(cfg.db_path)
+    collection = _collection_name(getattr(args, "collection", None))
+    out = (Path(args.out).expanduser() if args.out
+           else cfg.root / "report" / f"{collection or 'digest'}.md")
+    digest_mod.run(conn, cfg, out, collection=collection, goal=args.goal or "",
+                   limit=args.limit, dry_run=args.dry_run)
     return 0
 
 
@@ -819,6 +834,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--force", action="store_true",
                    help="re-extract even when the evidence has not changed "
                         "since the last run")
+    p.add_argument("--workers", type=int, default=6,
+                   help="in-flight API requests; these stages wait on the network, so several at once is mostly free")
     p.set_defaults(func=cmd_extract)
 
     p = sub.add_parser(
@@ -828,6 +845,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--redo", action="store_true",
                    help="re-read posts already scanned (keeps existing addresses)")
     p.add_argument("--dry-run", action="store_true", help="price it first")
+    p.add_argument("--workers", type=int, default=6,
+                   help="in-flight API requests; these stages wait on the network, so several at once is mostly free")
     p.set_defaults(func=cmd_places)
 
     p = sub.add_parser(
@@ -843,7 +862,20 @@ def build_parser() -> argparse.ArgumentParser:
                         "the next run")
     p.add_argument("--dry-run", action="store_true",
                    help="price it first — searches are billed per use")
+    p.add_argument("--workers", type=int, default=6,
+                   help="in-flight API requests; these stages wait on the network, so several at once is mostly free")
     p.set_defaults(func=cmd_enrich)
+
+    p = sub.add_parser(
+        "digest",
+        help="compile a whole collection into one checklist-style document")
+    p.add_argument("--collection", help="only this collection (URL, id or name)")
+    p.add_argument("--goal", help="what the document is for, e.g. "
+                                  "'security checks to implement before launch'")
+    p.add_argument("--out", help="output path (default <home>/report/<name>.md)")
+    p.add_argument("--limit", type=int)
+    p.add_argument("--dry-run", action="store_true", help="price it first")
+    p.set_defaults(func=cmd_digest)
 
     p = sub.add_parser("report", help="build the categorised, actionable output")
     p.add_argument("--collection", help="only this collection (URL, id or name)")

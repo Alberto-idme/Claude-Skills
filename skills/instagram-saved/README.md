@@ -556,9 +556,50 @@ between "named somewhere I could not pin down" and "named nowhere" is worth
 keeping. Those are not re-searched on later runs; `--retry-failed` reopens only
 the ones that errored.
 
-`report` writes a fourth file, **`places.csv`** — one row per place, which is
-the grain you actually plan a trip in. `report.csv` stays one row per post;
-flattening the two together would lose whichever grain you needed.
+`report` writes two more files at one row per place, which is the grain you
+actually plan a trip in — `report.csv` and `report.md` stay one row per post,
+since flattening the two together would lose whichever grain you needed:
+
+- **`places.csv`** — for spreadsheet work and filtering.
+- **`places.md`** — the document to read, grouped city → neighbourhood, because
+  that is how you move through a place: everything in Shibuya on one afternoon,
+  not every restaurant in the country at once. Each row carries the address,
+  site, map and source links, and the post it came from. Unverified citations
+  are marked ⚠️, and places the lookup could not pin down get their own
+  **Not found** section with the reason rather than being dropped — a place the
+  search missed is still a place the post recommended.
+
+## Compiling a collection into one document
+
+`report` renders rows — one card per post, faithful to each. That is the right
+shape for "which of these do I act on" and the wrong shape for "what do I
+actually have to do". Forty posts on app security are forty overlapping
+opinions; what you need before a launch is one ordered checklist.
+
+```bash
+ig-saved digest --collection app-security \
+  --goal "security checks to implement before launching the app" \
+  --out app-security.md
+```
+
+One synthesis call over every entry in the collection, producing a checklist
+grouped by theme and ordered **must → should → consider**, with a checkbox per
+item and the specifics kept (tool names, header names, settings, versions).
+
+Two rules keep it honest, both inherited from extraction:
+
+- **Every item cites the posts it came from**, and the shortcodes are checked
+  in code against the posts actually sent. An item citing anything else is
+  dropped rather than rendered — a checklist that quietly mixes in the model's
+  own training is a different document from the one you asked for, and there
+  would be no way to tell which item is which.
+- **What the collection does not cover is stated**, in its own section. A
+  checklist assembled from whatever happened to be bookmarked has holes, and
+  presenting it as complete is the failure mode that matters when the subject
+  is security.
+
+`--dry-run` prices it; `extract` must have run first, since the entries are
+what it reads.
 
 ## Searching
 
@@ -709,7 +750,7 @@ cd scripts
 ```
 
 ```
-test_ig_saved.py         offline unit tests                    135/135 passed
+test_ig_saved.py         offline unit tests                    137/137 passed
 test_browser_e2e.py      browser against mock Instagram        21/21 passed
 test_report_ui.py        report controls in a real browser     18/18 passed
 test_ocr_e2e.py          OCR and vision on real video          28/28 passed
