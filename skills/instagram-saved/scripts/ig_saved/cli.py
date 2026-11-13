@@ -301,7 +301,6 @@ def cmd_ocr(args) -> int:
         interval=args.interval, images=not args.videos_only,
         redo=getattr(args, "redo", False),
         only_flagged=getattr(args, "only_flagged", False),
-        force=getattr(args, "force", False),
     )
     db.reindex(conn)
     print(f"Read text from {counts['read']} files "
