@@ -2911,6 +2911,49 @@ def test_digest_refuses_to_invent_a_home_directory_from_a_typo():
         assert not (base / "Users").exists()
 
 
+def test_every_command_can_actually_be_called():
+    """`ocr` crashed with TypeError on every run for weeks: cli.py passed
+    `force=` to ocr.run_all(), which has no such parameter. It survived
+    because no test ever called cmd_ocr — the suite tested the stage functions
+    and the argument parser, and never the wiring between them.
+
+    This walks each command's real parsed arguments into its real handler
+    against an empty archive. Nothing has work to do, so nothing is spent; the
+    only thing under test is that the call signatures line up.
+    """
+    from ig_saved import cli
+
+    # Everything that reaches a stage function without network or credentials.
+    commands = [
+        ["stats"],
+        ["media"],
+        ["transcribe"],
+        ["ocr"],
+        ["ocr", "--redo", "--only-flagged", "--videos-only"],
+        ["extract", "--dry-run"],
+        ["extract", "--dry-run", "--redo", "--force", "--only-flagged"],
+        ["places", "--dry-run"],
+        ["enrich", "--dry-run"],
+        ["enrich", "--dry-run", "--retry-failed", "--max-searches", "5"],
+        ["digest", "--dry-run"],
+        ["report"],
+        ["search", "anything"],
+        ["dump", "--out", "-"],
+    ]
+    parser = cli.build_parser()
+    with tempfile.TemporaryDirectory() as tmp:
+        for argv in commands:
+            args = parser.parse_args(["--home", tmp] + argv)
+            try:
+                args.func(args)
+            except SystemExit:
+                pass  # a clean refusal is fine; a TypeError is not
+            except TypeError as exc:
+                raise AssertionError(
+                    f"`{' '.join(argv)}` does not line up with its handler: {exc}"
+                ) from exc
+
+
 def _run() -> int:
     tests = [(n, f) for n, f in sorted(globals().items())
              if n.startswith("test_") and callable(f)]
