@@ -2640,43 +2640,137 @@ def test_enrichment_prefers_the_most_recently_saved():
 
 def test_enrichment_stops_at_the_search_budget_and_resumes_next_run():
     """A stage billed per use, running unattended inside sync, needs a hard
-    stop that leaves the remainder pending rather than half-written."""
+    stop that leaves the remainder pending rather than half-written.
+
+    Concurrency loosens this from exact to bounded: the budget is checked
+    before each submission, so up to `workers` lookups can already be in
+    flight when it runs out. Requests sent are billed whether or not we wait
+    for them, so they are allowed to finish and counted honestly.
+    """
     from ig_saved import places as places_mod
 
-    with tempfile.TemporaryDirectory() as tmp:
+    def run(workers, n_places=6, max_searches=5, per_call=2):
         cfg, conn = _places_db(tmp)
-        db.save_places(conn, "L1", [{"name": f"P{i}"} for i in range(6)], "m")
-
+        db.save_places(conn, "L1", [{"name": f"P{i}"} for i in range(n_places)], "m")
         calls = {"n": 0}
-
-        class FakeMessage:
-            def __init__(self):
-                self.content = [_TextBlock(json.dumps({
-                    "found": True, "address": "1 Some St", "website": "",
-                    "phone": "", "source_url": "https://a.example/x", "note": "",
-                }))]
-                self.usage = _Usage(2)  # two searches per lookup
 
         class FakeMessages:
             def create(self, **kw):
                 calls["n"] += 1
-                return FakeMessage()
+                return type("M", (), {
+                    "content": [_TextBlock(json.dumps({
+                        "found": True, "address": "1 Some St", "website": "",
+                        "phone": "", "source_url": "https://a.example/x",
+                        "note": "",
+                    }))],
+                    "usage": _Usage(per_call),
+                })()
 
-        class FakeClient:
-            messages = FakeMessages()
-
-        real_client = places_mod._client
-        places_mod._client = lambda cfg: FakeClient()
+        real = places_mod._client
+        places_mod._client = lambda c: type("C", (), {"messages": FakeMessages()})()
         try:
-            result = places_mod.enrich_all(conn, cfg, max_searches=5)
+            result = places_mod.enrich_all(conn, cfg, max_searches=max_searches,
+                                           workers=workers)
         finally:
-            places_mod._client = real_client
+            places_mod._client = real
+        return result, calls["n"], len(db.pending_enrichment(conn))
 
-        # Stops once spend reaches the cap, checked before sending.
-        assert result["searches"] == 6 and calls["n"] == 3, result
+    with tempfile.TemporaryDirectory() as tmp:
+        # Serial: the exact behaviour, unchanged.
+        result, calls, left = run(workers=1)
+        assert calls == 3 and result["searches"] == 6, (calls, result)
         assert result["stopped_early"] is True
-        # The untouched rows stay pending, so the next run resumes cleanly.
-        assert len(db.pending_enrichment(conn)) == 3
+        assert left == 3, "the untouched rows must stay pending"
+
+    with tempfile.TemporaryDirectory() as tmp:
+        # Concurrent: overshoot is bounded by the worker count, never unbounded.
+        workers = 4
+        result, calls, left = run(workers=workers)
+        assert calls <= 3 + workers, f"overshot by more than {workers}: {calls}"
+        assert left == 6 - calls, "every row not looked up must stay pending"
+
+
+def test_enrichment_dedupes_the_same_venue_across_posts():
+    """A venue three accounts recommended was three lookups, each billing up
+    to `max_uses` searches for the same answer."""
+    from ig_saved.places import group_for_lookup
+
+    def row(name, locality, entry=""):
+        return {"name": name, "locality": locality, "entry_location": entry,
+                "id": f"{name}/{locality}"}
+
+    # Same place, worded differently by each post — one lookup.
+    groups = group_for_lookup([
+        row("Ichiran", "Shibuya"),
+        row("ichiran ", "Shibuya, Tokyo"),
+        row("Ichiran", ""),
+    ])
+    assert len(groups) == 1 and len(groups[0]) == 3
+
+    # Same chain, two cities that cannot both be right — kept apart. Paying
+    # twice beats writing the Shibuya address onto the Fukuoka row.
+    groups = group_for_lookup([
+        row("Ichiran", "Shibuya, Tokyo"),
+        row("Ichiran", "Hakata, Fukuoka"),
+    ])
+    assert len(groups) == 2
+
+    # Different places never merge.
+    assert len(group_for_lookup([row("Ichiran", "Tokyo"),
+                                 row("Fuglen", "Tokyo")])) == 2
+
+
+def test_dedupe_searches_with_the_most_specific_locality():
+    """Searching 'Fuglen' alone finds the Oslo original, so the group must be
+    looked up with the richest locality any of its rows carries."""
+    from ig_saved.places import _query_for, _richest
+
+    group = [{"name": "Fuglen", "locality": "", "entry_location": "", "kind": "cafe"},
+             {"name": "Fuglen", "locality": "Tomigaya, Tokyo",
+              "entry_location": "", "kind": "cafe"}]
+    assert _richest(group)["locality"] == "Tomigaya, Tokyo"
+    assert "Tomigaya, Tokyo" in _query_for(_richest(group))
+
+
+def test_parallel_returns_every_item_and_isolates_failures():
+    """One failed row must not abandon the rest of a part-paid run, and
+    nothing may be silently dropped just because it completed out of order."""
+    from ig_saved import parallel
+
+    def flaky(n):
+        if n % 5 == 0:
+            raise RuntimeError(f"boom {n}")
+        return n * 2
+
+    seen = {}
+    errors = []
+    for item, result, error in parallel.imap(flaky, range(40), workers=8):
+        if error is None:
+            seen[item] = result
+        else:
+            errors.append(item)
+
+    assert len(seen) + len(errors) == 40, "an item went missing"
+    assert all(seen[i] == i * 2 for i in seen), "a result landed on the wrong item"
+    assert sorted(errors) == [0, 5, 10, 15, 20, 25, 30, 35]
+
+
+def test_parallel_stops_submitting_when_the_budget_runs_out():
+    from ig_saved import parallel
+
+    done = []
+    budget = {"left": 3}
+
+    def work(n):
+        return n
+
+    for item, _result, _error in parallel.imap(
+            work, range(50), workers=1,
+            keep_going=lambda: budget["left"] > 0):
+        done.append(item)
+        budget["left"] -= 1
+
+    assert done == [0, 1, 2], done
 
 
 class _TextBlock:
@@ -2717,6 +2811,80 @@ def test_sync_without_full_stays_free():
     finally:
         for name, fn in originals.items():
             setattr(cli, f"cmd_{name}", fn)
+
+
+def test_digest_drops_items_citing_posts_that_were_not_in_the_input():
+    """The citations are the whole guarantee that a checklist built from your
+    posts is built from your posts. An uncheckable one makes the item worth
+    less than nothing."""
+    from ig_saved.digest import _render
+
+    corpus = [{"shortcode": "A1"}, {"shortcode": "A2"}]
+    data = {
+        "title": "Pre-launch security",
+        "overview": "o",
+        "sections": [{"heading": "Auth", "items": [
+            {"check": "Rotate secrets", "why": "w", "detail": "d",
+             "priority": "must", "sources": ["A1"]},
+            {"check": "Something I just knew", "why": "w", "detail": "",
+             "priority": "must", "sources": ["NOTREAL"]},
+            {"check": "Rate limit login", "why": "w", "detail": "",
+             "priority": "should", "sources": ["A2", "NOTREAL"]},
+        ]}],
+        "gaps": ["nothing on dependency scanning"],
+    }
+    doc, kept, dropped = _render(data, corpus, "app-security")
+
+    assert kept == 2 and dropped == 1
+    assert "Rotate secrets" in doc and "Rate limit login" in doc
+    assert "Something I just knew" not in doc
+    # A real citation survives alongside a bogus one; only the bogus link goes.
+    assert "[A2](https://www.instagram.com/p/A2/)" in doc
+    assert "NOTREAL" not in doc
+    assert "1 item(s) were dropped" in doc
+
+
+def test_digest_states_what_the_collection_does_not_cover():
+    """A checklist assembled from whatever happened to be bookmarked has
+    holes; presenting it as complete is the failure that matters here."""
+    from ig_saved.digest import _render
+
+    doc, _kept, _dropped = _render(
+        {"title": "t", "overview": "o",
+         "sections": [{"heading": "H", "items": [
+             {"check": "c", "why": "w", "detail": "", "priority": "must",
+              "sources": ["A1"]}]}],
+         "gaps": ["nothing on secrets management", "no mobile guidance"]},
+        [{"shortcode": "A1"}], "app-security")
+    assert "## Not covered by these posts" in doc
+    assert "nothing on secrets management" in doc
+    assert "only as complete as the collection" in doc
+
+
+def test_digest_orders_must_before_should_before_consider():
+    from ig_saved.digest import _render
+
+    items = [{"check": f"{p} item", "why": "w", "detail": "", "priority": p,
+              "sources": ["A1"]} for p in ("consider", "must", "should")]
+    doc, _k, _d = _render({"title": "t", "overview": "", "gaps": [],
+                           "sections": [{"heading": "H", "items": items}]},
+                          [{"shortcode": "A1"}], "s")
+    assert doc.index("must item") < doc.index("should item") < doc.index("consider item")
+
+
+def test_digest_schema_meets_the_structured_output_constraints():
+    from ig_saved.digest import SCHEMA
+
+    def audit(schema, path="root"):
+        if schema.get("type") == "object":
+            assert schema.get("additionalProperties") is False, path
+            assert set(schema.get("properties", {})) == set(schema.get("required", [])), path
+            for k, v in schema.get("properties", {}).items():
+                audit(v, f"{path}.{k}")
+        if schema.get("type") == "array":
+            audit(schema.get("items", {}), f"{path}[]")
+
+    audit(SCHEMA)
 
 
 def _run() -> int:

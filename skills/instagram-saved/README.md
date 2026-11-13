@@ -569,6 +569,38 @@ since flattening the two together would lose whichever grain you needed:
   **Not found** section with the reason rather than being dropped — a place the
   search missed is still a place the post recommended.
 
+## Compiling a collection into one document
+
+`report` renders rows — one card per post, faithful to each. That is the right
+shape for "which of these do I act on" and the wrong shape for "what do I
+actually have to do". Forty posts on app security are forty overlapping
+opinions; what you need before a launch is one ordered checklist.
+
+```bash
+ig-saved digest --collection app-security \
+  --goal "security checks to implement before launching the app" \
+  --out app-security.md
+```
+
+One synthesis call over every entry in the collection, producing a checklist
+grouped by theme and ordered **must → should → consider**, with a checkbox per
+item and the specifics kept (tool names, header names, settings, versions).
+
+Two rules keep it honest, both inherited from extraction:
+
+- **Every item cites the posts it came from**, and the shortcodes are checked
+  in code against the posts actually sent. An item citing anything else is
+  dropped rather than rendered — a checklist that quietly mixes in the model's
+  own training is a different document from the one you asked for, and there
+  would be no way to tell which item is which.
+- **What the collection does not cover is stated**, in its own section. A
+  checklist assembled from whatever happened to be bookmarked has holes, and
+  presenting it as complete is the failure mode that matters when the subject
+  is security.
+
+`--dry-run` prices it; `extract` must have run first, since the entries are
+what it reads.
+
 ## Searching
 
 ```bash

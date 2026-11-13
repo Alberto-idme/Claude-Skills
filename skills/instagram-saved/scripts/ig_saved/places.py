@@ -22,12 +22,13 @@ and an address carrying one is worth less than no address at all.
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 import sys
 import urllib.parse
 from typing import Any
 
-from . import db
+from . import db, parallel
 from .config import Config
 from .extract import MODEL, _client, _evidence
 
@@ -225,7 +226,7 @@ def _verify(source_url: str, searched: set[str]) -> bool:
 def extract_all(
     conn: sqlite3.Connection, cfg: Config, *, limit: int | None = None,
     collection: str | None = None, redo: bool = False, dry_run: bool = False,
-    shortcodes: list[str] | None = None,
+    shortcodes: list[str] | None = None, workers: int | None = None,
 ) -> dict:
     rows = db.pending_place_extraction(conn, collection=collection, redo=redo,
                                        shortcodes=shortcodes)
@@ -242,32 +243,39 @@ def extract_all(
 
     client = _client(cfg)
     found = failed = 0
+    workers = workers or parallel.DEFAULT_WORKERS
 
-    for n, row in enumerate(rows, 1):
+    def call(row):
         shortcode = row["shortcode"]
         evidence, _present = _evidence(conn, shortcode)
         if not evidence.strip():
-            continue
-        try:
-            message = client.messages.create(
-                model=MODEL,
-                max_tokens=8000,
-                system=NAMES_SYSTEM,
-                messages=[{"role": "user", "content": evidence}],
-                output_config={
-                    "format": {"type": "json_schema", "schema": NAMES_SCHEMA}
-                },
-            )
-            data = json.loads(_text_of(message))
-        except Exception as exc:  # noqa: BLE001
-            print(f"[{n}/{len(rows)}] {shortcode}: {exc}", file=sys.stderr)
+            return None
+        message = client.messages.create(
+            model=MODEL,
+            max_tokens=8000,
+            system=NAMES_SYSTEM,
+            messages=[{"role": "user", "content": evidence}],
+            output_config={
+                "format": {"type": "json_schema", "schema": NAMES_SCHEMA}
+            },
+        )
+        return json.loads(_text_of(message))
+
+    done = 0
+    # Reading the evidence happens inside the worker too. It is a handful of
+    # local SELECTs against a WAL database, which readers may do concurrently.
+    for row, data, error in parallel.imap(call, rows, workers=workers):
+        done += 1
+        if error is not None:
+            print(f"  {row['shortcode']}: {error}", file=sys.stderr)
             failed += 1
             continue
-
-        places = data.get("places") or []
-        added = db.save_places(conn, shortcode, places, MODEL)
+        if data is None:
+            continue
+        added = db.save_places(conn, row["shortcode"], data.get("places") or [],
+                               MODEL)
         found += added
-        print(f"[{n}/{len(rows)}] {shortcode}: {added} place(s)", file=sys.stderr)
+        parallel.progress(done, len(rows), "posts read")
 
     print(f"Found {found} places across {len(rows)} posts ({failed} failed).")
     return {"posts": len(rows), "places": found, "failed": failed}
@@ -278,7 +286,58 @@ def extract_all(
 # ---------------------------------------------------------------------------
 
 
-def _query_for(row: sqlite3.Row) -> str:
+def _norm(value: str | None) -> str:
+    return re.sub(r"\s+", " ", (value or "").strip()).casefold()
+
+
+def _compatible(a: str | None, b: str | None) -> bool:
+    """Could these two localities be describing the same spot?
+
+    Posts word the same place differently — "Shibuya", "Shibuya, Tokyo",
+    "Tokyo" — so an exact match would miss most real duplicates. Sharing any
+    comma-separated component is enough, and an unstated locality is compatible
+    with anything.
+    """
+    x, y = _norm(a), _norm(b)
+    if not x or not y or x == y:
+        return True
+    return bool({p.strip() for p in x.split(",") if p.strip()}
+                & {p.strip() for p in y.split(",") if p.strip()})
+
+
+def group_for_lookup(rows: list) -> list[list]:
+    """Collapse rows that name the same place into one lookup each.
+
+    A venue three accounts recommended is three rows — one per post — and each
+    was being looked up separately, at up to `max_uses` billed searches apiece.
+
+    Rows merge only when the name matches and every locality in the group is
+    compatible with every other. A chain with branches in two cities keeps its
+    rows apart: paying twice is much cheaper than writing the Shibuya address
+    onto the Fukuoka row.
+    """
+    by_name: dict[str, list] = {}
+    for row in rows:
+        by_name.setdefault(_norm(row["name"]), []).append(row)
+
+    groups: list[list] = []
+    for named in by_name.values():
+        localities = [r["locality"] or r["entry_location"] for r in named]
+        if all(_compatible(a, b)
+               for i, a in enumerate(localities) for b in localities[i + 1:]):
+            groups.append(named)
+        else:
+            # Ambiguous: same name, localities that cannot both be right.
+            groups.extend([row] for row in named)
+    return groups
+
+
+def _richest(group: list):
+    """The row to actually search with — the one naming the most specific place."""
+    return max(group, key=lambda r: len(r["locality"] or r["entry_location"] or ""))
+
+
+def _query_for(row) -> str:
     """What to tell the model to look up.
 
     The locality matters more than it looks: "Fuglen" alone finds the Oslo
@@ -299,6 +358,7 @@ def enrich_all(
     collection: str | None = None, redo: bool = False,
     retry_failed: bool = False, dry_run: bool = False,
     max_searches: int | None = None, shortcodes: list[str] | None = None,
+    workers: int | None = None,
 ) -> dict:
     rows = db.pending_enrichment(conn, collection=collection, redo=redo,
                                  retry_failed=retry_failed, shortcodes=shortcodes)
@@ -307,72 +367,103 @@ def enrich_all(
     if not rows:
         print("Every place already has a lookup.")
         return {"looked_up": 0, "found": 0, "unverified": 0, "failed": 0,
-                "searches": 0}
+                "searches": 0, "saved_by_dedupe": 0}
+
+    groups = group_for_lookup(rows)
+    saved = len(rows) - len(groups)
 
     if dry_run:
-        # Each lookup is one request that may run up to max_uses searches.
-        low = 0.01 * len(rows) + 0.02 * len(rows)
-        high = 0.01 * SEARCH_TOOL["max_uses"] * len(rows) + 0.02 * len(rows)
-        print(f"{len(rows)} places to look up.")
+        low = 0.03 * len(groups)
+        high = (0.01 * SEARCH_TOOL["max_uses"] + 0.02) * len(groups)
+        print(f"{len(rows)} places to look up, {len(groups)} lookups needed"
+              + (f" ({saved} are repeats of a place in another post)."
+                 if saved else "."))
         print(f"Roughly ${low:.2f}-${high:.2f}: $0.01 per search "
               f"(up to {SEARCH_TOOL['max_uses']} each) plus tokens.")
+        if saved:
+            print(f"Deduping avoids about ${0.03 * saved:.2f}.")
         return {"looked_up": len(rows), "found": 0, "unverified": 0,
-                "failed": 0, "searches": 0}
+                "failed": 0, "searches": 0, "saved_by_dedupe": saved}
+
+    if saved:
+        print(f"{len(rows)} places, {len(groups)} distinct — {saved} are the "
+              f"same venue named in more than one post.", file=sys.stderr)
 
     client = _client(cfg)
+    workers = workers or parallel.DEFAULT_WORKERS
     found = unverified = failed = searches = 0
-
     stopped_early = False
-    for n, row in enumerate(rows, 1):
-        # Checked before the request, not after: the cap is there to bound what
-        # an unattended run can spend, and a request already sent is already
-        # billed. Rows past the cap keep status NULL, so the next run picks up
-        # exactly where this one stopped.
-        if max_searches is not None and searches >= max_searches:
-            print(f"Stopping at --max-searches {max_searches} "
-                  f"({len(rows) - n + 1} places left for next time).",
-                  file=sys.stderr)
-            stopped_early = True
-            break
 
-        label = f"[{n}/{len(rows)}] {row['name']}"
-        try:
-            message = client.messages.create(
-                model=MODEL,
-                max_tokens=8000,
-                system=LOOKUP_SYSTEM,
-                messages=[{"role": "user", "content": _query_for(row)}],
-                tools=[SEARCH_TOOL],
-                output_config={
-                    "format": {"type": "json_schema", "schema": LOOKUP_SCHEMA}
-                },
-            )
-        except Exception as exc:  # noqa: BLE001
-            print(f"{label}: {exc}", file=sys.stderr)
-            db.save_enrichment(conn, row["id"], status="error", note=str(exc)[:200],
-                               model=MODEL)
-            failed += 1
+    def call(group):
+        return client.messages.create(
+            model=MODEL,
+            max_tokens=8000,
+            system=LOOKUP_SYSTEM,
+            messages=[{"role": "user", "content": _query_for(_richest(group))}],
+            tools=[SEARCH_TOOL],
+            output_config={
+                "format": {"type": "json_schema", "schema": LOOKUP_SCHEMA}
+            },
+        )
+
+    def within_budget() -> bool:
+        # Checked before each submission, never after: a request already sent
+        # is already billed. With `workers` in flight the cap can overshoot by
+        # up to that many lookups, which is reported rather than hidden.
+        nonlocal stopped_early
+        if max_searches is not None and searches >= max_searches:
+            stopped_early = True
+            return False
+        return True
+
+    def write(group, **fields):
+        """Apply one lookup to every row that named the same place.
+
+        Only the row actually searched carries the search count; the others
+        cost nothing, and claiming otherwise would inflate the run total.
+        """
+        for i, row in enumerate(group):
+            db.save_enrichment(conn, row["id"], model=MODEL,
+                               searches=fields.pop("searches", 0) if i == 0
+                               else 0,
+                               **fields)
+
+    done = 0
+    for group, message, error in parallel.imap(call, groups, workers=workers,
+                                               keep_going=within_budget):
+        done += 1
+        name = group[0]["name"]
+        shared = f" (+{len(group) - 1} more post(s))" if len(group) > 1 else ""
+
+        if error is not None:
+            print(f"  {name}: {error}", file=sys.stderr)
+            for row in group:
+                db.save_enrichment(conn, row["id"], status="error",
+                                   note=str(error)[:200], model=MODEL)
+            failed += len(group)
             continue
 
         used = _searches_used(message)
         searches += used
 
-        error = _search_error(message)
-        if error:
-            print(f"{label}: search error ({error})", file=sys.stderr)
-            db.save_enrichment(conn, row["id"], status="error",
-                               note=f"web search: {error}", searches=used,
-                               model=MODEL)
-            failed += 1
+        search_error = _search_error(message)
+        if search_error:
+            print(f"  {name}: search error ({search_error})", file=sys.stderr)
+            for i, row in enumerate(group):
+                db.save_enrichment(conn, row["id"], status="error",
+                                   note=f"web search: {search_error}",
+                                   searches=used if i == 0 else 0, model=MODEL)
+            failed += len(group)
             continue
 
         try:
             data: dict[str, Any] = json.loads(_text_of(message))
         except json.JSONDecodeError:
-            db.save_enrichment(conn, row["id"], status="error",
-                               note="unparseable response", searches=used,
-                               model=MODEL)
-            failed += 1
+            for i, row in enumerate(group):
+                db.save_enrichment(conn, row["id"], status="error",
+                                   note="unparseable response",
+                                   searches=used if i == 0 else 0, model=MODEL)
+            failed += len(group)
             continue
 
         address = (data.get("address") or "").strip()
@@ -380,32 +471,43 @@ def enrich_all(
         verified = _verify(source_url, _searched_urls(message))
 
         if not data.get("found") or not address:
-            db.save_enrichment(conn, row["id"], status="not_found",
-                               note=(data.get("note") or "").strip(),
-                               website=(data.get("website") or "").strip(),
-                               searches=used, model=MODEL)
-            print(f"{label}: not found", file=sys.stderr)
+            for i, row in enumerate(group):
+                db.save_enrichment(conn, row["id"], status="not_found",
+                                   note=(data.get("note") or "").strip(),
+                                   website=(data.get("website") or "").strip(),
+                                   searches=used if i == 0 else 0, model=MODEL)
+            print(f"  {name}: not found{shared}", file=sys.stderr)
             continue
 
         if not verified:
-            unverified += 1
-        found += 1
-        db.save_enrichment(
-            conn, row["id"], address=address,
-            website=(data.get("website") or "").strip(),
-            maps_url=maps_link(row["name"], address),
-            phone=(data.get("phone") or "").strip(),
-            source_url=source_url, verified=verified, status="ok",
-            note=(data.get("note") or "").strip(), searches=used, model=MODEL,
-        )
+            unverified += len(group)
+        found += len(group)
+        for i, row in enumerate(group):
+            db.save_enrichment(
+                conn, row["id"], address=address,
+                website=(data.get("website") or "").strip(),
+                # Built from each row's own name, so a row spelling the place
+                # differently still gets a map link that matches its label.
+                maps_url=maps_link(row["name"], address),
+                phone=(data.get("phone") or "").strip(),
+                source_url=source_url, verified=verified, status="ok",
+                note=(data.get("note") or "").strip(),
+                searches=used if i == 0 else 0, model=MODEL,
+            )
         mark = "" if verified else "  (unverified citation)"
-        print(f"{label}: {address}{mark}", file=sys.stderr)
+        print(f"  {name}: {address}{mark}{shared}", file=sys.stderr)
+        parallel.progress(done, len(groups), "lookups")
 
-    cost = 0.01 * searches
-    done = len(rows) if not stopped_early else found + failed
-    print(f"Looked up {done} places: {found} with an address "
+    if stopped_early:
+        print(f"Stopped at --max-searches {max_searches}; "
+              f"{len(groups) - done} lookup(s) left for next time.",
+              file=sys.stderr)
+
+    print(f"Looked up {found + failed} places in {done} lookup(s): "
+          f"{found} with an address "
           f"({unverified} whose citation could not be verified), {failed} failed.")
-    print(f"{searches} searches, about ${cost:.2f} plus tokens.")
-    return {"looked_up": done, "found": found, "unverified": unverified,
-            "failed": failed, "searches": searches,
-            "stopped_early": stopped_early}
+    print(f"{searches} searches, about ${0.01 * searches:.2f} plus tokens"
+          + (f"; deduping saved about {saved} lookup(s)." if saved else "."))
+    return {"looked_up": found + failed, "found": found,
+            "unverified": unverified, "failed": failed, "searches": searches,
+            "saved_by_dedupe": saved, "stopped_early": stopped_early}
