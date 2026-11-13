@@ -209,11 +209,39 @@ def _render(data: dict, corpus: list[dict], scope: str) -> tuple[str, int, int]:
     return "\n".join(lines), kept, dropped
 
 
+def prepare_out(out: Path) -> Path:
+    """Make the output directory, but only the last component of it.
+
+    `mkdir(parents=True)` on a path like
+    `/Users/<typo>/Desktop/AC Personal/app-security.md` happily builds the
+    whole tree and reports success, leaving the document in a home directory
+    that does not belong to anyone. Creating the final folder is helpful;
+    inventing the path above it hides a typo instead of surfacing it.
+    """
+    parent = out.parent
+    if parent.exists():
+        return out
+    if not parent.parent.exists():
+        raise SystemExit(
+            f"{parent.parent} does not exist, so {parent} looks like a typo "
+            f"rather than a folder to create.\nCheck the path and pass --out "
+            f"again; nothing was written."
+        )
+    parent.mkdir()
+    print(f"Created {parent}", file=sys.stderr)
+    return out
+
+
 def run(
     conn: sqlite3.Connection, cfg: Config, out: Path, *,
     collection: str | None = None, goal: str = "", limit: int | None = None,
     dry_run: bool = False,
 ) -> dict:
+    # Before the API call, not after: an unwritable destination should
+    # cost nothing to discover.
+    if not dry_run:
+        out = prepare_out(out)
+
     corpus = _corpus(conn, collection)
     if limit:
         corpus = corpus[:limit]
@@ -257,7 +285,6 @@ def run(
     data = json.loads(text)
 
     markdown, kept, dropped = _render(data, corpus, scope)
-    out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(markdown, encoding="utf-8")
 
     print(f"{kept} checks from {len(corpus)} posts -> {out}")

@@ -2887,6 +2887,30 @@ def test_digest_schema_meets_the_structured_output_constraints():
     audit(SCHEMA)
 
 
+def test_digest_refuses_to_invent_a_home_directory_from_a_typo():
+    """`mkdir(parents=True)` on /Users/<typo>/Desktop/AC Personal/x.md builds
+    the whole tree and reports success, leaving the document somewhere nobody
+    will look. Creating the last folder is helpful; the ones above it are not."""
+    from ig_saved.digest import prepare_out
+
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        (base / "Desktop").mkdir()
+
+        # The folder exists, or only its last component is missing: fine.
+        assert prepare_out(base / "Desktop" / "out.md").name == "out.md"
+        assert prepare_out(base / "Desktop" / "AC Personal" / "out.md").name == "out.md"
+        assert (base / "Desktop" / "AC Personal").is_dir()
+
+        # A misspelled home directory is a typo, not a folder to create.
+        try:
+            prepare_out(base / "Users" / "typo" / "Desktop" / "AC Personal" / "x.md")
+            raise AssertionError("built a whole tree from a typo")
+        except SystemExit as exc:
+            assert "typo" in str(exc) and "nothing was written" in str(exc)
+        assert not (base / "Users").exists()
+
+
 def _run() -> int:
     tests = [(n, f) for n, f in sorted(globals().items())
              if n.startswith("test_") and callable(f)]
